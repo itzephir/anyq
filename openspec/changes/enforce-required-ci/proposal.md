@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- Разделить CI на lint, build-and-unit-tests и integration-tests с нативной матрицей macOS/Windows/Linux.
+- Разделить CI на lint только на Linux и jobs build-and-unit-tests/integration-tests с нативной матрицей macOS/Windows/Linux.
 - Добавить итоговый CI passed, который требует успех всех категорий, включая ошибку/отмену/пропуск.
 - Защитить default branch: PR, обязательный свежий CI passed, применение к администраторам, запрет force push/удаления и разрешение обсуждений.
 - Сохранить конфигурацию защиты в репозитории и проверить фактические настройки GitHub API.

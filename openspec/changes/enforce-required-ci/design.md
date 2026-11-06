@@ -12,8 +12,8 @@
 
 ## Decisions
 
-- Три matrix jobs: lint (Rustfmt, Clippy, AST, Cargo graph, Ruff, OpenSpec), build-and-unit-tests (cargo build workspace, cargo test --lib --bins с исключением SQLite adapter suite), integration-tests (SQLite adapter suite, CLI workflow suite и переносимый demo). Все категории запускаются на трёх ОС; результат каждой матрицы учитывается итоговым job.
-- CI passed использует always(), needs всех трёх матриц и явную проверку каждого needs.*.result == success. Обычный пропуск зависимого job не подходит: GitHub считает skipped успешным для required checks.
+- Один Linux job lint (Rustfmt, Clippy, AST, Cargo graph, Ruff, OpenSpec) и две нативные матрицы macOS/Windows/Linux: build-and-unit-tests (cargo build workspace, cargo test --lib --bins с исключением SQLite adapter suite), integration-tests (SQLite adapter suite, CLI workflow suite и переносимый demo). Повторять общие линтеры на других ОС не требуется.
+- CI passed использует always(), needs всех трёх категорий и явную проверку каждого needs.*.result == success. Обычный пропуск зависимого job не подходит: GitHub считает skipped успешным для required checks.
 - Workflow запускается на PR и push в main. Branch pushes с открытым PR проверяются событием synchronize, без дублирования push/PR runs. Concurrency отменяет устаревшие запуски одной ветки/PR.
 - Classic branch protection для проверенной default branch main: CI passed только от GitHub Actions, strict up-to-date, enforce_admins, PR с нулём обязательных approvals, conversation resolution, запрет force/deletion и linear history. Squash/rebase должны оставаться доступны. Пользователь не ограничивается требованием чужого review своего личного проекта.
 - Точное тело REST update хранится в .github/branch-protection.json; после применения GET проверяет фактические настройки. Защита сама по себе не является workflow, payload и документация не считаются доказательством её включения.

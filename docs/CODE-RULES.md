@@ -36,13 +36,15 @@ Composition root может хранить явно созданные handles �
 
 ## Проверки
 
-CI на Linux, macOS и Windows проверяет:
+Lint запускается только на Linux и включает следующие проверки:
 
 - Rustfmt — форматирование Rust.
 - Clippy с `-D warnings` — предупреждения и стандартные проверки Rust.
 - AST-линтер `anyq-architecture-lint` — один самостоятельный тип на файл, отсутствие типов в entry points и универсального business dispatcher. Отрицательные fixtures подтверждают, что нарушения отклоняются.
 - `check_architecture.py` — разрешённый Cargo graph, API/impl boundaries, inward dependencies, выделенные roots и отсутствие IO во внутренних слоях.
 - Ruff — lint и форматирование Python tooling/demo.
-- Unit/integration tests, строгую OpenSpec validation и переносимый demo.
+- Строгую OpenSpec validation.
+
+Сборка, unit/integration tests и переносимый demo запускаются нативно на Linux, macOS и Windows в отдельных jobs. Итоговый CI passed требует успеха Linux lint и обеих платформенных матриц.
 
 Не отключать проверку, не исключать неудобный файл и не добавлять blanket allow ради прохождения CI. Узкое техническое исключение, например FFI в Windows process adapter, должно иметь конкретную причину и описание корректности. SRP, SOLID, DRY и KISS дополнительно проверяются по фактическим обязанностям типов и направлению зависимостей при ревью.

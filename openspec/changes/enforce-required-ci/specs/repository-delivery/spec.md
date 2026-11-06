@@ -7,7 +7,11 @@
 ## ADDED Requirements
 
 ### Requirement: Отдельные категории CI
-CI SHALL иметь отдельные jobs lint, build-and-unit-tests и integration-tests, проверяемые нативно на Linux, macOS и Windows. Ошибка одной ОС SHALL не отменять остальные ОС.
+CI SHALL запускать отдельный lint job только на Linux, а build-and-unit-tests и integration-tests — нативно на Linux, macOS и Windows. Ошибка одной ОС SHALL не отменять остальные ОС.
+
+#### Scenario: Один запуск линтеров
+- **WHEN** создан или обновлён PR
+- **THEN** lint запускается один раз на Linux, а сборка и тесты проверяются на трёх ОС
 
 #### Scenario: Падение интеграции
 - **WHEN** integration test падает на Windows
