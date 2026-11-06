@@ -16,8 +16,8 @@
 
 ## 4. Интеграция
 
-- [ ] 4.1 Пройти fmt, clippy, cargo tests, architecture checker, строгую OpenSpec-валидацию и сквозные проверки; создать приватный GitHub, отправить bootstrap и проверить CI.
+- [x] 4.1 Пройти fmt, clippy, cargo tests, architecture checker, строгую OpenSpec-валидацию и сквозные проверки; создать приватный GitHub, отправить bootstrap и проверить CI.
 
 ## Workflow follow-up
 
-- После реализации и проверки архивировать change средствами OpenSpec; незавершённые требования не переносить в базовые specs.
+- После ревью архивировать change средствами OpenSpec; незавершённые требования не переносить в базовые specs.
