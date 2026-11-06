@@ -9,7 +9,8 @@ members = [
   "features/worker/impl/execution",
   "features/worker/impl/process",
   "features/worker/impl/composition",
-  "apps/cli"
+  "apps/cli",
+  "tooling/architecture-lint"
 ]
 
 [workspace.package]

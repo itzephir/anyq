@@ -1,33 +1,33 @@
-use anyq_queue_api::{Queue, Result};
-use anyq_queue_dispatch::{
-    Dispatch,
-    ports::{Clock, Tokens},
-};
+mod queue_module;
+mod system_clock;
+mod uuid_tokens;
+use anyq_queue_api::Result;
+use anyq_queue_dispatch::*;
 use anyq_queue_sqlite::Sqlite;
-use std::{
-    path::Path,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-struct SystemClock;
-impl Clock for SystemClock {
-    fn now_ms(&self) -> i64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
-            .unwrap_or(0)
-    }
-}
-struct UuidTokens;
-impl Tokens for UuidTokens {
-    fn next(&mut self) -> String {
-        uuid::Uuid::new_v4().to_string()
-    }
-}
-pub fn open(path: &Path) -> Result<Box<dyn Queue>> {
-    Ok(Box::new(Dispatch::new(
-        Sqlite::open(path)?,
-        SystemClock,
-        UuidTokens,
-    )))
+pub use queue_module::QueueModule;
+use std::path::Path;
+use system_clock::SystemClock;
+use uuid_tokens::UuidTokens;
+pub fn open(path: &Path) -> Result<QueueModule> {
+    let store = Sqlite::open(path)?;
+    Ok(QueueModule {
+        create_topic: Box::new(CreateTopicInteractor::new(store.clone())),
+        set_topic_capacity: Box::new(SetTopicCapacityInteractor::new(store.clone())),
+        list_topics: Box::new(ListTopicsInteractor::new(store.clone())),
+        get_topic: Box::new(GetTopicInteractor::new(store.clone())),
+        create_consumer_group: Box::new(CreateConsumerGroupInteractor::new(store.clone())),
+        list_consumer_groups: Box::new(ListConsumerGroupsInteractor::new(store.clone())),
+        publish_message: Box::new(PublishMessageInteractor::new(store.clone(), SystemClock)),
+        claim_delivery: Box::new(ClaimDeliveryInteractor::new(
+            store.clone(),
+            SystemClock,
+            UuidTokens,
+        )),
+        renew_lease: Box::new(RenewLeaseInteractor::new(store.clone(), SystemClock)),
+        complete_delivery: Box::new(CompleteDeliveryInteractor::new(store.clone(), SystemClock)),
+        reject_delivery: Box::new(RejectDeliveryInteractor::new(store.clone(), SystemClock)),
+        retry_delivery: Box::new(RetryDeliveryInteractor::new(store.clone(), SystemClock)),
+        inspect_message: Box::new(InspectMessageInteractor::new(store.clone(), SystemClock)),
+        list_messages: Box::new(ListMessagesInteractor::new(store.clone(), SystemClock)),
+    })
 }
