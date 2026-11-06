@@ -1,0 +1,17 @@
+[package]
+name = "anyq-queue-sqlite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-queue-api = { path = "../../api" }
+anyq-queue-dispatch = { path = "../dispatch" }
+rusqlite = { version = "0.38", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

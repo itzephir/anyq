@@ -1,0 +1,9 @@
+{
+  "name": "anyq-spec-tooling",
+  "private": true,
+  "scripts": {
+    "spec": "openspec",
+    "spec:check": "openspec validate --all --strict --no-interactive"
+  },
+  "devDependencies": { "@fission-ai/openspec": "1.16.0" }
+}

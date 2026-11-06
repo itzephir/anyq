@@ -1,0 +1,16 @@
+[package]
+name = "anyq-worker-process"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-worker-api = { path = "../../api" }
+anyq-worker-execution = { path = "../execution" }
+anyq-queue-api = { path = "../../../queue/api" }
+libc = "0.2"
+signal-hook = "0.3"
+
+[lints]
+workspace = true

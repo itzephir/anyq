@@ -1,0 +1,15 @@
+[package]
+name = "anyq-queue-impl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-queue-api = { path = "../../api" }
+anyq-queue-dispatch = { path = "../dispatch" }
+anyq-queue-sqlite = { path = "../sqlite" }
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

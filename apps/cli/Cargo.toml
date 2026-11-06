@@ -1,0 +1,20 @@
+[package]
+name = "anyq"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-queue-api = { path = "../../features/queue/api" }
+anyq-queue-impl = { path = "../../features/queue/impl/composition" }
+anyq-worker-api = { path = "../../features/worker/api" }
+anyq-worker-impl = { path = "../../features/worker/impl/composition" }
+clap = { version = "4.6", features = ["derive", "env"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

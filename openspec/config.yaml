@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Language: Russian
+  All artifacts must be written in Russian.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  anyq is a Rust local topic log and work queue for builds, humans, agents and emulators.
+  Each consumer group independently receives the retained topic stream from the beginning.
+  Consumers within one group compete; delivery state and attempts belong to a message/group pair.
+  Topic capacity is shared across all groups as a local machine resource limit.
+  Follow AGENTS.md and docs/ARCHITECTURE.md: domain features with Cargo api/impl boundaries,
+  inward dependencies, consumer-owned ports, explicit DI and named composition roots.
+  Domain and use cases own selection policy; SQLite only implements passed filters/transactions.
+  Preserve at-least-once semantics, fenced leases and atomic acknowledgement plus follow-up.
+  The runtime needs no server or Node; Node is only pinned OpenSpec development tooling.
+  Do not mark tasks done or archive unverified behavior.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

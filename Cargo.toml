@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = [
+  "features/queue/api",
+  "features/queue/impl/dispatch",
+  "features/queue/impl/sqlite",
+  "features/queue/impl/composition",
+  "features/worker/api",
+  "features/worker/impl/execution",
+  "features/worker/impl/process",
+  "features/worker/impl/composition",
+  "apps/cli"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = "warn"
