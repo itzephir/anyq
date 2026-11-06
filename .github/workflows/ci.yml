@@ -1,11 +1,16 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
-  check:
+  lint:
+    name: Lint (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -18,13 +23,13 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - run: python -m pip install -r tooling/requirements-dev.txt
       - run: python -m ruff check .
       - run: python -m ruff format --check .
@@ -34,6 +39,53 @@ jobs:
       - run: cargo run --locked -p anyq-architecture-lint
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
+  build-and-unit-tests:
+    name: Build & unit tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace --locked
+      - run: cargo test --workspace --lib --bins --exclude anyq-queue-sqlite --locked
+  integration-tests:
+    name: Integration tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: SQLite integration tests
+        run: cargo test --locked -p anyq-queue-sqlite --lib
+      - run: cargo test --locked -p anyq --test workflow
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
+  ci-passed:
+    name: CI passed
+    if: ${{ always() }}
+    needs: [lint, build-and-unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every category to succeed
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          BUILD_RESULT: ${{ needs['build-and-unit-tests'].result }}
+          INTEGRATION_RESULT: ${{ needs['integration-tests'].result }}
+        run: |
+          test "$LINT_RESULT" = success
+          test "$BUILD_RESULT" = success
+          test "$INTEGRATION_RESULT" = success

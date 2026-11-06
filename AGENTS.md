@@ -10,5 +10,6 @@
 - Перед коммитом: cargo fmt --all --check; cargo clippy --workspace --all-targets --locked -- -D warnings; cargo test --workspace --locked; cargo run --locked -p anyq-architecture-lint; python tooling/check_architecture.py; python -m ruff check .; python -m ruff format --check .; npm run spec:check; git diff --check. Полная матрица CI: Linux/macOS/Windows.
 - Команды gh с сетью/авторизацией/Keychain выполнять вне sandbox. Не просить повторную авторизацию на основании ошибки внутри sandbox.
 - Первичный bootstrap допускается в main; следующие изменения через codex/* и PR, без merge по собственной инициативе.
+- Default branch защищена: PR, актуальный CI passed от GitHub Actions, без force push/удаления и admin bypass. Конфигурация — .github/branch-protection.json, категории CI — docs/CI.md. Не отключать защиту ради слияния.
 - Не отмечать непроверенные tasks завершёнными и не переносить незавершённое поведение в базовые specs. Пользовательский запрос на реализацию разрешает полный workflow OpenSpec, включая инициализацию в новом проекте.
 - Не добавлять служебные даты обновления документов. Для будущего UI читать /Users/ephir/.codex/design/personal-projects.md.
