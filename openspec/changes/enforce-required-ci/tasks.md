@@ -2,7 +2,7 @@
 
 ## 1. Workflow
 
-- [ ] 1.1 Разделить lint, build-and-unit-tests и integration-tests, добавить итоговый gate с fail-closed проверкой результатов и описать категории; проверить успешный полный CI на трёх ОС.
+- [x] 1.1 Разделить lint, build-and-unit-tests и integration-tests, добавить итоговый gate с fail-closed проверкой результатов и описать категории; проверить успешный полный CI на трёх ОС.
 
 ## 2. Защита ветки
 
