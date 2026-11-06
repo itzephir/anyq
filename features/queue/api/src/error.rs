@@ -17,8 +17,10 @@ impl fmt::Display for Error {
             Self::Invalid(s) | Self::NotFound(s) | Self::Conflict(s) | Self::Storage(s) => {
                 f.write_str(s)
             }
+
             Self::LeaseLost => f.write_str("lease expired, replaced, or already completed"),
         }
     }
 }
+
 impl std::error::Error for Error {}

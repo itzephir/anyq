@@ -3,6 +3,7 @@ use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
+
 #[derive(Clone, Default)]
 pub struct Trace {
     pub stopped: Rc<Cell<bool>>,

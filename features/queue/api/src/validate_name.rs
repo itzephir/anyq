@@ -11,5 +11,6 @@ pub fn validate_name(value: &str) -> Result<()> {
             "names must contain 1..128 ASCII letters, digits, '-', '_' or '.'".into(),
         ));
     }
+
     Ok(())
 }

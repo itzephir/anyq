@@ -1,5 +1,6 @@
 use anyq_queue_api::Claim;
 use clap::Args;
+
 #[derive(Args)]
 pub struct ClaimArgs {
     pub topic: String,
@@ -10,6 +11,7 @@ pub struct ClaimArgs {
     #[arg(long, default_value_t = 60000)]
     pub lease_ms: i64,
 }
+
 impl ClaimArgs {
     pub fn domain(self) -> Claim {
         Claim {

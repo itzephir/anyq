@@ -1,7 +1,9 @@
 use anyq_queue_dispatch::ports::Tokens;
 use std::{cell::Cell, rc::Rc};
+
 #[derive(Clone, Default)]
 pub struct Sequence(pub Rc<Cell<u32>>);
+
 impl Tokens for Sequence {
     fn next(&mut self) -> String {
         self.0.set(self.0.get() + 1);

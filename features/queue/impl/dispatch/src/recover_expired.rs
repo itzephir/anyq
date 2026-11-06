@@ -12,10 +12,12 @@ pub(crate) fn recover_expired(
         expired_at: Some(now),
         ..Default::default()
     })?;
+
     for mut d in expired {
         if d.expire(now) {
             records.deliveries().put_delivery(&d)?;
         }
     }
+
     Ok(())
 }

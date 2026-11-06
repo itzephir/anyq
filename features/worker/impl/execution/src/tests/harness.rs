@@ -3,13 +3,16 @@ use super::{
     renew_stub::RenewStub, settings, test_runner::TestRunner, test_wait::TestWait,
     topic_stub::TopicStub, trace::Trace,
 };
+
 use crate::{Execution, ExecutionPorts};
 use anyq_queue_api::{Publish, Result};
 use std::collections::VecDeque;
+
 pub struct Harness {
     pub worker: Execution<TestRunner, TestWait>,
     pub trace: Trace,
 }
+
 impl Harness {
     pub fn new(
         polls: VecDeque<Result<Option<i32>>>,
@@ -28,6 +31,7 @@ impl Harness {
             reject: Box::new(RejectionSpy(trace.clone())),
             topics: Box::new(TopicStub),
         };
+
         let mut config = settings();
         config.next = next;
         let worker = Execution::new(

@@ -11,6 +11,7 @@ pub(crate) fn message_view(
         group,
         ..Default::default()
     })?;
+
     Ok(MessageView {
         message,
         deliveries,

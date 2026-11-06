@@ -13,10 +13,12 @@ fn standalone_types(items: &[Item], names: &mut Vec<String>) {
                     standalone_types(items, names);
                 }
             }
+
             _ => {}
         }
     }
 }
+
 fn path_ends_with(ty: &Type, name: &str) -> bool {
     match ty {
         Type::Path(path) => path
@@ -28,6 +30,7 @@ fn path_ends_with(ty: &Type, name: &str) -> bool {
         _ => false,
     }
 }
+
 fn is_universal_signature(signature: &syn::Signature) -> bool {
     signature.ident == "execute"
         && (signature
@@ -36,6 +39,7 @@ fn is_universal_signature(signature: &syn::Signature) -> bool {
             .any(|arg| matches!(arg,syn::FnArg::Typed(arg) if path_ends_with(&arg.ty,"Command")))
             || matches!(&signature.output,ReturnType::Type(_,ty) if path_ends_with(ty,"Output")))
 }
+
 fn is_universal_dispatcher(item: &Item) -> bool {
     match item {
         Item::Trait(item) => item.items.iter().any(
@@ -52,11 +56,13 @@ fn is_universal_dispatcher(item: &Item) -> bool {
         _ => false,
     }
 }
+
 pub fn lint_source(path: &Path, source: &str) -> Result<Vec<String>, syn::Error> {
     let syntax = syn::parse_file(source)?;
     let mut names = Vec::new();
     standalone_types(&syntax.items, &mut names);
     let mut errors = Vec::new();
+
     if names.len() > 1 {
         errors.push(format!(
             "{}: one standalone struct/enum/trait per file; found {}",
@@ -64,6 +70,7 @@ pub fn lint_source(path: &Path, source: &str) -> Result<Vec<String>, syn::Error>
             names.join(", ")
         ));
     }
+
     if !names.is_empty()
         && path
             .file_name()
@@ -74,18 +81,21 @@ pub fn lint_source(path: &Path, source: &str) -> Result<Vec<String>, syn::Error>
             path.display()
         ));
     }
+
     if syntax.items.iter().any(is_universal_dispatcher) {
         errors.push(format!(
             "{}: replace universal execute(Command)/Output with focused typed use-case contracts",
             path.display()
         ));
     }
+
     Ok(errors)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn rejects_multiple_standalone_types_and_inline_module_bypass() {
         for source in [
@@ -100,6 +110,7 @@ mod tests {
             );
         }
     }
+
     #[test]
     fn permits_owner_implementations_and_function_local_helpers() {
         assert!(
@@ -111,6 +122,7 @@ mod tests {
             .is_empty()
         );
     }
+
     #[test]
     fn rejects_universal_dispatcher_and_types_in_entry_points() {
         assert!(

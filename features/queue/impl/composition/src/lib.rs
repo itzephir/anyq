@@ -1,6 +1,7 @@
 mod queue_module;
 mod system_clock;
 mod uuid_tokens;
+
 use anyq_queue_api::Result;
 use anyq_queue_dispatch::*;
 use anyq_queue_sqlite::Sqlite;
@@ -8,8 +9,10 @@ pub use queue_module::QueueModule;
 use std::path::Path;
 use system_clock::SystemClock;
 use uuid_tokens::UuidTokens;
+
 pub fn open(path: &Path) -> Result<QueueModule> {
     let store = Sqlite::open(path)?;
+
     Ok(QueueModule {
         create_topic: Box::new(CreateTopicInteractor::new(store.clone())),
         set_topic_capacity: Box::new(SetTopicCapacityInteractor::new(store.clone())),

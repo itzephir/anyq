@@ -7,20 +7,24 @@ pub struct InspectMessageInteractor<S, C> {
     store: S,
     clock: C,
 }
+
 impl<S, C> InspectMessageInteractor<S, C> {
     pub fn new(store: S, clock: C) -> Self {
         Self { store, clock }
     }
 }
+
 impl<S: Store, C: Clock> InspectMessage for InspectMessageInteractor<S, C> {
     fn inspect(&mut self, message_id: i64) -> Result<MessageView> {
         let clock = &self.clock;
+
         self.store.transaction(|records| {
             let now = clock.now_ms();
             let message = records
                 .messages()
                 .message(message_id)?
                 .ok_or_else(|| Error::NotFound("message does not exist".into()))?;
+
             recover_expired(records, Some(message.topic.clone()), now)?;
             message_view(records, message, None)
         })

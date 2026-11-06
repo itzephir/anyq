@@ -1,4 +1,5 @@
 use anyq_queue_api::{ClaimDelivery, CompleteDelivery, GetTopic, RejectDelivery, RenewLease};
+
 /// Explicit composition-root dependencies, each exposing only one scenario.
 pub struct WorkerDependencies {
     pub claim: Box<dyn ClaimDelivery>,

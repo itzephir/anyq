@@ -16,5 +16,6 @@ pub(crate) fn require_group(
             "group '{name}' does not exist in '{topic_name}'"
         )));
     }
+
     Ok(())
 }

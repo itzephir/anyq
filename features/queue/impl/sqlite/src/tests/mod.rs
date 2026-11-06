@@ -1,5 +1,6 @@
 mod sequence;
 mod test_clock;
+
 use super::*;
 use anyq_queue_api::*;
 use anyq_queue_dispatch::*;
@@ -9,7 +10,9 @@ use std::{
     sync::{Arc, Barrier},
     thread,
 };
+
 use test_clock::TestClock;
+
 fn publish(store: &Sqlite, clock: &TestClock, topic: &str, key: &str) -> Message {
     PublishMessageInteractor::new(store.clone(), clock.clone())
         .publish(Publish {
@@ -20,6 +23,7 @@ fn publish(store: &Sqlite, clock: &TestClock, topic: &str, key: &str) -> Message
         })
         .unwrap()
 }
+
 fn group(store: &Sqlite, name: &str) {
     CreateConsumerGroupInteractor::new(store.clone())
         .create(ConsumerGroup {
@@ -28,6 +32,7 @@ fn group(store: &Sqlite, name: &str) {
         })
         .unwrap();
 }
+
 fn claim(store: &Sqlite, clock: &TestClock, tokens: &Sequence, group: &str) -> Option<Assignment> {
     ClaimDeliveryInteractor::new(store.clone(), clock.clone(), tokens.clone())
         .claim(Claim {
@@ -38,11 +43,13 @@ fn claim(store: &Sqlite, clock: &TestClock, tokens: &Sequence, group: &str) -> O
         })
         .unwrap()
 }
+
 fn topic(store: &Sqlite, name: &str) {
     CreateTopicInteractor::new(store.clone())
         .create(Topic::new(name.into(), 1).unwrap())
         .unwrap();
 }
+
 fn list(store: &Sqlite, clock: &TestClock, topic: Option<String>) -> Vec<MessageView> {
     ListMessagesInteractor::new(store.clone(), clock.clone())
         .list(MessageQuery {
@@ -53,6 +60,7 @@ fn list(store: &Sqlite, clock: &TestClock, topic: Option<String>) -> Vec<Message
         })
         .unwrap()
 }
+
 #[test]
 fn persistence_groups_expiry_and_atomic_handoff() {
     let dir = tempfile::tempdir().unwrap();
@@ -63,10 +71,14 @@ fn persistence_groups_expiry_and_atomic_handoff() {
     topic(&store, "builds");
     group(&store, "builders");
     let published = publish(&store, &clock, "builds", "once");
+
     drop(store);
     let store = Sqlite::open(&path).unwrap();
+
     assert_eq!(published, publish(&store, &clock, "builds", "once"));
+
     let a = claim(&store, &clock, &tokens, "builders").unwrap();
+
     assert!(
         CompleteDeliveryInteractor::new(store.clone(), clock.clone())
             .complete(CompleteDeliveryRequest {
@@ -84,8 +96,11 @@ fn persistence_groups_expiry_and_atomic_handoff() {
     RenewLeaseInteractor::new(store.clone(), clock.clone())
         .renew(a.lease(), 100)
         .unwrap();
+
     clock.0.set(100);
+
     let b = claim(&store, &clock, &tokens, "builders").unwrap();
+
     assert_eq!(b.delivery.attempts, 2);
     assert_eq!(
         CompleteDeliveryInteractor::new(store.clone(), clock.clone()).complete(
@@ -97,6 +112,7 @@ fn persistence_groups_expiry_and_atomic_handoff() {
         ),
         Err(Error::LeaseLost)
     );
+
     topic(&store, "emulator");
     CompleteDeliveryInteractor::new(store.clone(), clock.clone())
         .complete(CompleteDeliveryRequest {
@@ -110,12 +126,16 @@ fn persistence_groups_expiry_and_atomic_handoff() {
             }),
         })
         .unwrap();
+
     group(&store, "audit");
+
     let audit = claim(&store, &clock, &tokens, "audit").unwrap();
+
     assert_eq!(a.message.id, audit.message.id);
     assert_eq!(audit.delivery.attempts, 1);
     assert_eq!(list(&store, &clock, Some("emulator".into())).len(), 1);
 }
+
 #[test]
 fn sql_failure_rolls_back_both_sides_of_handoff() {
     let store = Sqlite::open(Path::new(":memory:")).unwrap();
@@ -124,7 +144,9 @@ fn sql_failure_rolls_back_both_sides_of_handoff() {
     topic(&store, "builds");
     group(&store, "builders");
     publish(&store, &clock, "builds", "once");
+
     let a = claim(&store, &clock, &Sequence::default(), "builders").unwrap();
+
     assert!(
         CompleteDeliveryInteractor::new(store.clone(), clock.clone())
             .complete(CompleteDeliveryRequest {
@@ -139,10 +161,13 @@ fn sql_failure_rolls_back_both_sides_of_handoff() {
             })
             .is_err()
     );
+
     let messages = list(&store, &clock, None);
+
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].deliveries[0].state, State::Running);
 }
+
 #[test]
 fn independent_connections_never_exceed_capacity() {
     let dir = tempfile::tempdir().unwrap();
@@ -151,9 +176,11 @@ fn independent_connections_never_exceed_capacity() {
     let clock = TestClock::default();
     topic(&store, "builds");
     group(&store, "builders");
+
     for i in 0..8 {
         publish(&store, &clock, "builds", &i.to_string());
     }
+
     drop(store);
     let barrier = Arc::new(Barrier::new(8));
     let handles: Vec<_> = (0..8)
@@ -173,6 +200,7 @@ fn independent_connections_never_exceed_capacity() {
             })
         })
         .collect();
+
     assert_eq!(
         handles
             .into_iter()
@@ -181,6 +209,7 @@ fn independent_connections_never_exceed_capacity() {
         1
     );
 }
+
 #[test]
 fn future_schema_is_rejected() {
     let dir = tempfile::tempdir().unwrap();
@@ -188,5 +217,6 @@ fn future_schema_is_rejected() {
     let connection = rusqlite::Connection::open(&path).unwrap();
     connection.pragma_update(None, "user_version", 99).unwrap();
     drop(connection);
+
     assert!(Sqlite::open(&path).is_err());
 }

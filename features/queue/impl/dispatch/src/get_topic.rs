@@ -5,11 +5,13 @@ use anyq_queue_api::*;
 pub struct GetTopicInteractor<S> {
     store: S,
 }
+
 impl<S> GetTopicInteractor<S> {
     pub fn new(store: S) -> Self {
         Self { store }
     }
 }
+
 impl<S: Store> GetTopic for GetTopicInteractor<S> {
     fn get(&mut self, name: &str) -> Result<Topic> {
         self.store

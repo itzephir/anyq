@@ -6,6 +6,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 pub(crate) struct SqliteTopics<'a> {
     pub connection: &'a Connection,
 }
+
 impl TopicRecords for SqliteTopics<'_> {
     fn topics(&mut self) -> Result<Vec<Topic>> {
         let mut s = self
@@ -22,6 +23,7 @@ impl TopicRecords for SqliteTopics<'_> {
         .collect::<rusqlite::Result<_>>()
         .map_err(storage)
     }
+
     fn topic(&mut self, name: &str) -> Result<Option<Topic>> {
         self.connection
             .query_row(
@@ -37,8 +39,10 @@ impl TopicRecords for SqliteTopics<'_> {
             .optional()
             .map_err(storage)
     }
+
     fn put_topic(&mut self, t: &Topic) -> Result<()> {
         self.connection.execute("INSERT INTO topics(name, capacity) VALUES (?1,?2) ON CONFLICT(name) DO UPDATE SET capacity=excluded.capacity", params![t.name,t.capacity]).map_err(storage)?;
+
         Ok(())
     }
 }

@@ -1,5 +1,6 @@
 use anyq_queue_api::Lease;
 use clap::Args;
+
 #[derive(Args)]
 pub struct LeaseArgs {
     pub message_id: i64,
@@ -8,6 +9,7 @@ pub struct LeaseArgs {
     #[arg(long)]
     pub token: String,
 }
+
 impl LeaseArgs {
     pub fn domain(self) -> Lease {
         Lease {

@@ -5,6 +5,7 @@ pub struct Assignment {
     pub message: Message,
     pub delivery: Delivery,
 }
+
 impl Assignment {
     pub fn lease(&self) -> Lease {
         Lease {

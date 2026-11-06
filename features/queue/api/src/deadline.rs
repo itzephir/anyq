@@ -6,6 +6,7 @@ pub fn deadline(now: i64, duration_ms: i64) -> Result<i64> {
             "duration must be in 1..86400000 milliseconds".into(),
         ));
     }
+
     now.checked_add(duration_ms)
         .ok_or_else(|| Error::Invalid("timestamp overflow".into()))
 }

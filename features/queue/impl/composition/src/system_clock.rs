@@ -1,6 +1,8 @@
 use anyq_queue_dispatch::ports::Clock;
 use std::time::{SystemTime, UNIX_EPOCH};
+
 pub(crate) struct SystemClock;
+
 impl Clock for SystemClock {
     fn now_ms(&self) -> i64 {
         SystemTime::now()

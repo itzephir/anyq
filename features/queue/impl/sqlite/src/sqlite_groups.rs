@@ -6,6 +6,7 @@ use rusqlite::{Connection, params};
 pub(crate) struct SqliteGroups<'a> {
     pub connection: &'a Connection,
 }
+
 impl GroupRecords for SqliteGroups<'_> {
     fn groups(&mut self, topic: &str) -> Result<Vec<ConsumerGroup>> {
         let mut s = self
@@ -22,6 +23,7 @@ impl GroupRecords for SqliteGroups<'_> {
         .collect::<rusqlite::Result<_>>()
         .map_err(storage)
     }
+
     fn insert_group(&mut self, g: &ConsumerGroup) -> Result<()> {
         self.connection
             .execute(
@@ -29,6 +31,7 @@ impl GroupRecords for SqliteGroups<'_> {
                 params![g.topic, g.name],
             )
             .map_err(storage)?;
+
         Ok(())
     }
 }

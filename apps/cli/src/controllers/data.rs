@@ -2,6 +2,7 @@ use super::json::json;
 use anyq_queue_api::{Error, Result};
 use clap::Args;
 use std::{io::Read, path::PathBuf};
+
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 pub struct Data {
@@ -24,6 +25,7 @@ impl Data {
             } else {
                 Box::new(std::fs::File::open(file).map_err(|e| Error::Invalid(e.to_string()))?)
             };
+
             let mut raw = String::new();
             source
                 .by_ref()
@@ -32,11 +34,13 @@ impl Data {
                 .map_err(|e| Error::Invalid(e.to_string()))?;
             raw
         };
+
         if raw.len() > 1_048_576 {
             return Err(Error::Invalid(
                 "payload exceeds 1 MiB; put large artifacts in files and publish paths".into(),
             ));
         }
+
         json(&raw)
     }
 }

@@ -2,6 +2,7 @@ use super::{ClaimArgs, Next};
 use anyq_queue_api::Result;
 use anyq_worker_api::Settings;
 use clap::Args;
+
 #[derive(Args)]
 pub struct WorkerArgs {
     #[command(flatten)]
@@ -17,6 +18,7 @@ pub struct WorkerArgs {
     #[arg(last=true, required=true, num_args=1..)]
     pub command: Vec<String>,
 }
+
 impl WorkerArgs {
     pub fn domain(self) -> Result<(Settings, Vec<String>, bool)> {
         Ok((

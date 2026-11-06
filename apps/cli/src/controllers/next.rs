@@ -1,6 +1,7 @@
 use super::json::json;
 use anyq_queue_api::{Error, Publish, Result};
 use clap::Args;
+
 #[derive(Args)]
 pub struct Next {
     #[arg(long, requires = "next_payload")]
@@ -10,6 +11,7 @@ pub struct Next {
     #[arg(long, requires = "next_topic")]
     pub next_key: Option<String>,
 }
+
 impl Next {
     pub fn domain(self) -> Result<Option<Publish>> {
         match (self.next_topic, self.next_payload) {

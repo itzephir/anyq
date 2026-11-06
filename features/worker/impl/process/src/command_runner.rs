@@ -6,17 +6,21 @@ use std::{
     process::{Command, Stdio},
     thread,
 };
+
 pub struct CommandRunner {
     command: Vec<String>,
 }
+
 impl CommandRunner {
     pub fn new(command: Vec<String>) -> Result<Self> {
         if command.first().is_none_or(|s| s.is_empty()) {
             return Err(Error::Invalid("worker command is required after --".into()));
         }
+
         Ok(Self { command })
     }
 }
+
 impl Runner for CommandRunner {
     fn start(&mut self, a: &Assignment) -> Result<Box<dyn Process>> {
         let mut cmd = Command::new(&self.command[0]);
@@ -41,6 +45,7 @@ impl Runner for CommandRunner {
                 let _ = pipe.write_all(payload.as_bytes());
             }
         });
+
         Ok(Box::new(ManagedProcess { tree }))
     }
 }

@@ -1,9 +1,12 @@
 mod controllers;
+
 mod presenters;
+
 use anyq_queue_api::{
     CompleteDeliveryRequest, ConsumerGroup, Error, MessageQuery, Publish, RejectDeliveryRequest,
     Result, Topic,
 };
+
 use anyq_worker_api::Run;
 use clap::Parser;
 use controllers::{Cli, Commands};
@@ -12,6 +15,7 @@ use std::{io::Write, path::PathBuf, process::ExitCode};
 fn emit(value: serde_json::Value) -> Result<()> {
     writeln!(std::io::stdout().lock(), "{value}").map_err(|e| Error::Storage(e.to_string()))
 }
+
 fn default_db() -> Result<PathBuf> {
     #[cfg(windows)]
     let data = std::env::var_os("LOCALAPPDATA")
@@ -24,17 +28,22 @@ fn default_db() -> Result<PathBuf> {
         .ok_or_else(|| {
             Error::Invalid("set ANYQ_DB or --db: HOME and XDG_DATA_HOME are unavailable".into())
         })?;
+
     Ok(data.join("anyq/queue.db"))
 }
+
 fn run(cli: Cli) -> Result<u8> {
     let path = match cli.db {
         Some(p) => p,
         None => default_db()?,
     };
+
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| Error::Storage(e.to_string()))?;
     }
+
     let mut cases = anyq_queue_impl::open(&path)?;
+
     match cli.command {
         Commands::Worker(args) => {
             let (settings, command, once) = args.domain()?;
@@ -45,15 +54,20 @@ fn run(cli: Cli) -> Result<u8> {
                 reject: cases.reject_delivery,
                 topics: cases.get_topic,
             };
+
             let mut worker = anyq_worker_impl::create(dependencies, command, settings)?;
+
             loop {
                 let result = worker.run_one()?;
+
                 if once || result != Run::Idle {
                     emit(presenters::run(result))?;
                 }
+
                 if result == Run::Stopped || worker.stopped() {
                     return Ok(130);
                 }
+
                 if once {
                     return Ok(if matches!(result, Run::Failed(_)) {
                         1
@@ -61,25 +75,31 @@ fn run(cli: Cli) -> Result<u8> {
                         0
                     });
                 }
+
                 if result == Run::Idle {
                     worker.idle();
                 }
             }
         }
+
         command => {
             emit(route(command, &mut cases)?)?;
+
             Ok(0)
         }
     }
 }
+
 fn route(command: Commands, cases: &mut anyq_queue_impl::QueueModule) -> Result<serde_json::Value> {
     use controllers::json::json;
     use controllers::{Groups, Jobs, Topics};
     use serde_json::json as value;
+
     Ok(match command {
         Commands::Topic(Topics::Create { name, capacity }) => {
             presenters::topic(&cases.create_topic.create(Topic::new(name, capacity)?)?)
         }
+
         Commands::Topic(Topics::Capacity { name, capacity }) => presenters::topic(
             &cases
                 .set_topic_capacity
@@ -120,6 +140,7 @@ fn route(command: Commands, cases: &mut anyq_queue_impl::QueueModule) -> Result<
         Commands::Claim(args) => {
             presenters::assignment(&cases.claim_delivery.claim(args.domain())?)
         }
+
         Commands::Ack {
             lease,
             result,
@@ -131,6 +152,7 @@ fn route(command: Commands, cases: &mut anyq_queue_impl::QueueModule) -> Result<
                 next: next.domain()?,
             })?)
         }
+
         Commands::Nack {
             lease,
             reason,
@@ -143,12 +165,15 @@ fn route(command: Commands, cases: &mut anyq_queue_impl::QueueModule) -> Result<
         Commands::Renew { lease, lease_ms } => {
             presenters::delivery(&cases.renew_lease.renew(lease.domain(), lease_ms)?)
         }
+
         Commands::Retry { message_id, group } => {
             presenters::delivery(&cases.retry_delivery.retry(message_id, group)?)
         }
+
         Commands::Jobs(Jobs::Show { message_id }) => {
             presenters::view(&cases.inspect_message.inspect(message_id)?)
         }
+
         Commands::Jobs(Jobs::List {
             topic,
             group,
