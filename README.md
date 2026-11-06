@@ -6,14 +6,14 @@
 
 ## Установка
 
-Нужны Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются macOS и Linux.
+Нужны Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются macOS, Linux и Windows (MSVC; нужны Visual Studio Build Tools с C++).
 
 ```bash
 cargo install --path apps/cli --locked
 anyq --help
 ```
 
-По умолчанию база — `$XDG_DATA_HOME/anyq/queue.db` или `~/.local/share/anyq/queue.db`. `ANYQ_DB` и `--db` переопределяют путь. Все участники очереди должны указывать один файл. Отдельного фонового брокера нет.
+По умолчанию база на Unix — `$XDG_DATA_HOME/anyq/queue.db` или `~/.local/share/anyq/queue.db`, на Windows — `%LOCALAPPDATA%\anyq\queue.db`. `ANYQ_DB` и `--db` переопределяют путь. Все участники очереди должны указывать один файл. Отдельного фонового брокера нет.
 
 ## Сборка → эмулятор
 
@@ -48,7 +48,7 @@ anyq worker emulator-use --group emulator-tests --consumer emulator-1 \
 
 ```bash
 cargo build --locked -p anyq
-bash examples/demo.sh
+python examples/demo.py
 ```
 
 ## Агент или человек как consumer
@@ -100,29 +100,43 @@ anyq retry 1 --group builders
 
 Команда получает JSON на stdin и переменные `ANYQ_MESSAGE_ID`, `ANYQ_TOPIC`, `ANYQ_GROUP`, `ANYQ_CONSUMER`, `ANYQ_ATTEMPT`. Lease token остаётся у worker. stdout/stderr команды направлены в stderr worker; stdout CLI содержит JSON, по одной записи на строку. Пустой claim возвращает `null`.
 
-Коды выхода: `0` — успех или отсутствие работы, `1` — неуспех команды в режиме once, `2` — неверные аргументы/ошибка очереди, `130` — остановка worker сигналом SIGINT/SIGTERM. Ошибки очереди — JSON в stderr. `--poll-ms` задаёт ожидание пустой очереди, `--retry-delay-ms` — задержку повторной попытки. Worker продлевает lease примерно каждые `min(lease / 3, 1 сек)`; минимальный lease worker — 300 ms.
+Коды выхода: `0` — успех или отсутствие работы, `1` — неуспех команды в режиме once, `2` — неверные аргументы/ошибка очереди, `130` — остановка worker сигналом SIGINT/SIGTERM или консольным прерыванием Windows. Ошибки очереди — JSON в stderr. `--poll-ms` задаёт ожидание пустой очереди, `--retry-delay-ms` — задержку повторной попытки. Worker продлевает lease примерно каждые `min(lease / 3, 1 сек)`; минимальный lease worker — 300 ms.
 
-SIGINT/SIGTERM останавливает группу процессов команды и возвращает доставку. При обнаруженной потере lease worker также останавливает группу процессов и не подтверждает результат. Завершившаяся команда не должна оставлять фоновые процессы: worker завершает оставшихся потомков в её process group.
+На macOS/Linux SIGINT/SIGTERM останавливает группу процессов команды и возвращает доставку. На Windows Ctrl+C/Ctrl+Break останавливает дерево команды через Job Object; bash/WSL не нужны. При обнаруженной потере lease worker также останавливает группу процессов и не подтверждает результат. Завершившаяся команда не должна оставлять фоновые процессы: worker завершает оставшихся потомков в её process group.
 
 ## Гарантии и ограничения
 
 - Публикация, group replay, claim и ack со следующим этапом атомарны между локальными процессами. Хранилище — SQLite WAL, synchronous FULL, ожидание блокировки до 5 секунд.
 - Доставка — **at least once**. Команды должны учитывать повтор внешнего действия после сбоя. Если два независимых group consumers оба публикуют следующий этап, будут два сообщения; общий `--next-key` позволяет намеренно дедуплицировать их.
-- Lease защищает состояние очереди. SIGKILL, остановка ОС или скачок системного времени могут оставить внешнюю команду живой до повторной выдачи. Для физически эксклюзивного эмулятора при таком сбое нужна проверка оставшегося процесса. Exactly-once и аппаратное fencing не заявляются.
+- Lease защищает состояние очереди. На Unix SIGKILL, остановка ОС или скачок системного времени могут оставить внешнюю команду живой до повторной выдачи. На Windows закрытие job handle при завершении worker убивает управляемых потомков. Для физически эксклюзивного эмулятора при таком сбое нужна проверка оставшегося процесса. Exactly-once и аппаратное fencing не заявляются.
 - История сообщений и конечные состояния сохраняются без автоматической очистки. Просмотр/захват/ручной retry восстанавливает истёкшие leases; фонового reaper нет. Это поток с независимыми группами, без Kafka-протокола, partitions и offset API.
 - База предназначена для локального диска, не NFS. Для резервного копирования остановите workers и используйте SQLite `.backup`; простое копирование одного файла при активном WAL недостаточно. Неизвестная версия схемы отклоняется.
 
 ## Разработка
 
-Архитектура и владельцы правил — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Работа ведётся через [OpenSpec change](openspec/changes/build-local-queue/): proposal, specs, design, tasks. `api`/`impl` — отдельные Cargo crates, домен не зависит от SQLite/CLI/процессов.
+Правила кода — [docs/CODE-RULES.md](docs/CODE-RULES.md), архитектура и владельцы правил — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Работа ведётся через [OpenSpec change](openspec/changes/build-local-queue/): proposal, specs, design, tasks. `api`/`impl` — отдельные Cargo crates, домен не зависит от SQLite/CLI/процессов.
 
 ```bash
 npm ci --ignore-scripts
 npm run spec:check
-python3 tooling/check_architecture.py
+python tooling/check_architecture.py
+cargo run --locked -p anyq-architecture-lint
+python -m pip install -r tooling/requirements-dev.txt
+python -m ruff check .
+python -m ruff format --check .
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```
 
-Node нужен только для закреплённого OpenSpec CLI 1.16.0. Python 3.11+ нужен для архитектурной проверки. CI выполняет эти проверки на Linux и macOS. Тесты запускают команды-имитации; реальные тяжёлые продукты и конкретные эмуляторы подключаются пользовательскими командами.
+Node нужен только для закреплённого OpenSpec CLI 1.16.0. Python 3.11+ нужен для архитектурной проверки. CI выполняет эти проверки на Linux, macOS и Windows. Тесты запускают команды-имитации; реальные тяжёлые продукты и конкретные эмуляторы подключаются пользовательскими командами.
+
+CI разделён на lint, build/unit tests и integration tests; итоговый `CI passed` обязателен для слияния в защищённую `main`. Настройки и повторное применение защиты описаны в [docs/CI.md](docs/CI.md).
+
+Нативный Windows worker можно запускать из PowerShell с явно выбранным интерпретатором:
+
+```powershell
+anyq worker large-builds --group builders --consumer windows-build -- powershell.exe -NoProfile -File C:\project\build.ps1
+```
+
+Контракты сценариев очереди типизированы отдельно; универсального `execute(Command) -> Output` нет. Правило одного самостоятельного типа на файл проверяет Rust AST-линтер, а остальные границы — Cargo и архитектурная проверка.

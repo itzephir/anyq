@@ -1,0 +1,12 @@
+[package]
+name = "anyq-architecture-lint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+syn = { version = "2", features = ["full"] }
+
+[lints]
+workspace = true
