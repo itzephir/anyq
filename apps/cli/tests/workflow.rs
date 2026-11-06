@@ -19,6 +19,41 @@ fn fixture_process() {
     fixture::run();
 }
 
+#[cfg(unix)]
+#[test]
+fn exited_child_is_accepted_before_it_is_reaped() {
+    use std::io::Read;
+
+    let args = fixture::arguments();
+    let mut child = Command::new(&args[0])
+        .args(&args[1..])
+        .env("ANYQ_FIXTURE_MODE", "exit")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+
+    // EOF synchronizes with the child closing its output without reaping it.
+    // Keep wait() after the assertion: the old kill -0 implementation timed out.
+    child
+        .stdout
+        .take()
+        .unwrap()
+        .read_to_end(&mut Vec::new())
+        .unwrap();
+
+    let pid = child.id();
+    let result = std::panic::catch_unwind(|| assert_exited(pid));
+    let status = child.wait().unwrap();
+
+    assert!(status.success());
+    assert!(
+        result.is_ok(),
+        "a terminated child must not require reaping first"
+    );
+    assert_exited(pid);
+}
+
 #[test]
 fn automatic_build_to_emulator_and_late_group_replay() {
     let q = Queue::new();

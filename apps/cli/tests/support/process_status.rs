@@ -5,12 +5,25 @@ use std::{
 
 #[cfg(unix)]
 fn alive(pid: u32) -> bool {
-    std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .unwrap()
-        .success()
+    let output = std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .output()
+        .expect("failed to inspect process state with ps");
+    let state = std::str::from_utf8(&output.stdout)
+        .expect("ps returned a non-UTF-8 process state")
+        .trim();
+
+    // Both procps (Linux) and BSD ps (macOS) exit with 1 for an absent PID.
+    let absent = output.status.code() == Some(1) && state.is_empty() && output.stderr.is_empty();
+
+    assert!(
+        output.status.success() || absent,
+        "failed to inspect process {pid}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // A zombie retains its PID until reaped, but no longer executes any code.
+    !state.is_empty() && !state.starts_with(['Z', 'X'])
 }
 
 #[cfg(windows)]
@@ -45,5 +58,13 @@ pub fn assert_exited(pid: u32) {
             "process {pid} survived worker cleanup"
         );
         thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn current_process_is_alive() {
+        assert!(super::alive(std::process::id()));
     }
 }

@@ -34,6 +34,7 @@ pub fn run() {
     };
 
     match mode.as_str() {
+        "exit" => {}
         "echo" => {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input).unwrap();
