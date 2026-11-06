@@ -114,7 +114,7 @@ anyq retry 1 --group builders
 
 ## Разработка
 
-Правила кода — [docs/CODE-RULES.md](docs/CODE-RULES.md), архитектура и владельцы правил — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Работа ведётся через [OpenSpec change](openspec/changes/build-local-queue/): proposal, specs, design, tasks. `api`/`impl` — отдельные Cargo crates, домен не зависит от SQLite/CLI/процессов.
+Правила кода — [docs/CODE-RULES.md](docs/CODE-RULES.md), архитектура и владельцы правил — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Текущие требования собраны в [базовых спецификациях OpenSpec](openspec/specs/), завершённые изменения — в [архиве OpenSpec](openspec/changes/archive/). `api`/`impl` — отдельные Cargo crates, домен не зависит от SQLite/CLI/процессов.
 
 ```bash
 npm ci --ignore-scripts
