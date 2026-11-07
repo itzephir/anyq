@@ -5,16 +5,12 @@ members = [
   "features/queue/impl/dispatch",
   "features/queue/impl/sqlite",
   "features/queue/impl/composition",
-  "features/worker/api",
-  "features/worker/impl/execution",
-  "features/worker/impl/process",
-  "features/worker/impl/composition",
   "apps/cli",
   "tooling/architecture-lint"
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"

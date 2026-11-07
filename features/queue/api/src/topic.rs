@@ -16,4 +16,14 @@ impl Topic {
 
         Ok(Self { name, capacity })
     }
+
+    pub fn require_capacity_for(&self, running: u64) -> Result<()> {
+        if running > u64::from(self.capacity) {
+            return Err(Error::Conflict(
+                "capacity cannot be lower than the number of running tasks".into(),
+            ));
+        }
+
+        Ok(())
+    }
 }

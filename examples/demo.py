@@ -1,6 +1,5 @@
-"""Run a self-contained build -> emulator simulation on every supported OS."""
+"""Exercise the native admission CLI; the caller explicitly runs its own work."""
 
-import json
 import os
 import subprocess
 import sys
@@ -16,56 +15,45 @@ def main():
             root / "target/debug" / ("anyq.exe" if os.name == "nt" else "anyq"),
         )
     )
+
     with tempfile.TemporaryDirectory(prefix="anyq-demo-") as directory:
-        environment = {**os.environ, "ANYQ_DB": str(Path(directory) / "queue.db")}
+        environment = {**os.environ, "ANYQ_DB": str(Path(directory) / "tasks.db")}
 
         def queue(*args):
             subprocess.run([str(binary), *args], env=environment, check=True)
 
-        queue("topic", "create", "large-builds")
-        queue("topic", "create", "emulator-use")
-        queue("group", "create", "large-builds", "builders")
-        queue("group", "create", "emulator-use", "emulator-tests")
-        queue(
-            "publish",
-            "large-builds",
-            "--payload",
-            json.dumps({"product": "demo", "revision": "abc123"}),
-            "--key",
-            "demo-abc123",
-        )
-        echo = "import sys; print(sys.stdin.read()); print('Simulated stage succeeded')"
-        queue(
-            "worker",
-            "large-builds",
-            "--group",
-            "builders",
-            "--consumer",
-            "native-build",
-            "--once",
-            "--next-topic",
-            "emulator-use",
-            "--next-payload",
-            json.dumps({"artifact": "demo.apk", "test": "smoke"}),
-            "--",
-            sys.executable,
-            "-c",
-            echo,
-        )
-        queue(
-            "worker",
-            "emulator-use",
-            "--group",
-            "emulator-tests",
-            "--consumer",
-            "emulator-1",
-            "--once",
-            "--",
-            sys.executable,
-            "-c",
-            echo,
-        )
-        queue("jobs", "list")
+        for topic in ["large-builds", "itzdesign-repo-lock", "pixel-10-emulator"]:
+            queue("topic", "create", topic)
+
+        queue("topic", "--list")
+
+        for name, topics, description in [
+            ("build-revision-001", ["large-builds", "itzdesign-repo-lock"], "Build"),
+            (
+                "smoke-revision-001",
+                ["pixel-10-emulator", "itzdesign-repo-lock"],
+                "Test",
+            ),
+        ]:
+            queue("task", "add", name)
+
+            for topic in topics:
+                queue("topic", topic, "add", name)
+
+            queue("task", "wait", name)
+
+            try:
+                # This process belongs to the caller. anyq only granted resource admission.
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-c",
+                        f"print('{description} completed by the caller')",
+                    ],
+                    check=True,
+                )
+            finally:
+                queue("task", "complete", name)
 
 
 if __name__ == "__main__":

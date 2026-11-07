@@ -1,19 +1,13 @@
-//! Explicitly constructed use-case handles; contains no dispatch or lookup behavior.
 use anyq_queue_api::*;
 
+/// Passive composition handles. Every consumer receives a focused use-case contract.
 pub struct QueueModule {
     pub create_topic: Box<dyn CreateTopic>,
     pub set_topic_capacity: Box<dyn SetTopicCapacity>,
     pub list_topics: Box<dyn ListTopics>,
     pub get_topic: Box<dyn GetTopic>,
-    pub create_consumer_group: Box<dyn CreateConsumerGroup>,
-    pub list_consumer_groups: Box<dyn ListConsumerGroups>,
-    pub publish_message: Box<dyn PublishMessage>,
-    pub claim_delivery: Box<dyn ClaimDelivery>,
-    pub renew_lease: Box<dyn RenewLease>,
-    pub complete_delivery: Box<dyn CompleteDelivery>,
-    pub reject_delivery: Box<dyn RejectDelivery>,
-    pub retry_delivery: Box<dyn RetryDelivery>,
-    pub inspect_message: Box<dyn InspectMessage>,
-    pub list_messages: Box<dyn ListMessages>,
+    pub register_task: Box<dyn RegisterTask>,
+    pub add_task_to_topic: Box<dyn AddTaskToTopic>,
+    pub try_start_task: Box<dyn TryStartTask>,
+    pub complete_task: Box<dyn CompleteTask>,
 }

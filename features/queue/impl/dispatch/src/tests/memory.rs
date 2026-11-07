@@ -1,32 +1,11 @@
 use crate::ports::*;
 use anyq_queue_api::*;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Memory {
     pub topics: Vec<Topic>,
-    pub groups: Vec<ConsumerGroup>,
-    pub messages: Vec<Message>,
-    pub deliveries: Vec<Delivery>,
+    pub tasks: Vec<Task>,
     pub fail_save: bool,
-}
-
-impl Memory {
-    fn select(&self, f: &DeliveryFilter) -> Vec<Delivery> {
-        self.deliveries
-            .iter()
-            .filter(|d| {
-                let m = self.messages.iter().find(|m| m.id == d.message_id).unwrap();
-                f.topic.as_ref().is_none_or(|t| t == &m.topic)
-                    && f.group.as_ref().is_none_or(|g| g == &d.group)
-                    && f.message_id.is_none_or(|id| id == d.message_id)
-                    && f.state.is_none_or(|s| s == d.state)
-                    && f.ready_at.is_none_or(|t| d.available_at <= t)
-                    && f.expired_at
-                        .is_none_or(|t| d.lease_until.is_some_and(|u| u <= t))
-            })
-            .cloned()
-            .collect()
-    }
 }
 
 impl TopicRecords for Memory {
@@ -35,107 +14,61 @@ impl TopicRecords for Memory {
     }
 
     fn topic(&mut self, name: &str) -> Result<Option<Topic>> {
-        Ok(self.topics.iter().find(|t| t.name == name).cloned())
+        Ok(self.topics.iter().find(|topic| topic.name == name).cloned())
     }
 
-    fn put_topic(&mut self, t: &Topic) -> Result<()> {
-        self.topics.retain(|x| x.name != t.name);
-        self.topics.push(t.clone());
+    fn put_topic(&mut self, topic: &Topic) -> Result<()> {
+        self.topics.retain(|item| item.name != topic.name);
+        self.topics.push(topic.clone());
 
         Ok(())
     }
 }
 
-impl GroupRecords for Memory {
-    fn groups(&mut self, topic: &str) -> Result<Vec<ConsumerGroup>> {
-        Ok(self
-            .groups
-            .iter()
-            .filter(|g| g.topic == topic)
-            .cloned()
-            .collect())
+impl TaskRecords for Memory {
+    fn task(&mut self, name: &str) -> Result<Option<Task>> {
+        Ok(self.tasks.iter().find(|task| task.name() == name).cloned())
     }
 
-    fn insert_group(&mut self, g: &ConsumerGroup) -> Result<()> {
-        self.groups.push(g.clone());
-
-        Ok(())
-    }
-}
-
-impl MessageRecords for Memory {
-    fn message(&mut self, id: i64) -> Result<Option<Message>> {
-        Ok(self.messages.iter().find(|m| m.id == id).cloned())
-    }
-
-    fn message_by_key(&mut self, topic: &str, key: &str) -> Result<Option<Message>> {
-        Ok(self
-            .messages
-            .iter()
-            .find(|m| m.topic == topic && m.key.as_deref() == Some(key))
-            .cloned())
-    }
-
-    fn insert_message(&mut self, p: &Publish, now: i64) -> Result<Message> {
-        let m = Message {
-            id: self.messages.len() as i64 + 1,
-            topic: p.topic.clone(),
-            payload: p.payload.clone(),
-            key: p.key.clone(),
-            max_attempts: p.max_attempts,
-            created_at: now,
-        };
-
-        self.messages.push(m.clone());
-
-        Ok(m)
-    }
-
-    fn messages(&mut self, topic: Option<&str>, after: i64, limit: u32) -> Result<Vec<Message>> {
-        Ok(self
-            .messages
-            .iter()
-            .filter(|m| m.id > after && topic.is_none_or(|t| t == m.topic))
-            .take(limit as usize)
-            .cloned()
-            .collect())
-    }
-}
-
-impl DeliveryRecords for Memory {
-    fn seed_group(&mut self, g: &ConsumerGroup) -> Result<()> {
-        for m in self.messages.clone().iter().filter(|m| m.topic == g.topic) {
-            self.put_delivery(&Delivery::pending(m, g.name.clone()))?;
+    fn insert_task(&mut self, name: &str) -> Result<Task> {
+        if self.tasks.iter().any(|task| task.name() == name) {
+            return Err(Error::Conflict("duplicate task".into()));
         }
 
-        Ok(())
+        let task = Task::new(self.tasks.len() as i64 + 1, name.into())?;
+        self.tasks.push(task.clone());
+
+        Ok(task)
     }
 
-    fn deliveries(&mut self, f: &DeliveryFilter) -> Result<Vec<Delivery>> {
-        let mut ds = self.select(f);
-        ds.sort_by(|a, b| (a.message_id, &a.group).cmp(&(b.message_id, &b.group)));
+    fn save_task(&mut self, task: &Task) -> Result<()> {
+        let target = self
+            .tasks
+            .iter_mut()
+            .find(|item| item.sequence() == task.sequence())
+            .ok_or_else(|| Error::Storage("missing task".into()))?;
+        *target = task.clone();
 
-        if let Some(limit) = f.limit {
-            ds.truncate(limit as usize);
-        }
-
-        Ok(ds)
-    }
-
-    fn count_deliveries(&mut self, f: &DeliveryFilter) -> Result<u64> {
-        Ok(self.select(f).len() as u64)
-    }
-
-    fn put_delivery(&mut self, d: &Delivery) -> Result<()> {
+        // Fail after the mutation so the Store test exercises actual rollback.
         if self.fail_save {
-            return Err(Error::Storage("injected failure".into()));
+            return Err(Error::Storage("injected save failure".into()));
         }
 
-        self.deliveries
-            .retain(|x| !(x.message_id == d.message_id && x.group == d.group));
-        self.deliveries.push(d.clone());
-
         Ok(())
+    }
+
+    fn count_tasks(&mut self, filter: &TaskFilter) -> Result<u64> {
+        Ok(self
+            .tasks
+            .iter()
+            .filter(|task| {
+                task.state() == filter.state
+                    && task.topics().contains(&filter.topic)
+                    && filter
+                        .before_sequence
+                        .is_none_or(|sequence| task.sequence() < sequence)
+            })
+            .count() as u64)
     }
 }
 
@@ -144,15 +77,7 @@ impl UnitOfWork for Memory {
         self
     }
 
-    fn groups(&mut self) -> &mut dyn GroupRecords {
-        self
-    }
-
-    fn messages(&mut self) -> &mut dyn MessageRecords {
-        self
-    }
-
-    fn deliveries(&mut self) -> &mut dyn DeliveryRecords {
+    fn tasks(&mut self) -> &mut dyn TaskRecords {
         self
     }
 }

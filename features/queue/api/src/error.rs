@@ -7,7 +7,6 @@ pub enum Error {
     Invalid(String),
     NotFound(String),
     Conflict(String),
-    LeaseLost,
     Storage(String),
 }
 
@@ -17,8 +16,6 @@ impl fmt::Display for Error {
             Self::Invalid(s) | Self::NotFound(s) | Self::Conflict(s) | Self::Storage(s) => {
                 f.write_str(s)
             }
-
-            Self::LeaseLost => f.write_str("lease expired, replaced, or already completed"),
         }
     }
 }

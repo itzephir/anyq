@@ -9,7 +9,6 @@ license.workspace = true
 anyq-queue-api = { path = "../../api" }
 anyq-queue-dispatch = { path = "../dispatch" }
 anyq-queue-sqlite = { path = "../sqlite" }
-uuid = { version = "1", features = ["v4"] }
 
 [lints]
 workspace = true

@@ -1,6 +1,7 @@
-//! One interactor per typed use case; no business command dispatcher.
-mod create_topic;
+//! Named-task scenarios. Domain policy determines eligibility; storage performs exact queries.
 pub mod ports;
+
+mod create_topic;
 pub use create_topic::CreateTopicInteractor;
 
 mod set_topic_capacity;
@@ -12,41 +13,20 @@ pub use list_topics::ListTopicsInteractor;
 mod get_topic;
 pub use get_topic::GetTopicInteractor;
 
-mod create_consumer_group;
-pub use create_consumer_group::CreateConsumerGroupInteractor;
+mod register_task;
+pub use register_task::RegisterTaskInteractor;
 
-mod list_consumer_groups;
-pub use list_consumer_groups::ListConsumerGroupsInteractor;
+mod add_task_to_topic;
+pub use add_task_to_topic::AddTaskToTopicInteractor;
 
-mod publish_message;
-pub use publish_message::PublishMessageInteractor;
+mod try_start_task;
+pub use try_start_task::TryStartTaskInteractor;
 
-mod claim_delivery;
-pub use claim_delivery::ClaimDeliveryInteractor;
+mod complete_task;
+pub use complete_task::CompleteTaskInteractor;
 
-mod renew_lease;
-pub use renew_lease::RenewLeaseInteractor;
-
-mod complete_delivery;
-pub use complete_delivery::CompleteDeliveryInteractor;
-
-mod reject_delivery;
-pub use reject_delivery::RejectDeliveryInteractor;
-
-mod retry_delivery;
-pub use retry_delivery::RetryDeliveryInteractor;
-
-mod inspect_message;
-pub use inspect_message::InspectMessageInteractor;
-
-mod list_messages;
-pub use list_messages::ListMessagesInteractor;
-
-mod lookup_delivery;
+mod lookup_task;
 mod lookup_topic;
-mod message_view;
-mod publish_in_transaction;
-mod recover_expired;
-mod require_group;
+
 #[cfg(test)]
 mod tests;

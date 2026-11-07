@@ -1,20 +1,46 @@
 # Архитектура anyq
 
-Применяется классическая Clean Architecture Роберта Мартина с организацией по предметным фичам и реальными границами Cargo crates `api`/`impl`. Основа соответствует правилам Ephir в itzmoney и itzdesign; специфические денежные и графические модели сюда не переносятся.
+anyq координирует именованные задачи и допуск к локальным ресурсам. Clean Architecture организована вокруг доменной фичи queue, затем слоёв; api и impl имеют отдельные Cargo crates.
 
-| Владелец | Правила | Внутренние модули |
-| --- | --- | --- |
-| queue | Топик и его вместимость, независимость consumer groups, неизменность сообщений, доставка/попытки, срок владения и fencing, атомарный handoff | api → entities и отдельные контракты сценариев; impl/dispatch → один interactor на сценарий и его порты; impl/sqlite → отдельные адаптеры записей и транзакции; impl/composition → фабрика |
-| worker | Получение задания, heartbeat, интерпретация результата процесса, ack/nack и следующий этап | api → настройки/контракт; impl/execution → интерактор и порты; impl/process → POSIX adapter; impl/composition → фабрика |
+| Модуль | Ответственность |
+| --- | --- |
+| queue/api | Task, TaskState, Topic, ResourceAvailability, переходы состояния и политика допуска; отдельные контракты сценариев |
+| queue/impl/dispatch | RegisterTask, AddTaskToTopic, TryStartTask, CompleteTask и управление топиками; consumer-owned persistence-порты |
+| queue/impl/sqlite | Схема и точные запросы к данным; IMMEDIATE transaction boundary |
+| queue/impl/composition | Явная сборка адаптеров и отдельных интеракторов |
+| apps/cli | Разбор синтаксиса, текстовые ответы и блокирующий опрос TryStartTask |
+| tooling/architecture-lint | Проверка структуры Rust, без участия в runtime |
 
-Внутренние crates используют std для коллекций, типов и вычислений, без IO. Публичные entities и чистые инварианты живут в api. Порты TopicRecords/GroupRecords/MessageRecords/DeliveryRecords, Store/UnitOfWork/Clock/Tokens принадлежат dispatch; Process/Runner/Wait — execution. SQLite, POSIX и Win32 не входят в эти контракты. Controllers и presenters находятся в apps/cli и только преобразуют внешний JSON/аргументы в типизированный вход сценария и результат обратно в JSON.
+## Домен
 
-У каждого сценария отдельный контракт и interactor: CreateTopic, SetTopicCapacity, ListTopics, GetTopic, CreateConsumerGroup, ListConsumerGroups, PublishMessage, ClaimDelivery, RenewLease, CompleteDelivery, RejectDelivery, RetryDelivery, InspectMessage, ListMessages. Универсальных Queue/Command/Output и execute-dispatcher нет. Worker получает только ClaimDelivery/RenewLease/CompleteDelivery/RejectDelivery/GetTopic. UnitOfWork объединяет границу атомарности и четыре persistence-порта; он не выполняет бизнес-маршрутизацию. Composition structures содержат явно созданные handles, без поведения и string lookup.
+Task имеет уникальное в базе имя, неизменный монотонный номер регистрации, состояние и набор топиков. Registered не имеет топиков; после добавления связи задача queued. Успешный допуск переводит её в running; complete завершает владение и переводит в completed. Completed сохраняется в истории, имя не переиспользуется.
 
-Межфичевая связь worker → queue идёт только через queue-api. SQL получает конкретные фильтры интерактора, не решает самостоятельно, что выдавать consumer, когда истекает lease и сколько попыток разрешено. Транзакционный порт гарантирует all-or-nothing; интерактор задаёт действия внутри транзакции. Domain policy не переносится в SQL ради атомарности.
+Task владеет допустимостью переходов, полнотой набора ресурсов и запретом менять членство running/completed. ResourceAvailability проверяет свободные слоты и число queued-предшественников. Один порядок регистрации используется во всех топиках. Это предотвращает перекрёстный порядок одной пары задач при разных последовательностях добавления.
 
-Composition roots перечислены явно: features/queue/impl/composition, features/worker/impl/composition и apps/cli/src/main.rs. Первые две собирают только свою фичу; main связывает обе фабрики через API. Ни контроллеры, ни бизнес-сценарии не импортируют чужие impl. Реализации передаются явно, глобальных контейнеров нет.
+Queued-задача сохраняет место, даже если её wait ещё не вызван. Головная задача, ожидающая другой ресурс, может задерживать более поздние. Complete --force снимает ненужную registered/queued-задачу без выполнения работы.
 
-Один самостоятельный struct/enum/trait — один файл, включая DTO и doubles. Подробные SRP/SOLID/DRY/KISS и правила ревью закреплены в [CODE-RULES.md](CODE-RULES.md). AST-линтер tooling/architecture-lint проверяет структуру реального Rust-синтаксиса и запрет универсального бизнес-dispatcher. tooling/check_architecture.py проверяет точный Cargo graph, отсутствие IO во внутренних слоях и factory imports только из main. Обе проверки имеют отрицательные fixtures. Cargo обеспечивает отсутствие незаявленных crate imports, приватность модулей и ацикличность графа. Unit tests проверяют домен и конкретные сценарии с узкими doubles; SQLite и нативные CLI/process integration проверяются отдельно.
+## Сценарии и атомарность
 
-Платформенные детали worker находятся в impl/process: общие CommandRunner/ManagedProcess/SystemWait и отдельные unix/windows ChildTree/Interrupt. Unix использует process groups и SIGINT/SIGTERM; Windows — Job Object, suspended launch перед назначением в job и консольное прерывание. Их порты и бизнес-сценарии одинаковы.
+У каждого сценария свой контракт и interactor. Нет универсальных Queue/Command/Output или execute-dispatcher. QueueModule содержит явно созданные handles без бизнес-поведения, string lookup и service locator.
+
+TryStartTask в одной транзакции читает актуальные состояние, состав топиков, running и queued-предшественников. Домен получает ровно один снимок каждого требуемого ресурса. Только при полном допуске сохраняется running; частичного захвата нет.
+
+CompleteTask проверяет переход и сохраняет completed в общей транзакции. Использование ресурсов выводится из running-задач и связей; отдельных изменяемых счётчиков слотов нет. Ошибка сохранения откатывает все изменения. Снижение capacity ниже текущего использования отклоняется.
+
+Store/UnitOfWork, TopicRecords, TaskRecords и TaskFilter принадлежат dispatch. Интерактор задаёт state, topic и границу номера в фильтре; SQLite только выполняет точный запрос, не выбирая политику допуска.
+
+## Внешние детали
+
+Домен и сценарии используют std для коллекций, типов и вычислений, без IO, SQL, часов, CLI и SDK. SQLite остаётся во внешнем адаптере. Composition roots: features/queue/impl/composition и apps/cli/src/main.rs; только они собирают реализации.
+
+CLI повторяет TryStartTask с короткой паузой после Busy и не держит транзакцию во время ожидания. Код 0 выдаётся после фиксации running. Команду выполняет вызывающая сторона: anyq не запускает процессы и не оценивает их exit code.
+
+Выход wait и падение вызывающего процесса не освобождают слоты. Нет lease, heartbeat, reaper или автоматического повтора; восстановление выполняется явным complete после проверки внешней работы.
+
+Схема 2 сохраняет topics, tasks и task_topics. Старые сообщения схемы 1 не преобразуются и не удаляются: новый CLI требует отдельный файл через --db. Неизвестная будущая версия тоже отклоняется до изменения базы.
+
+## Проверки
+
+Один самостоятельный struct/enum/trait — один файл, включая DTO и doubles; см. [CODE-RULES.md](CODE-RULES.md). Rust AST-линтер проверяет структуру и запрет универсального dispatcher. Python checker проверяет разрешённый Cargo graph, inward dependencies, отсутствие IO во внутренних слоях и фабрики только в main.
+
+Domain/use-case tests проверяют правила без инфраструктуры, в том числе rollback с doubles. SQLite suite проверяет сохранность, точные фильтры и независимые соединения. CLI integration suite проверяет настоящий пользовательский синтаксис и конкурирующие процессы на Linux/macOS/Windows.

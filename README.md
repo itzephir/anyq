@@ -1,142 +1,125 @@
 # anyq
 
-Локальная долговечная очередь на Rust для тяжёлых сборок, агентов, людей и эмуляторов. Без сервера: процессы используют один SQLite-файл на локальном диске.
+Локальная очередь допуска к ресурсам для именованных задач: сборок, агентов, людей и эмуляторов. Реализация на Rust, без сервера. Все участники используют один SQLite-файл на локальном диске.
 
-Топик содержит сохранённый поток сообщений. Каждая **consumer group** независимо получает все сообщения; consumers внутри группы делят задания. Подтверждение в одной группе не влияет на другую. Новая группа читает историю с начала.
+Задача может требовать несколько топиков одновременно. Успешный wait атомарно занимает по одному слоту каждого топика. После этого вызывающая сторона выполняет свою работу и завершает задачу через complete.
 
 ## Установка
 
-Нужны Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются macOS, Linux и Windows (MSVC; нужны Visual Studio Build Tools с C++).
+Нужны Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются Linux, macOS и Windows MSVC с Visual Studio Build Tools C++.
 
 ```bash
 cargo install --path apps/cli --locked
 anyq --help
 ```
 
-По умолчанию база на Unix — `$XDG_DATA_HOME/anyq/queue.db` или `~/.local/share/anyq/queue.db`, на Windows — `%LOCALAPPDATA%\anyq\queue.db`. `ANYQ_DB` и `--db` переопределяют путь. Все участники очереди должны указывать один файл. Отдельного фонового брокера нет.
+База по умолчанию: $XDG_DATA_HOME/anyq/queue.db или ~/.local/share/anyq/queue.db на Unix; %LOCALAPPDATA%\anyq\queue.db на Windows. ANYQ_DB и --db переопределяют путь.
 
-## Сборка → эмулятор
+**Версия 0.2 использует схему 2.** База прежних сообщений схемы 1 отклоняется без преобразования и удаления данных. Выберите отдельный файл через --db или ANYQ_DB; старый бинарник и старую базу можно сохранить для просмотра истории.
 
-```bash
-anyq topic create large-builds
-anyq topic create emulator-use
-anyq group create large-builds builders
-anyq group create emulator-use emulator-tests
+## Регистрация и допуск
 
-anyq publish large-builds \
-  --payload '{"project":"product","revision":"abc123"}' \
-  --key product-abc123
-```
-
-В каталоге продукта запускаем worker с нужной командой. Payload приходит на stdin; команда выбирается явно и не извлекается из сообщения. Следующий payload задаётся отдельно; для динамического пути к артефакту удобен ручной ack из агента.
+Для новой базы в текущем терминале:
 
 ```bash
-anyq worker large-builds --group builders --consumer build-host \
-  --lease-ms 300000 \
-  --next-topic emulator-use \
-  --next-payload '{"artifact":"/absolute/path/product.apk"}' \
-  -- bash ./scripts/build.sh
+export ANYQ_DB="$HOME/.local/share/anyq/tasks-v2.db"
 
-# В другом терминале, в каталоге тестового проекта:
-anyq worker emulator-use --group emulator-tests --consumer emulator-1 \
-  -- bash ./scripts/test-on-emulator.sh
+anyq topic create itzdesign-commands
+anyq topic create itzdesign-repo-lock
+anyq topic create pixel-10-emulator
+anyq topic --list
+
+anyq task add build-revision-001
+anyq topic itzdesign-commands add build-revision-001
+anyq topic itzdesign-repo-lock add build-revision-001
+anyq task wait build-revision-001
 ```
 
-Успешный exit code 0 подтверждает доставку и атомарно публикует следующее сообщение. Неуспех возвращает доставку для повтора; следующий этап не публикуется. `--once` обрабатывает максимум одно задание и завершает worker. Без `--once` он ждёт новые задания. Команды наследуют текущий каталог и окружение worker.
+После успешного wait выполняется ваша команда в вашем окружении:
 
-Полностью запускаемый пример с имитацией сборки и эмулятора:
+```bash
+npm run build
+anyq task complete build-revision-001
+```
+
+На Windows путь можно задать в PowerShell:
+
+```powershell
+$env:ANYQ_DB = "$env:LOCALAPPDATA\anyq\tasks-v2.db"
+anyq topic create itzdesign-commands
+anyq task add windows-build-001
+anyq topic itzdesign-commands add windows-build-001
+anyq task wait windows-build-001
+```
+
+Код 0 у wait означает, что допуск уже сохранён. Сообщение waiting появляется, если задача ещё ждёт. Вызывающая сторона сама решает, как обрабатывать exit code внешней команды и когда безопасно вызвать complete: anyq не запускает её, не определяет её результат и не останавливает её процессы.
+
+## Состояния и ошибки
+
+| Состояние | Значение |
+| --- | --- |
+| registered | Имя зарегистрировано, топиков пока нет |
+| queued | Есть топики, допуск ещё не получен |
+| running | Занято по одному слоту всех топиков |
+| completed | Владение завершено, запись остаётся в истории |
+
+Имя уникально в пределах базы и не переиспользуется после завершения. Новое выполнение регистрируется с новым именем. Повторное добавление той же связи queued-задачи идемпотентно. Running- и completed-задачи нельзя добавлять в другие топики.
+
+```bash
+anyq task add unfinished
+anyq task wait unfinished
+# error: 'unfinished' is not registered in any topic
+
+anyq task complete unfinished
+# error: 'unfinished' was not run
+
+anyq task complete --force unfinished
+# 'unfinished' successfully completed
+```
+
+Обычный complete разрешён только для running. Force также завершает registered/queued без выполнения работы, снимая задачу с очередей. Отсутствующее имя и повторное завершение дают ошибку. Wait для уже running/completed тоже даёт ошибку; два одновременных wait одного имени не получают два допуска.
+
+Успех CLI возвращает код 0, ошибки входа и состояния — 2 с сообщением в stderr. Операции регистрации и завершения печатают понятные текстовые ответы.
+
+## Вместимость и порядок
+
+```bash
+anyq topic create parallel-builds --capacity 2
+anyq topic capacity parallel-builds --capacity 3
+```
+
+По умолчанию топик имеет один слот. Running-задача занимает один слот каждого своего топика. Уменьшение capacity ниже текущего использования отклоняется.
+
+Во всех топиках используется единый номер регистрации задачи. Задача допускается, когда в каждом топике она входит в первые queued-задачи по числу свободных слотов. Порядок добавления связей не создаёт противоположных очередей одной пары задач.
+
+Queued-задача сохраняет место даже без запущенного wait. Она может задерживать более поздние задачи, пока ждёт другой ресурс. Ненужную задачу можно снять через complete --force. Частично захваченных ресурсов у queued-задачи нет.
+
+## Постоянное владение
+
+Выход wait, закрытие терминала, падение вызывающего процесса и прошедшее время не освобождают слоты. Владение сохраняется до явного complete. Heartbeat и автоматического таймаута нет.
+
+Если внешняя работа аварийно завершилась, сначала проверьте оставшиеся процессы и ресурс, затем завершите известное имя задачи. Complete фиксирует окончание владения, а не проверяет фактическое состояние эмулятора или файловой системы. Это кооперативная координация локальных процессов.
+
+История сохраняется без автоматической очистки. База предназначена для локального диска. SQLite использует WAL, synchronous FULL и короткие IMMEDIATE-транзакции; резервную копию создавайте SQLite backup, а не копированием одного файла при активном WAL.
+
+## Проверки и разработка
 
 ```bash
 cargo build --locked -p anyq
 python examples/demo.py
-```
 
-## Агент или человек как consumer
-
-```bash
-anyq claim large-builds --group builders --consumer agent-1 --lease-ms 300000
-```
-
-Ответ содержит `message.id`, payload и `delivery.token`. Сохраните ID и token. Для долгой ручной работы продлевайте владение до истечения срока:
-
-```bash
-anyq renew 1 --group builders --token "$TOKEN" --lease-ms 300000
-
-# После реального завершения работы:
-anyq ack 1 --group builders --token "$TOKEN" \
-  --result '{"artifact":"/absolute/path/product.apk"}' \
-  --next-topic emulator-use \
-  --next-payload '{"artifact":"/absolute/path/product.apk"}'
-
-# Или вернуть задание с ошибкой и задержкой:
-anyq nack 1 --group builders --token "$TOKEN" \
-  --reason 'emulator unavailable' --delay-ms 5000
-```
-
-Здесь `1` — пример ID из ответа claim, `$TOKEN` — его token. Token относится только к конкретной обработке одной группы. После истечения или повторной выдачи старый token отклоняется.
-
-## Группы, параллелизм и повторы
-
-```bash
-# Независимая обработка того же потока:
-anyq group create large-builds audit
-anyq claim large-builds --group audit --consumer reviewer
-
-# Общий лимит выполняемых доставок топика, включая все группы:
-anyq topic capacity large-builds --capacity 2
-
-anyq jobs list --topic large-builds --group builders
-anyq jobs show 1
-anyq retry 1 --group builders
-```
-
-По умолчанию топик допускает **одно активное владение суммарно по всем группам**. Группы получают независимые копии потока, но делят физический ресурс. Для отдельных эмуляторов создайте отдельные топики. Готовые сообщения выдаются по порядку публикации; отложенный повтор пропускается до срока готовности. При параллелизме больше одного порядок завершения не гарантируется. Справедливое распределение слотов между непрерывно активными группами не гарантируется.
-
-По умолчанию разрешено 3 попытки на группу; `publish --max-attempts N` меняет бюджет. Истёкший lease или nack исчерпавшей попытки переводит доставку в `failed`. `retry` разрешён только для `failed` и сбрасывает счётчик попыток. Повторная публикация с тем же `--key` в том же топике возвращает исходное сообщение, включая исходный payload. Публикация без групп тоже сохраняется и будет прочитана будущей группой.
-
-`jobs list` выдаёт до 100 сообщений с обработками групп. Для следующей страницы передайте `--after ID`; `--limit` допускает 1..1000. `publish --file request.json` читает файл, `--file -` — stdin; payload ограничен 1 MiB. Большие артефакты храните отдельно, передавайте пути.
-
-## Протокол worker
-
-Команда получает JSON на stdin и переменные `ANYQ_MESSAGE_ID`, `ANYQ_TOPIC`, `ANYQ_GROUP`, `ANYQ_CONSUMER`, `ANYQ_ATTEMPT`. Lease token остаётся у worker. stdout/stderr команды направлены в stderr worker; stdout CLI содержит JSON, по одной записи на строку. Пустой claim возвращает `null`.
-
-Коды выхода: `0` — успех или отсутствие работы, `1` — неуспех команды в режиме once, `2` — неверные аргументы/ошибка очереди, `130` — остановка worker сигналом SIGINT/SIGTERM или консольным прерыванием Windows. Ошибки очереди — JSON в stderr. `--poll-ms` задаёт ожидание пустой очереди, `--retry-delay-ms` — задержку повторной попытки. Worker продлевает lease примерно каждые `min(lease / 3, 1 сек)`; минимальный lease worker — 300 ms.
-
-На macOS/Linux SIGINT/SIGTERM останавливает группу процессов команды и возвращает доставку. На Windows Ctrl+C/Ctrl+Break останавливает дерево команды через Job Object; bash/WSL не нужны. При обнаруженной потере lease worker также останавливает группу процессов и не подтверждает результат. Завершившаяся команда не должна оставлять фоновые процессы: worker завершает оставшихся потомков в её process group.
-
-## Гарантии и ограничения
-
-- Публикация, group replay, claim и ack со следующим этапом атомарны между локальными процессами. Хранилище — SQLite WAL, synchronous FULL, ожидание блокировки до 5 секунд.
-- Доставка — **at least once**. Команды должны учитывать повтор внешнего действия после сбоя. Если два независимых group consumers оба публикуют следующий этап, будут два сообщения; общий `--next-key` позволяет намеренно дедуплицировать их.
-- Lease защищает состояние очереди. На Unix SIGKILL, остановка ОС или скачок системного времени могут оставить внешнюю команду живой до повторной выдачи. На Windows закрытие job handle при завершении worker убивает управляемых потомков. Для физически эксклюзивного эмулятора при таком сбое нужна проверка оставшегося процесса. Exactly-once и аппаратное fencing не заявляются.
-- История сообщений и конечные состояния сохраняются без автоматической очистки. Просмотр/захват/ручной retry восстанавливает истёкшие leases; фонового reaper нет. Это поток с независимыми группами, без Kafka-протокола, partitions и offset API.
-- База предназначена для локального диска, не NFS. Для резервного копирования остановите workers и используйте SQLite `.backup`; простое копирование одного файла при активном WAL недостаточно. Неизвестная версия схемы отклоняется.
-
-## Разработка
-
-Правила кода — [docs/CODE-RULES.md](docs/CODE-RULES.md), архитектура и владельцы правил — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Текущие требования собраны в [базовых спецификациях OpenSpec](openspec/specs/), завершённые изменения — в [архиве OpenSpec](openspec/changes/archive/). `api`/`impl` — отдельные Cargo crates, домен не зависит от SQLite/CLI/процессов.
-
-```bash
 npm ci --ignore-scripts
 npm run spec:check
-python tooling/check_architecture.py
-cargo run --locked -p anyq-architecture-lint
 python -m pip install -r tooling/requirements-dev.txt
 python -m ruff check .
 python -m ruff format --check .
+python tooling/check_architecture.py
+cargo run --locked -p anyq-architecture-lint
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```
 
-Node нужен только для закреплённого OpenSpec CLI 1.16.0. Python 3.11+ нужен для архитектурной проверки. CI выполняет эти проверки на Linux, macOS и Windows. Тесты запускают команды-имитации; реальные тяжёлые продукты и конкретные эмуляторы подключаются пользовательскими командами.
+Python нужен для tooling и демонстрации внешнего клиента, Node — для закреплённого OpenSpec CLI. Сам runtime anyq их не требует.
 
-CI разделён на lint, build/unit tests и integration tests; итоговый `CI passed` обязателен для слияния в защищённую `main`. Настройки и повторное применение защиты описаны в [docs/CI.md](docs/CI.md).
-
-Нативный Windows worker можно запускать из PowerShell с явно выбранным интерпретатором:
-
-```powershell
-anyq worker large-builds --group builders --consumer windows-build -- powershell.exe -NoProfile -File C:\project\build.ps1
-```
-
-Контракты сценариев очереди типизированы отдельно; универсального `execute(Command) -> Output` нет. Правило одного самостоятельного типа на файл проверяет Rust AST-линтер, а остальные границы — Cargo и архитектурная проверка.
+Правила кода — [docs/CODE-RULES.md](docs/CODE-RULES.md), устройство модулей — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), CI и защита main — [docs/CI.md](docs/CI.md). Базовые требования находятся в [OpenSpec specs](openspec/specs/), текущий переход — в [coordinate-named-tasks](openspec/changes/coordinate-named-tasks/), история — в [архиве](openspec/changes/archive/).

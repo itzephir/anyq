@@ -21,42 +21,19 @@ ALLOWED = {
         "anyq-queue-api",
         "anyq-queue-dispatch",
         "anyq-queue-sqlite",
-        "uuid",
-    },
-    "anyq-worker-api": {"anyq-queue-api"},
-    "anyq-worker-execution": {"anyq-queue-api", "anyq-worker-api"},
-    "anyq-worker-process": {
-        "anyq-queue-api",
-        "anyq-worker-api",
-        "anyq-worker-execution",
-        "libc",
-        "signal-hook",
-        "ctrlc",
-        "windows-sys",
-    },
-    "anyq-worker-impl": {
-        "anyq-queue-api",
-        "anyq-worker-api",
-        "anyq-worker-execution",
-        "anyq-worker-process",
     },
     "anyq": {
         "anyq-queue-api",
         "anyq-queue-impl",
-        "anyq-worker-api",
-        "anyq-worker-impl",
         "clap",
-        "serde_json",
+        "rusqlite",
         "tempfile",
-        "windows-sys",
     },
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
     "anyq-queue-api",
     "anyq-queue-dispatch",
-    "anyq-worker-api",
-    "anyq-worker-execution",
 }
 IO = re.compile(
     r"\bstd\s*::\s*(?:fs|io|net|process|thread|env)\b|\b(?:SystemTime|Instant)\b|\b(?:include|include_str|include_bytes)\s*!|#\s*\[\s*path\s*=|\b(?:unsafe|extern)\b|\b(?:print|println|eprint|eprintln|dbg)\s*!|#\s*\[\s*link\b"
@@ -90,7 +67,7 @@ def check(graph, sources):
             if (
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
-                and re.search(r"\banyq_(?:queue|worker)_impl\b", source)
+                and re.search(r"\banyq_queue_impl\b", source)
             ):
                 errors.append(f"{path}: factory imports belong only to main.rs")
 
@@ -154,7 +131,7 @@ def main():
     for owner, dep in [
         ("anyq-queue-api", "anyq-queue-dispatch"),
         ("anyq-queue-dispatch", "rusqlite"),
-        ("anyq-worker-execution", "anyq-queue-impl"),
+        ("anyq-queue-api", "anyq-queue-impl"),
     ]:
         mutant = copy.deepcopy(graph)
         mutant[owner].add(dep)

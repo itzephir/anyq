@@ -1,25 +1,17 @@
-use crate::{
-    sqlite_deliveries::SqliteDeliveries, sqlite_groups::SqliteGroups,
-    sqlite_messages::SqliteMessages, sqlite_topics::SqliteTopics,
-};
-
-use anyq_queue_dispatch::ports::*;
+use crate::{sqlite_tasks::SqliteTasks, sqlite_topics::SqliteTopics};
+use anyq_queue_dispatch::ports::{TaskRecords, TopicRecords, UnitOfWork};
 use rusqlite::Connection;
 
 pub(crate) struct SqliteUnitOfWork<'a> {
     topics: SqliteTopics<'a>,
-    groups: SqliteGroups<'a>,
-    messages: SqliteMessages<'a>,
-    deliveries: SqliteDeliveries<'a>,
+    tasks: SqliteTasks<'a>,
 }
 
 impl<'a> SqliteUnitOfWork<'a> {
     pub fn new(connection: &'a Connection) -> Self {
         Self {
             topics: SqliteTopics { connection },
-            groups: SqliteGroups { connection },
-            messages: SqliteMessages { connection },
-            deliveries: SqliteDeliveries { connection },
+            tasks: SqliteTasks { connection },
         }
     }
 }
@@ -29,15 +21,7 @@ impl UnitOfWork for SqliteUnitOfWork<'_> {
         &mut self.topics
     }
 
-    fn groups(&mut self) -> &mut dyn GroupRecords {
-        &mut self.groups
-    }
-
-    fn messages(&mut self) -> &mut dyn MessageRecords {
-        &mut self.messages
-    }
-
-    fn deliveries(&mut self) -> &mut dyn DeliveryRecords {
-        &mut self.deliveries
+    fn tasks(&mut self) -> &mut dyn TaskRecords {
+        &mut self.tasks
     }
 }

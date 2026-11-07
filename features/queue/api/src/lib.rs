@@ -1,45 +1,24 @@
-//! Pure entities and focused, typed use-case contracts.
+//! Named tasks, resource admission and focused use-case contracts. No IO.
+mod error;
+pub use error::{Error, Result};
+
+mod validate_name;
+pub use validate_name::validate_name;
+
 mod topic;
 pub use topic::Topic;
 
-mod consumer_group;
-pub use consumer_group::ConsumerGroup;
+mod task_state;
+pub use task_state::TaskState;
 
-mod publish;
-pub use publish::Publish;
+mod start_outcome;
+pub use start_outcome::StartOutcome;
 
-mod message;
-pub use message::Message;
+mod resource_availability;
+pub use resource_availability::ResourceAvailability;
 
-mod state;
-pub use state::State;
-
-mod delivery;
-pub use delivery::Delivery;
-
-mod lease;
-pub use lease::Lease;
-
-mod claim;
-pub use claim::Claim;
-
-mod assignment;
-pub use assignment::Assignment;
-
-mod message_view;
-pub use message_view::MessageView;
-
-mod completion;
-pub use completion::Completion;
-
-mod complete_delivery_request;
-pub use complete_delivery_request::CompleteDeliveryRequest;
-
-mod reject_delivery_request;
-pub use reject_delivery_request::RejectDeliveryRequest;
-
-mod message_query;
-pub use message_query::MessageQuery;
+mod task;
+pub use task::Task;
 
 mod create_topic;
 pub use create_topic::CreateTopic;
@@ -53,43 +32,17 @@ pub use list_topics::ListTopics;
 mod get_topic;
 pub use get_topic::GetTopic;
 
-mod create_consumer_group;
-pub use create_consumer_group::CreateConsumerGroup;
+mod register_task;
+pub use register_task::RegisterTask;
 
-mod list_consumer_groups;
-pub use list_consumer_groups::ListConsumerGroups;
+mod add_task_to_topic;
+pub use add_task_to_topic::AddTaskToTopic;
 
-mod publish_message;
-pub use publish_message::PublishMessage;
+mod try_start_task;
+pub use try_start_task::TryStartTask;
 
-mod claim_delivery;
-pub use claim_delivery::ClaimDelivery;
+mod complete_task;
+pub use complete_task::CompleteTask;
 
-mod renew_lease;
-pub use renew_lease::RenewLease;
-
-mod complete_delivery;
-pub use complete_delivery::CompleteDelivery;
-
-mod reject_delivery;
-pub use reject_delivery::RejectDelivery;
-
-mod retry_delivery;
-pub use retry_delivery::RetryDelivery;
-
-mod inspect_message;
-pub use inspect_message::InspectMessage;
-
-mod list_messages;
-pub use list_messages::ListMessages;
-
-mod error;
-pub use error::{Error, Result};
-
-mod validate_name;
-pub use validate_name::validate_name;
-
-mod deadline;
-pub use deadline::deadline;
 #[cfg(test)]
 mod tests;

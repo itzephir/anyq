@@ -1,0 +1,105 @@
+use crate::storage_error::storage;
+use anyq_queue_api::{Error, Result, Task, TaskState};
+use anyq_queue_dispatch::ports::{TaskFilter, TaskRecords};
+use rusqlite::{Connection, OptionalExtension, params};
+
+pub(crate) struct SqliteTasks<'a> {
+    pub connection: &'a Connection,
+}
+
+fn state(value: &str) -> Result<TaskState> {
+    match value {
+        "registered" => Ok(TaskState::Registered),
+        "queued" => Ok(TaskState::Queued),
+        "running" => Ok(TaskState::Running),
+        "completed" => Ok(TaskState::Completed),
+        _ => Err(Error::Storage(format!("unknown task state '{value}'"))),
+    }
+}
+
+impl TaskRecords for SqliteTasks<'_> {
+    fn task(&mut self, name: &str) -> Result<Option<Task>> {
+        let row: Option<(i64, String, String)> = self
+            .connection
+            .query_row(
+                "SELECT id,name,state FROM tasks WHERE name=?1",
+                [name],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(storage)?;
+
+        let Some((sequence, name, raw_state)) = row else {
+            return Ok(None);
+        };
+
+        let mut statement = self
+            .connection
+            .prepare("SELECT topic_name FROM task_topics WHERE task_id=?1 ORDER BY topic_name")
+            .map_err(storage)?;
+        let topics = statement
+            .query_map([sequence], |row| row.get::<_, String>(0))
+            .map_err(storage)?
+            .collect::<rusqlite::Result<_>>()
+            .map_err(storage)?;
+
+        Task::restore(sequence, name, state(&raw_state)?, topics)
+            .map(Some)
+            .map_err(|error| Error::Storage(error.to_string()))
+    }
+
+    fn insert_task(&mut self, name: &str) -> Result<Task> {
+        self.connection
+            .execute(
+                "INSERT INTO tasks(name,state) VALUES (?1,'registered')",
+                [name],
+            )
+            .map_err(storage)?;
+
+        Task::new(self.connection.last_insert_rowid(), name.into())
+    }
+
+    fn save_task(&mut self, task: &Task) -> Result<()> {
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE tasks SET state=?1 WHERE id=?2 AND name=?3",
+                params![task.state().as_str(), task.sequence(), task.name()],
+            )
+            .map_err(storage)?;
+
+        if changed != 1 {
+            return Err(Error::Storage("cannot save a missing task".into()));
+        }
+
+        self.connection
+            .execute(
+                "DELETE FROM task_topics WHERE task_id=?1",
+                [task.sequence()],
+            )
+            .map_err(storage)?;
+
+        for topic in task.topics() {
+            self.connection
+                .execute(
+                    "INSERT INTO task_topics(task_id,topic_name) VALUES (?1,?2)",
+                    params![task.sequence(), topic],
+                )
+                .map_err(storage)?;
+        }
+
+        Ok(())
+    }
+
+    fn count_tasks(&mut self, filter: &TaskFilter) -> Result<u64> {
+        self.connection
+            .query_row(
+                "SELECT count(*) FROM tasks t JOIN task_topics m ON m.task_id=t.id
+             WHERE m.topic_name=?1 AND t.state=?2 AND (?3 IS NULL OR t.id<?3)",
+                params![filter.topic, filter.state.as_str(), filter.before_sequence],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count as u64)
+            .map_err(storage)
+    }
+}

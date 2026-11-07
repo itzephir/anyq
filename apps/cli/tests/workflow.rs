@@ -1,523 +1,486 @@
 mod support;
 
-use serde_json::Value;
+use rusqlite::Connection;
 use std::{
-    io::Write,
+    fs,
     process::{Command, Stdio},
     thread,
     time::Duration,
 };
-
 use support::{
-    fixture::{self, wait_for_file},
-    process_status::assert_exited,
-    queue::Queue,
+    process::TestProcess,
+    queue::{Queue, wait_for_file},
 };
 
 #[test]
-fn fixture_process() {
-    fixture::run();
-}
-
-#[cfg(unix)]
-#[test]
-fn exited_child_is_accepted_before_it_is_reaped() {
-    use std::io::Read;
-
-    let args = fixture::arguments();
-    let mut child = Command::new(&args[0])
-        .args(&args[1..])
-        .env("ANYQ_FIXTURE_MODE", "exit")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-
-    // EOF synchronizes with the child closing its output without reaping it.
-    // Keep wait() after the assertion: the old kill -0 implementation timed out.
-    child
-        .stdout
-        .take()
-        .unwrap()
-        .read_to_end(&mut Vec::new())
-        .unwrap();
-
-    let pid = child.id();
-    let result = std::panic::catch_unwind(|| assert_exited(pid));
-    let status = child.wait().unwrap();
-
-    assert!(status.success());
-    assert!(
-        result.is_ok(),
-        "a terminated child must not require reaping first"
-    );
-    assert_exited(pid);
-}
-
-#[test]
-fn automatic_build_to_emulator_and_late_group_replay() {
+fn native_lifecycle_matches_the_user_protocol() {
     let q = Queue::new();
-    q.setup("large-builds", "builders");
-    q.setup("emulator-use", "tests");
 
-    let mut producer = q
-        .cmd(&[
-            "publish",
-            "large-builds",
-            "--file",
-            "-",
-            "--key",
-            "product-revision",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    producer
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(br#"{"product":"demo","text":"$(false)"}"#)
-        .unwrap();
-
-    let output = producer.wait_with_output().unwrap();
-
-    assert!(output.status.success());
-
-    let first: Value = serde_json::from_slice(&output.stdout).unwrap();
-
-    assert_eq!(
-        first["id"],
-        q.call(&[
-            "publish",
-            "large-builds",
-            "--payload",
-            "{}",
-            "--key",
-            "product-revision"
-        ])["id"]
-    );
-
-    let output = q
-        .worker(
-            "large-builds",
-            "echo",
-            &[
-                "--next-topic",
-                "emulator-use",
-                "--next-payload",
-                r#"{"artifact":"demo.apk"}"#,
-            ],
-        )
-        .output()
-        .unwrap();
-
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
-
-    assert_eq!(result["state"], "succeeded");
-
-    let stderr = String::from_utf8(output.stderr).unwrap();
-
-    assert!(stderr.contains("$(false)"));
-    assert!(stderr.contains("command-output"));
-
-    let jobs = q.call(&[
-        "jobs",
-        "list",
-        "--topic",
-        "emulator-use",
-        "--group",
-        "tests",
-    ]);
-
-    assert_eq!(jobs.as_array().unwrap().len(), 1);
-    assert_eq!(jobs[0]["message"]["payload"]["artifact"], "demo.apk");
-
-    q.call(&["group", "create", "large-builds", "audit"]);
-    let a = q.call(&[
-        "claim",
-        "large-builds",
-        "--group",
-        "audit",
-        "--consumer",
-        "human",
-    ]);
-
-    assert_eq!(a["message"]["id"], first["id"]);
-
-    let id = first["id"].to_string();
-    q.call(&[
-        "ack",
-        &id,
-        "--group",
-        "audit",
-        "--token",
-        a["delivery"]["token"].as_str().unwrap(),
-    ]);
-
-    assert!(
-        q.call(&["jobs", "show", &id])["deliveries"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|d| d["state"] == "succeeded")
-    );
-}
-
-#[test]
-fn worker_failure_does_not_publish_next_stage() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-    q.setup("emulator", "tests");
-    q.publish("builds");
-
-    let out = q
-        .worker(
-            "builds",
-            "fail",
-            &["--next-topic", "emulator", "--next-payload", "{}"],
-        )
-        .output()
-        .unwrap();
-
-    assert_eq!(out.status.code(), Some(1));
-
-    let jobs = q.call(&["jobs", "list", "--topic", "builds"]);
-
-    assert_eq!(jobs[0]["deliveries"][0]["state"], "pending");
-    assert!(
-        jobs[0]["deliveries"][0]["last_error"]
-            .as_str()
-            .unwrap()
-            .contains('7')
-    );
-    assert_eq!(
-        q.call(&["jobs", "list", "--topic", "emulator"]),
-        serde_json::json!([])
-    );
-}
-
-#[test]
-fn concurrent_processes_obey_topic_capacity() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-
-    for _ in 0..8 {
-        q.publish("builds");
+    for topic in [
+        "itzdesign-commands",
+        "pixel-10-emulator",
+        "itzdesign-repo-lock",
+    ] {
+        q.topic(topic);
     }
 
-    let children: Vec<_> = (0..8)
-        .map(|_| {
-            q.cmd(&[
-                "claim",
-                "builds",
-                "--group",
-                "builders",
-                "--consumer",
-                "worker",
-            ])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap()
-        })
-        .collect();
-    let claimed = children
-        .into_iter()
-        .map(|child| {
-            let output = child.wait_with_output().unwrap();
-
-            assert!(
-                output.status.success(),
-                "{}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-
-            let result: Value = serde_json::from_slice(&output.stdout).unwrap();
-            usize::from(!result.is_null())
-        })
-        .sum::<usize>();
-
-    assert_eq!(claimed, 1);
-}
-
-#[test]
-fn real_worker_renews_lease_during_long_command() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-    q.publish("builds");
-
-    let marker = q._dir.path().join("started");
-
-    let child = q
-        .worker("builds", "sleep", &["--lease-ms", "2000"])
-        .env("ANYQ_FIXTURE_MARKER", &marker)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    wait_for_file(&marker);
-    thread::sleep(Duration::from_millis(2200));
-
     assert_eq!(
-        q.call(&[
-            "claim",
-            "builds",
-            "--group",
-            "builders",
-            "--consumer",
-            "other"
-        ]),
-        Value::Null
+        q.call(&["topic", "--list"]),
+        "- itzdesign-commands\n- itzdesign-repo-lock\n- pixel-10-emulator"
     );
+    assert_eq!(
+        q.call(&["task", "add", "my-task"]),
+        "successfully registered task 'my-task'"
+    );
+    assert_eq!(q.state("my-task"), "registered");
 
-    let out = child.wait_with_output().unwrap();
+    let unqueued = q.raw(&["task", "wait", "my-task"]);
+    let unstarted = q.raw(&["task", "complete", "my-task"]);
 
+    assert_eq!(unqueued.status.code(), Some(2));
     assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+        String::from_utf8_lossy(&unqueued.stderr)
+            .contains("'my-task' is not registered in any topic")
     );
-}
+    assert_eq!(unstarted.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&unstarted.stderr).contains("'my-task' was not run"));
 
-#[test]
-fn expired_token_failed_budget_and_manual_retry() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-    let m = q.call(&[
-        "publish",
-        "builds",
-        "--payload",
-        "{}",
-        "--max-attempts",
-        "1",
-    ]);
+    for topic in ["itzdesign-commands", "itzdesign-repo-lock"] {
+        assert_eq!(
+            q.call(&["topic", topic, "add", "my-task"]),
+            format!("successfully added 'my-task' to topic '{topic}'")
+        );
+    }
 
-    let id = m["id"].to_string();
-    let a = q.call(&[
-        "claim",
-        "builds",
-        "--group",
-        "builders",
-        "--consumer",
-        "agent",
-        "--lease-ms",
-        "20",
-    ]);
-    thread::sleep(Duration::from_millis(40));
-
-    let out = q.raw(&[
-        "ack",
-        &id,
-        "--group",
-        "builders",
-        "--token",
-        a["delivery"]["token"].as_str().unwrap(),
-    ]);
-
-    assert_eq!(out.status.code(), Some(2));
-    let error: Value = serde_json::from_slice(&out.stderr).unwrap();
-
-    assert_eq!(error["error"]["kind"], "lease_lost");
-    assert_eq!(
-        q.call(&["jobs", "show", &id])["deliveries"][0]["state"],
-        "failed"
-    );
-    q.call(&["retry", &id, "--group", "builders"]);
-
-    assert_eq!(
-        q.call(&[
-            "claim",
-            "builds",
-            "--group",
-            "builders",
-            "--consumer",
-            "agent"
-        ])["delivery"]["attempts"],
-        1
-    );
-}
-
-#[test]
-fn invalid_json_and_invalid_worker_configuration_have_no_delivery_side_effects() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-
-    assert_eq!(
-        q.raw(&["publish", "builds", "--payload", "broken"])
+    q.call(&["topic", "itzdesign-commands", "add", "my-task"]);
+    assert_eq!(q.usage("itzdesign-commands"), 0);
+    assert_eq!(q.call(&["task", "wait", "my-task"]), "'my-task' started");
+    assert_eq!(q.state("my-task"), "running");
+    assert_eq!(q.usage("itzdesign-commands"), 1);
+    assert_eq!(q.usage("itzdesign-repo-lock"), 1);
+    assert!(!q.raw(&["task", "wait", "my-task"]).status.success());
+    assert!(
+        !q.raw(&["topic", "pixel-10-emulator", "add", "my-task"])
             .status
-            .code(),
-        Some(2)
-    );
-    assert_eq!(q.call(&["jobs", "list"]), serde_json::json!([]));
-    q.publish("builds");
-
-    assert_eq!(
-        q.worker("builds", "echo", &["--lease-ms", "1"])
-            .output()
-            .unwrap()
-            .status
-            .code(),
-        Some(2)
-    );
-    assert_eq!(q.call(&["jobs", "list"])[0]["deliveries"][0]["attempts"], 0);
-}
-
-#[test]
-fn completed_parent_does_not_leave_descendants_running() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-    q.publish("builds");
-
-    let marker = q._dir.path().join("started");
-    let pid = q._dir.path().join("leaf.pid");
-
-    let out = q
-        .worker("builds", "orphan", &[])
-        .env("ANYQ_FIXTURE_MARKER", &marker)
-        .env("ANYQ_FIXTURE_PID", &pid)
-        .output()
-        .unwrap();
-
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert_exited(std::fs::read_to_string(pid).unwrap().parse().unwrap());
-}
-
-#[cfg(unix)]
-#[test]
-fn sigterm_stops_process_group_and_releases_delivery() {
-    let q = Queue::new();
-    q.setup("builds", "builders");
-    q.publish("builds");
-
-    let marker = q._dir.path().join("started");
-    let pid = q._dir.path().join("leaf.pid");
-
-    let child = q
-        .worker("builds", "tree", &[])
-        .env("ANYQ_FIXTURE_MARKER", &marker)
-        .env("ANYQ_FIXTURE_PID", &pid)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    wait_for_file(&marker);
-
-    assert!(
-        Command::new("kill")
-            .args(["-TERM", &child.id().to_string()])
-            .status()
-            .unwrap()
             .success()
     );
 
-    let out = child.wait_with_output().unwrap();
-
     assert_eq!(
-        out.status.code(),
-        Some(130),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+        q.call(&["task", "complete", "my-task"]),
+        "'my-task' successfully completed"
     );
-    assert_exited(std::fs::read_to_string(pid).unwrap().parse().unwrap());
 
-    assert_eq!(
-        q.call(&["jobs", "list"])[0]["deliveries"][0]["last_error"],
-        "worker interrupted"
+    assert_eq!(q.state("my-task"), "completed");
+    assert_eq!(q.usage("itzdesign-commands"), 0);
+    assert_eq!(q.usage("itzdesign-repo-lock"), 0);
+    assert!(!q.raw(&["task", "complete", "my-task"]).status.success());
+    assert!(!q.raw(&["task", "add", "my-task"]).status.success());
+    assert!(
+        !q.raw(&["task", "complete", "--force", "unknown"])
+            .status
+            .success()
+    );
+    assert!(
+        !q.raw(&["topic", "unknown", "add", "my-task"])
+            .status
+            .success()
     );
 }
 
-#[cfg(windows)]
 #[test]
-fn console_interrupt_stops_tree_and_releases_delivery() {
-    use std::os::windows::process::CommandExt;
-    use windows_sys::Win32::System::Threading::CREATE_NEW_CONSOLE;
+fn force_completes_registered_and_queued_tasks_without_granting_admission() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("registered", &[]);
+    q.task("queued", &["cpu"]);
 
-    for event in [0, 1] {
-        let q = Queue::new();
-        q.setup("builds", "builders");
-        q.publish("builds");
+    for name in ["registered", "queued"] {
+        q.call(&["task", "complete", "--force", name]);
 
-        let marker = q._dir.path().join("started");
-        let pid = q._dir.path().join("leaf.pid");
+        assert_eq!(q.state(name), "completed");
+        assert!(!q.raw(&["task", "wait", name]).status.success());
+    }
 
-        let child = q
-            .worker("builds", "tree", &[])
-            .creation_flags(CREATE_NEW_CONSOLE)
-            .env("ANYQ_FIXTURE_MARKER", &marker)
-            .env("ANYQ_FIXTURE_PID", &pid)
+    assert_eq!(q.usage("cpu"), 0);
+}
+
+#[test]
+fn wait_for_two_topics_reserves_nothing_until_both_are_available() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.topic("repo");
+    q.task("owner", &["repo"]);
+    q.call(&["task", "wait", "owner"]);
+    q.task("build", &["cpu", "repo"]);
+
+    let mut waiting = q.spawn_wait("build", "waiting");
+    q.wait_for_log("waiting", "waiting for 'build' to start");
+
+    waiting.assert_running();
+    assert_eq!(q.state("build"), "queued");
+    assert_eq!(q.usage("cpu"), 0);
+    assert_eq!(q.usage("repo"), 1);
+
+    q.call(&["task", "complete", "owner"]);
+    let output = waiting.output();
+
+    assert!(output.status.success());
+    assert_eq!(q.state("build"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.usage("repo"), 1);
+
+    q.call(&["task", "complete", "build"]);
+
+    assert_eq!(q.usage("cpu"), 0);
+    assert_eq!(q.usage("repo"), 0);
+}
+
+#[test]
+fn forced_completion_while_waiting_returns_error_instead_of_admission() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("owner", &["cpu"]);
+    q.call(&["task", "wait", "owner"]);
+    q.task("pending", &["cpu"]);
+    let mut pending = q.spawn_wait("pending", "pending");
+    q.wait_for_log("pending", "waiting for 'pending'");
+
+    pending.assert_running();
+    q.call(&["task", "complete", "--force", "pending"]);
+    let output = pending.output();
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        fs::read_to_string(q.log("pending"))
+            .unwrap()
+            .contains("already completed")
+    );
+    assert_eq!(q.state("pending"), "completed");
+    assert_eq!(q.state("owner"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+}
+
+#[test]
+fn two_processes_waiting_for_one_name_only_receive_one_permission() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("build", &["cpu"]);
+
+    let first = q.spawn_wait("build", "first");
+    let second = q.spawn_wait("build", "second");
+    let mut codes = [first.output().status.code(), second.output().status.code()];
+    codes.sort();
+
+    assert_eq!(codes, [Some(0), Some(2)]);
+    assert_eq!(q.state("build"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+}
+
+#[test]
+fn crossing_topic_links_use_global_task_order_across_processes() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.topic("repo");
+    q.task("first", &["cpu"]);
+    q.task("second", &["repo"]);
+    q.call(&["topic", "repo", "add", "first"]);
+    q.call(&["topic", "cpu", "add", "second"]);
+    let mut second = q.spawn_wait("second", "second");
+    q.wait_for_log("second", "waiting for 'second'");
+
+    q.call(&["task", "wait", "first"]);
+
+    second.assert_running();
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.usage("repo"), 1);
+
+    q.call(&["task", "complete", "first"]);
+
+    assert!(second.output().status.success());
+    assert_eq!(q.state("second"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.usage("repo"), 1);
+}
+
+#[test]
+fn capacity_two_is_respected_by_independent_wait_processes() {
+    let q = Queue::new();
+    q.call(&["topic", "create", "cpu", "--capacity", "2"]);
+
+    for name in ["a", "b", "c"] {
+        q.task(name, &["cpu"]);
+    }
+
+    let mut third = q.spawn_wait("c", "third");
+    q.wait_for_log("third", "waiting for 'c'");
+    let second = q.spawn_wait("b", "second");
+    let first = q.spawn_wait("a", "first");
+
+    assert!(second.output().status.success());
+    assert!(first.output().status.success());
+    third.assert_running();
+    assert_eq!(q.usage("cpu"), 2);
+    assert!(
+        !q.raw(&["topic", "capacity", "cpu", "--capacity", "1"])
+            .status
+            .success()
+    );
+
+    q.call(&["task", "complete", "a"]);
+
+    assert!(third.output().status.success());
+    assert_eq!(q.usage("cpu"), 2);
+}
+
+#[test]
+fn external_caller_fixture() {
+    if std::env::var_os("ANYQ_TEST_CALLER").is_none() {
+        return;
+    }
+
+    let status = Command::new(env!("CARGO_BIN_EXE_anyq"))
+        .args(["task", "wait", "owner"])
+        .stdout(Stdio::null())
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+
+    fs::write(std::env::var_os("ANYQ_TEST_READY").unwrap(), "admitted").unwrap();
+    thread::sleep(Duration::from_secs(60));
+}
+
+#[test]
+fn killing_external_caller_and_waiter_does_not_release_or_complete_tasks() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("owner", &["cpu"]);
+    q.task("next", &["cpu"]);
+    let ready = q.dir.path().join("ready");
+    let mut caller = TestProcess::spawn(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "external_caller_fixture", "--nocapture"])
+            .env("ANYQ_TEST_CALLER", "1")
+            .env("ANYQ_TEST_READY", &ready)
+            .env("ANYQ_DB", &q.db)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    );
+    wait_for_file(&ready, Some("admitted"));
+    let mut waiting = q.spawn_wait("next", "next");
+    q.wait_for_log("next", "waiting for 'next'");
+
+    caller.assert_running();
+    caller.stop();
+
+    assert_eq!(q.state("owner"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+    waiting.assert_running();
+    waiting.stop();
+
+    assert_eq!(q.state("next"), "queued");
+    q.call(&["task", "complete", "owner"]);
+    q.call(&["task", "wait", "next"]);
+
+    assert_eq!(q.state("next"), "running");
+}
+
+#[test]
+fn adding_a_topic_racing_wait_is_atomic() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.topic("repo");
+    q.task("build", &["cpu"]);
+
+    let addition = TestProcess::spawn(
+        q.cmd(&["topic", "repo", "add", "build"])
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+            .stderr(Stdio::piped()),
+    );
+    let admission = q.spawn_wait("build", "admission");
+    let added = addition.output();
 
-        wait_for_file(&marker);
-        let args = fixture::arguments();
+    assert!(admission.output().status.success());
+    assert_eq!(q.state("build"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.usage("repo"), i64::from(added.status.success()));
 
+    if !added.status.success() {
+        assert!(String::from_utf8_lossy(&added.stderr).contains("already running"));
+    }
+}
+
+#[test]
+fn force_racing_wait_always_leaves_no_owned_slots() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("build", &["cpu"]);
+
+    let force = TestProcess::spawn(
+        q.cmd(&["task", "complete", "--force", "build"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    );
+    let admission = q.spawn_wait("build", "admission");
+
+    assert!(force.output().status.success());
+
+    let output = admission.output();
+
+    assert!(matches!(output.status.code(), Some(0 | 2)));
+    assert_eq!(q.state("build"), "completed");
+    assert_eq!(q.usage("cpu"), 0);
+
+    if !output.status.success() {
         assert!(
-            Command::new(&args[0])
-                .args(&args[1..])
-                .env("ANYQ_FIXTURE_MODE", "console-event")
-                .env("ANYQ_FIXTURE_WORKER", child.id().to_string())
-                .env("ANYQ_FIXTURE_EVENT", event.to_string())
-                .stdout(Stdio::null())
-                .status()
+            fs::read_to_string(q.log("admission"))
                 .unwrap()
-                .success()
-        );
-
-        let out = child.wait_with_output().unwrap();
-
-        assert_eq!(
-            out.status.code(),
-            Some(130),
-            "{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        assert_exited(std::fs::read_to_string(pid).unwrap().parse().unwrap());
-
-        assert_eq!(
-            q.call(&["jobs", "list"])[0]["deliveries"][0]["state"],
-            "pending"
+                .contains("already completed")
         );
     }
 }
 
+#[test]
+fn reserved_topic_names_and_capacity_equals_syntax_are_unambiguous() {
+    let q = Queue::new();
+    q.topic("create");
+    q.topic("capacity");
+    q.call(&["topic", "create", "add", "--capacity=2"]);
+    q.task("wait", &["create", "capacity", "add"]);
+
+    q.call(&["topic", "capacity", "add", "--capacity=3"]);
+    q.call(&["task", "wait", "wait"]);
+
+    assert_eq!(q.state("wait"), "running");
+    assert_eq!(q.usage("create"), 1);
+    assert_eq!(q.usage("capacity"), 1);
+    assert_eq!(q.usage("add"), 1);
+}
+
+#[test]
+fn help_and_syntax_errors_do_not_open_a_database_and_explicit_path_wins() {
+    let q = Queue::new();
+    let help = q.raw(&["topic", "create", "--help"]);
+
+    assert!(help.status.success());
+    assert!(String::from_utf8_lossy(&help.stdout).contains("anyq topic create"));
+    assert!(!q.db.exists());
+    assert!(
+        !q.raw(&["topic", "create", "cpu", "--capacity", "invalid"])
+            .status
+            .success()
+    );
+    assert!(!q.db.exists());
+
+    let explicit = q.dir.path().join("explicit").join("queue.db");
+    let result = TestProcess::spawn(
+        q.cmd(&["topic", "create", "cpu", "--capacity", "2"])
+            .arg("--db")
+            .arg(&explicit)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
+
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(explicit.exists());
+    assert!(!q.db.exists());
+    assert_eq!(q.call(&["topic", "--list"]), "");
+}
+
+#[test]
+fn the_legacy_cli_is_removed() {
+    let q = Queue::new();
+
+    for command in [
+        "publish", "claim", "ack", "nack", "renew", "retry", "jobs", "group", "worker",
+    ] {
+        let output = q.raw(&[command]);
+
+        assert_eq!(output.status.code(), Some(2), "{command}");
+        assert!(!q.db.exists());
+    }
+}
+
+#[test]
+fn legacy_database_returns_a_clear_error_without_modifying_it() {
+    let q = Queue::new();
+    let connection = Connection::open(&q.db).unwrap();
+    connection.execute_batch("CREATE TABLE messages(payload TEXT); INSERT INTO messages VALUES ('old-data'); PRAGMA user_version=1").unwrap();
+    drop(connection);
+    let before = fs::read(&q.db).unwrap();
+
+    let result = q.raw(&["topic", "--list"]);
+
+    assert_eq!(result.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("separate database with --db"));
+    assert_eq!(fs::read(&q.db).unwrap(), before);
+}
+
 #[cfg(windows)]
 #[test]
-fn windows_uses_local_app_data_without_overriding_explicit_db() {
+fn windows_default_uses_local_app_data_and_anyq_db_overrides_it() {
     let q = Queue::new();
-    let local = q._dir.path().join("local");
+    let local = q.dir.path().join("local");
+    let result = TestProcess::spawn(
+        Command::new(env!("CARGO_BIN_EXE_anyq"))
+            .args(["topic", "--list"])
+            .env_remove("ANYQ_DB")
+            .env("LOCALAPPDATA", &local)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
 
-    let out = Command::new(env!("CARGO_BIN_EXE_anyq"))
-        .args(["topic", "list"])
-        .env_remove("ANYQ_DB")
-        .env("LOCALAPPDATA", &local)
-        .env("HOME", "unused")
-        .output()
-        .unwrap();
-
-    assert!(out.status.success());
+    assert!(result.status.success());
     assert!(local.join("anyq/queue.db").exists());
 
-    let out = q
-        .cmd(&["topic", "list"])
+    let result = q
+        .cmd(&["topic", "--list"])
         .env_remove("LOCALAPPDATA")
         .output()
         .unwrap();
 
-    assert!(out.status.success());
+    assert!(result.status.success());
     assert!(q.db.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn unix_default_uses_xdg_then_home_without_touching_real_user_data() {
+    let q = Queue::new();
+    let xdg = q.dir.path().join("xdg");
+    let home = q.dir.path().join("home");
+    let result = TestProcess::spawn(
+        Command::new(env!("CARGO_BIN_EXE_anyq"))
+            .args(["topic", "--list"])
+            .env_remove("ANYQ_DB")
+            .env("XDG_DATA_HOME", &xdg)
+            .env("HOME", &home)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
+
+    assert!(result.status.success());
+    assert!(xdg.join("anyq/queue.db").exists());
+    assert!(!home.exists());
+
+    let result = TestProcess::spawn(
+        Command::new(env!("CARGO_BIN_EXE_anyq"))
+            .args(["topic", "--list"])
+            .env_remove("ANYQ_DB")
+            .env_remove("XDG_DATA_HOME")
+            .env("HOME", &home)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
+
+    assert!(result.status.success());
+    assert!(home.join(".local/share/anyq/queue.db").exists());
 }

@@ -1,65 +1,158 @@
-use super::*;
+use crate::*;
 
-fn delivery(max_attempts: u32) -> Delivery {
-    Delivery::pending(
-        &Message {
-            id: 1,
-            topic: "builds".into(),
-            payload: "{}".into(),
-            key: None,
-            max_attempts,
-            created_at: 0,
-        },
-        "builders".into(),
-    )
+fn resource(name: &str, capacity: u32, running: u64, queued_before: u64) -> ResourceAvailability {
+    ResourceAvailability {
+        topic: Topic::new(name.into(), capacity).unwrap(),
+        running,
+        queued_before,
+    }
 }
 
 #[test]
-fn expired_and_replaced_tokens_cannot_complete() {
-    let mut d = delivery(3);
-    d.claim("first".into(), "old".into(), 0, 100).unwrap();
+fn registration_membership_start_and_completion_follow_one_lifecycle() {
+    let mut task = Task::new(1, "build".into()).unwrap();
 
-    assert_eq!(d.ack("old", 100, None), Err(Error::LeaseLost));
-    assert!(d.expire(100));
-    d.claim("second".into(), "new".into(), 100, 100).unwrap();
+    assert_eq!(task.state(), TaskState::Registered);
+    assert!(
+        task.require_queued()
+            .unwrap_err()
+            .to_string()
+            .contains("not registered in any topic")
+    );
+    assert!(
+        task.complete(false)
+            .unwrap_err()
+            .to_string()
+            .contains("was not run")
+    );
 
-    assert_eq!(d.ack("old", 101, None), Err(Error::LeaseLost));
-    d.ack("new", 101, None).unwrap();
+    task.add_topic("repo").unwrap();
+    task.add_topic("cpu").unwrap();
+    task.add_topic("cpu").unwrap();
 
-    assert_eq!(d.state, State::Succeeded);
-    assert_eq!(d.ack("new", 102, None), Err(Error::LeaseLost));
+    assert_eq!(task.topics(), &["cpu", "repo"]);
+    assert_eq!(task.state(), TaskState::Queued);
+    assert!(task.complete(false).is_err());
+
+    let outcome = task
+        .try_start(&[resource("repo", 1, 0, 0), resource("cpu", 1, 0, 0)])
+        .unwrap();
+
+    assert_eq!(outcome, StartOutcome::Started);
+    assert_eq!(task.state(), TaskState::Running);
+    assert!(task.add_topic("another").is_err());
+    assert!(task.add_topic("cpu").is_err());
+    assert!(
+        task.try_start(&[resource("repo", 1, 0, 0), resource("cpu", 1, 0, 0)])
+            .is_err()
+    );
+
+    task.complete(false).unwrap();
+
+    assert_eq!(task.state(), TaskState::Completed);
+    assert_eq!(task.topics(), &["cpu", "repo"]);
+    assert!(task.complete(false).is_err());
+    assert!(task.complete(true).is_err());
+    assert!(task.add_topic("cpu").is_err());
+    assert!(task.require_queued().is_err());
 }
 
 #[test]
-fn last_attempt_fails_and_explicit_retry_resets_budget() {
-    let mut d = delivery(1);
-    d.claim("builder".into(), "token".into(), 0, 10).unwrap();
+fn unavailable_resource_never_partially_starts_a_task() {
+    let mut task = Task::new(1, "build".into()).unwrap();
+    task.add_topic("cpu").unwrap();
+    task.add_topic("repo").unwrap();
+    let before = task.clone();
 
-    assert!(d.expire(10));
-    assert_eq!(d.state, State::Failed);
-    d.retry(20).unwrap();
+    let outcome = task
+        .try_start(&[resource("cpu", 1, 0, 0), resource("repo", 1, 1, 0)])
+        .unwrap();
 
-    assert_eq!(d.attempts, 0);
-    assert_eq!(d.available_at, 20);
+    assert_eq!(outcome, StartOutcome::Busy);
+    assert_eq!(task, before);
 }
 
 #[test]
-fn renewal_never_shortens_lease_and_delayed_retry_is_not_ready() {
-    let mut d = delivery(2);
-    d.claim("builder".into(), "token".into(), 0, 100).unwrap();
-    d.renew("token", 5, 10).unwrap();
-
-    assert_eq!(d.lease_until, Some(100));
-    d.nack("token", 10, 50, "failure".into()).unwrap();
-
-    assert!(d.claim("builder".into(), "next".into(), 59, 100).is_err());
-    d.claim("builder".into(), "next".into(), 60, 100).unwrap();
+fn admission_checks_capacity_and_global_predecessors_without_overflow() {
+    for (capacity, running, earlier, expected) in [
+        (1, 0, 0, true),
+        (1, 1, 0, false),
+        (1, 0, 1, false),
+        (2, 0, 1, true),
+        (2, 1, 1, false),
+        (2, 1, 0, true),
+        (2, u64::MAX, 0, false),
+        (2, 0, u64::MAX, false),
+    ] {
+        assert_eq!(
+            resource("cpu", capacity, running, earlier).permits_start(),
+            expected
+        );
+    }
 }
 
 #[test]
-fn invalid_inputs_and_overflow_are_rejected() {
-    assert!(Topic::new("bad/name".into(), 1).is_err());
-    assert!(Topic::new("ok".into(), 0).is_err());
-    assert!(deadline(i64::MAX, 1).is_err());
-    assert!(deadline(0, 0).is_err());
+fn every_topic_must_have_exactly_one_matching_snapshot() {
+    let mut task = Task::new(1, "build".into()).unwrap();
+    task.add_topic("cpu").unwrap();
+    task.add_topic("repo").unwrap();
+    let before = task.clone();
+
+    for resources in [
+        vec![resource("cpu", 1, 0, 0)],
+        vec![resource("cpu", 1, 0, 0), resource("cpu", 1, 0, 0)],
+        vec![resource("cpu", 1, 0, 0), resource("other", 1, 0, 0)],
+    ] {
+        assert!(task.try_start(&resources).is_err());
+        assert_eq!(task, before);
+    }
+}
+
+#[test]
+fn force_completes_registered_queued_and_running_tasks() {
+    for initial in [TaskState::Registered, TaskState::Queued, TaskState::Running] {
+        let topics = if initial == TaskState::Registered {
+            vec![]
+        } else {
+            vec!["cpu".into()]
+        };
+        let mut task = Task::restore(1, "build".into(), initial, topics).unwrap();
+
+        task.complete(true).unwrap();
+
+        assert_eq!(task.state(), TaskState::Completed);
+        assert!(task.require_queued().is_err());
+    }
+}
+
+#[test]
+fn invalid_names_sequences_and_persisted_membership_are_rejected() {
+    assert!(Task::new(0, "build".into()).is_err());
+    assert!(Task::new(1, "bad name".into()).is_err());
+    assert!(Topic::new("cpu".into(), 0).is_err());
+    assert!(Task::restore(1, "build".into(), TaskState::Running, vec![]).is_err());
+    assert!(Task::restore(1, "build".into(), TaskState::Registered, vec!["cpu".into()]).is_err());
+    assert!(
+        Task::restore(
+            1,
+            "build".into(),
+            TaskState::Queued,
+            vec!["cpu".into(), "cpu".into()]
+        )
+        .is_err()
+    );
+
+    let mut task = Task::new(1, "build".into()).unwrap();
+
+    assert!(task.add_topic("bad topic").is_err());
+    assert_eq!(task.state(), TaskState::Registered);
+    assert!(task.topics().is_empty());
+}
+
+#[test]
+fn capacity_cannot_be_reduced_below_existing_ownership() {
+    let topic = Topic::new("cpu".into(), 2).unwrap();
+
+    assert!(topic.require_capacity_for(2).is_ok());
+    assert!(topic.require_capacity_for(3).is_err());
 }

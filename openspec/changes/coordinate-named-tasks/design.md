@@ -2,9 +2,9 @@
 
 ## Context
 
-Мотивация — в proposal.md. Сейчас queue-api содержит Message/Delivery и контракты публикации, claim, lease и handoff; dispatch выполняет их через Store/UnitOfWork и четыре persistence-порта. SQLite хранит topics, consumer_groups, messages и deliveries в схеме версии 1. Worker выделен в четыре crates и запускает процессы. CLI имеет JSON-презентеры; пилот itzdesign использует внешние run.py/execute.py.
+Мотивация — в proposal.md. До этого изменения queue-api содержал Message/Delivery и контракты публикации, claim, lease и handoff; dispatch выполнял их через Store/UnitOfWork и четыре persistence-порта. SQLite хранил topics, consumer_groups, messages и deliveries в схеме версии 1. Worker был выделен в четыре crates и запускал процессы. CLI имел JSON-презентеры; первый пилот itzdesign использовал внешние run.py/execute.py.
 
-Пользователь подтвердил замену прежнего API, атомарное получение слотов всех топиков и владение до явного complete без heartbeat. Это приоритетнее старого описания consumer groups в AGENTS.md и openspec/config.yaml. Эти документы обновляются при реализации; существующие базовые specs до проверки реализации не переписываются.
+Пользователь подтвердил замену прежнего API, атомарное получение слотов всех топиков и владение до явного complete без heartbeat. Это заменяет старое решение о consumer groups. AGENTS.md и openspec/config.yaml обновлены под новую модель; базовые specs синхронизируются после проверки реализации и разрешённого merge.
 
 ## Goals / Non-Goals
 

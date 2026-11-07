@@ -1,193 +1,215 @@
 mod memory;
 mod memory_store;
-mod sequence;
-mod test_clock;
 
 use crate::*;
 use anyq_queue_api::*;
 use memory_store::MemoryStore;
-use sequence::Sequence;
-use test_clock::TestClock;
 
-fn setup() -> MemoryStore {
-    let store = MemoryStore::default();
-
+fn create_topic(store: &MemoryStore, name: &str, capacity: u32) {
     CreateTopicInteractor::new(store.clone())
-        .create(Topic::new("builds".into(), 1).unwrap())
+        .create(Topic::new(name.into(), capacity).unwrap())
         .unwrap();
-
-    CreateConsumerGroupInteractor::new(store.clone())
-        .create(ConsumerGroup {
-            topic: "builds".into(),
-            name: "builders".into(),
-        })
-        .unwrap();
-
-    store
 }
 
-fn request(topic: &str) -> Publish {
-    Publish {
-        topic: topic.into(),
-        payload: "{}".into(),
-        key: None,
-        max_attempts: 2,
-    }
-}
-
-fn claim(
-    store: &MemoryStore,
-    clock: &TestClock,
-    tokens: &Sequence,
-    group: &str,
-) -> Option<Assignment> {
-    ClaimDeliveryInteractor::new(store.clone(), clock.clone(), tokens.clone())
-        .claim(Claim {
-            topic: "builds".into(),
-            group: group.into(),
-            consumer: "worker".into(),
-            lease_ms: 100,
-        })
+fn register(store: &MemoryStore, name: &str) -> Task {
+    RegisterTaskInteractor::new(store.clone())
+        .register(name.into())
         .unwrap()
 }
 
-#[test]
-fn groups_replay_history_and_complete_independently() {
-    let store = setup();
-    let clock = TestClock::default();
-    let tokens = Sequence::default();
-
-    PublishMessageInteractor::new(store.clone(), clock.clone())
-        .publish(request("builds"))
+fn add(store: &MemoryStore, name: &str, topic: &str) {
+    AddTaskToTopicInteractor::new(store.clone())
+        .add(name, topic)
         .unwrap();
+}
 
-    let a = claim(&store, &clock, &tokens, "builders").unwrap();
-
-    CompleteDeliveryInteractor::new(store.clone(), clock.clone())
-        .complete(CompleteDeliveryRequest {
-            lease: a.lease(),
-            result: None,
-            next: None,
-        })
-        .unwrap();
-
-    CreateConsumerGroupInteractor::new(store.clone())
-        .create(ConsumerGroup {
-            topic: "builds".into(),
-            name: "audit".into(),
-        })
-        .unwrap();
-
-    let audit = claim(&store, &clock, &tokens, "audit").unwrap();
-
-    assert_eq!(a.message.id, audit.message.id);
-    assert_eq!(audit.delivery.attempts, 1);
-    assert!(claim(&store, &clock, &tokens, "builders").is_none());
+fn start(store: &MemoryStore, name: &str) -> Result<StartOutcome> {
+    TryStartTaskInteractor::new(store.clone()).try_start(name)
 }
 
 #[test]
-fn capacity_is_shared_between_groups_and_expired_token_is_fenced() {
-    let store = setup();
-    let clock = TestClock::default();
-    let tokens = Sequence::default();
+fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effects() {
+    let store = MemoryStore::default();
+    let task = register(&store, "build");
 
-    CreateConsumerGroupInteractor::new(store.clone())
-        .create(ConsumerGroup {
-            topic: "builds".into(),
-            name: "audit".into(),
-        })
-        .unwrap();
-
-    PublishMessageInteractor::new(store.clone(), clock.clone())
-        .publish(request("builds"))
-        .unwrap();
-
-    let a = claim(&store, &clock, &tokens, "builders").unwrap();
-
-    assert!(claim(&store, &clock, &tokens, "audit").is_none());
-
-    clock.0.set(100);
-
-    let b = claim(&store, &clock, &tokens, "builders").unwrap();
-
-    assert_ne!(a.delivery.token, b.delivery.token);
-    assert_eq!(
-        CompleteDeliveryInteractor::new(store, clock).complete(CompleteDeliveryRequest {
-            lease: a.lease(),
-            result: None,
-            next: None
-        }),
-        Err(Error::LeaseLost)
-    );
-}
-
-#[test]
-fn delayed_retry_does_not_block_next_ready_message() {
-    let store = setup();
-    let clock = TestClock::default();
-    let tokens = Sequence::default();
-    let mut publisher = PublishMessageInteractor::new(store.clone(), clock.clone());
-
-    publisher.publish(request("builds")).unwrap();
-    publisher.publish(request("builds")).unwrap();
-
-    let a = claim(&store, &clock, &tokens, "builders").unwrap();
-
-    RejectDeliveryInteractor::new(store.clone(), clock.clone())
-        .reject(RejectDeliveryRequest {
-            lease: a.lease(),
-            delay_ms: 50,
-            reason: "retry".into(),
-        })
-        .unwrap();
-
-    let b = claim(&store, &clock, &tokens, "builders").unwrap();
-
-    assert!(b.message.id > a.message.id);
-}
-
-#[test]
-fn handoff_rolls_back_publication_if_delivery_save_fails() {
-    let store = setup();
-    let clock = TestClock::default();
-    let tokens = Sequence::default();
-
-    CreateTopicInteractor::new(store.clone())
-        .create(Topic::new("emulator".into(), 1).unwrap())
-        .unwrap();
-
-    PublishMessageInteractor::new(store.clone(), clock.clone())
-        .publish(request("builds"))
-        .unwrap();
-
-    let a = claim(&store, &clock, &tokens, "builders").unwrap();
-
-    store.data.borrow_mut().fail_save = true;
-
+    assert_eq!(task.sequence(), 1);
     assert!(
-        CompleteDeliveryInteractor::new(store.clone(), clock)
-            .complete(CompleteDeliveryRequest {
-                lease: a.lease(),
-                result: None,
-                next: Some(request("emulator"))
-            })
+        RegisterTaskInteractor::new(store.clone())
+            .register("build".into())
             .is_err()
     );
-    assert_eq!(store.data.borrow().messages.len(), 1);
-    assert_eq!(store.data.borrow().deliveries[0].state, State::Running);
+    assert!(
+        AddTaskToTopicInteractor::new(store.clone())
+            .add("build", "missing")
+            .is_err()
+    );
+    assert!(
+        AddTaskToTopicInteractor::new(store.clone())
+            .add("missing", "missing")
+            .is_err()
+    );
+    assert_eq!(store.data.borrow().tasks[0], task);
+    assert!(
+        start(&store, "build")
+            .unwrap_err()
+            .to_string()
+            .contains("not registered")
+    );
+
+    CompleteTaskInteractor::new(store.clone())
+        .complete("build", true)
+        .unwrap();
+
+    assert!(
+        RegisterTaskInteractor::new(store.clone())
+            .register("build".into())
+            .is_err()
+    );
+    assert_eq!(register(&store, "next").sequence(), 2);
+    assert!(
+        CompleteTaskInteractor::new(store.clone())
+            .complete("missing", true)
+            .is_err()
+    );
 }
 
 #[test]
-fn producer_key_returns_original_payload_without_new_deliveries() {
-    let store = setup();
-    let mut publisher = PublishMessageInteractor::new(store.clone(), TestClock::default());
-    let mut request = request("builds");
-    request.key = Some("key".into());
+fn crossed_membership_uses_global_registration_order_and_releases_all_resources() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    create_topic(&store, "repo", 1);
+    register(&store, "a");
+    register(&store, "b");
+    add(&store, "a", "cpu");
+    add(&store, "b", "repo");
+    add(&store, "a", "repo");
+    add(&store, "b", "cpu");
 
-    let first = publisher.publish(request.clone()).unwrap();
+    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
+    assert_eq!(start(&store, "a").unwrap(), StartOutcome::Started);
+    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
+    assert!(start(&store, "a").is_err());
 
-    request.payload = "changed".into();
+    CompleteTaskInteractor::new(store.clone())
+        .complete("a", false)
+        .unwrap();
 
-    assert_eq!(first, publisher.publish(request).unwrap());
-    assert_eq!(store.data.borrow().deliveries.len(), 1);
+    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
+    assert_eq!(store.data.borrow().tasks[1].topics(), &["cpu", "repo"]);
+}
+
+#[test]
+fn an_unavailable_topic_leaves_the_whole_task_queued() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    create_topic(&store, "repo", 1);
+    register(&store, "owner");
+    add(&store, "owner", "repo");
+    start(&store, "owner").unwrap();
+    register(&store, "build");
+    add(&store, "build", "cpu");
+    add(&store, "build", "repo");
+    let before = store.data.borrow().clone();
+
+    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Busy);
+
+    assert_eq!(*store.data.borrow(), before);
+}
+
+#[test]
+fn capacity_two_allows_only_the_first_two_queued_tasks() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 2);
+
+    for name in ["a", "b", "c"] {
+        register(&store, name);
+        add(&store, name, "cpu");
+    }
+
+    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Busy);
+    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
+    assert_eq!(start(&store, "a").unwrap(), StartOutcome::Started);
+    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Busy);
+    assert!(
+        SetTopicCapacityInteractor::new(store.clone())
+            .set_capacity(Topic::new("cpu".into(), 1).unwrap())
+            .is_err()
+    );
+
+    CompleteTaskInteractor::new(store.clone())
+        .complete("a", false)
+        .unwrap();
+
+    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Started);
+    assert_eq!(store.data.borrow().topics[0].capacity, 2);
+}
+
+#[test]
+fn force_removes_an_unstarted_predecessor_and_stale_wait_cannot_start_it() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    register(&store, "a");
+    register(&store, "b");
+    add(&store, "a", "cpu");
+    add(&store, "b", "cpu");
+
+    assert!(
+        CompleteTaskInteractor::new(store.clone())
+            .complete("a", false)
+            .is_err()
+    );
+    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
+
+    CompleteTaskInteractor::new(store.clone())
+        .complete("a", true)
+        .unwrap();
+
+    assert!(start(&store, "a").is_err());
+    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
+    assert!(
+        AddTaskToTopicInteractor::new(store.clone())
+            .add("b", "cpu")
+            .is_err()
+    );
+}
+
+#[test]
+fn failed_saves_roll_back_admission_completion_and_membership() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    register(&store, "build");
+    add(&store, "build", "cpu");
+    store.data.borrow_mut().fail_save = true;
+    let before = store.data.borrow().clone();
+
+    assert!(start(&store, "build").is_err());
+    assert_eq!(*store.data.borrow(), before);
+    assert!(
+        CompleteTaskInteractor::new(store.clone())
+            .complete("build", true)
+            .is_err()
+    );
+    assert_eq!(*store.data.borrow(), before);
+
+    create_topic(&store, "repo", 1);
+    let before_add = store.data.borrow().clone();
+
+    assert!(
+        AddTaskToTopicInteractor::new(store.clone())
+            .add("build", "repo")
+            .is_err()
+    );
+    assert_eq!(*store.data.borrow(), before_add);
+
+    store.data.borrow_mut().fail_save = false;
+    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Started);
+    store.data.borrow_mut().fail_save = true;
+    let running = store.data.borrow().clone();
+
+    assert!(
+        CompleteTaskInteractor::new(store.clone())
+            .complete("build", false)
+            .is_err()
+    );
+    assert_eq!(*store.data.borrow(), running);
 }
