@@ -387,31 +387,34 @@ fn force_racing_admission_leaves_a_terminal_task_without_slots() {
 #[test]
 fn independent_openers_can_initialize_a_fresh_database() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("fresh.db");
-    let barrier = Arc::new(Barrier::new(4));
-    let threads: Vec<_> = (0..4)
-        .map(|index| {
-            let path = path.clone();
-            let barrier = barrier.clone();
 
-            thread::spawn(move || {
-                barrier.wait();
-                let store = Sqlite::open(&path).unwrap();
-                register(&store, &format!("task-{index}"));
+    for iteration in 0..12 {
+        let path = dir.path().join(format!("fresh-{iteration}.db"));
+        let barrier = Arc::new(Barrier::new(4));
+        let threads: Vec<_> = (0..4)
+            .map(|index| {
+                let path = path.clone();
+                let barrier = barrier.clone();
+
+                thread::spawn(move || {
+                    barrier.wait();
+                    let store = Sqlite::open(&path).unwrap();
+                    register(&store, &format!("task-{index}"));
+                })
             })
-        })
-        .collect();
+            .collect();
 
-    for thread in threads {
-        thread.join().unwrap();
-    }
+        for thread in threads {
+            thread.join().unwrap();
+        }
 
-    let store = Sqlite::open(&path).unwrap();
+        let store = Sqlite::open(&path).unwrap();
 
-    for index in 0..4 {
-        assert_eq!(
-            task(&store, &format!("task-{index}")).state(),
-            TaskState::Registered
-        );
+        for index in 0..4 {
+            assert_eq!(
+                task(&store, &format!("task-{index}")).state(),
+                TaskState::Registered
+            );
+        }
     }
 }

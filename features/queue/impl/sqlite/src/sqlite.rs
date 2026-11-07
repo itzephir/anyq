@@ -1,8 +1,16 @@
 use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
 use anyq_queue_api::{Error, Result};
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
-use rusqlite::{Connection, TransactionBehavior};
-use std::{cell::RefCell, path::Path, rc::Rc, time::Duration};
+use rusqlite::{Connection, ErrorCode, TransactionBehavior};
+use std::{
+    cell::RefCell,
+    path::Path,
+    rc::Rc,
+    thread,
+    time::{Duration, Instant},
+};
+
+const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub struct Sqlite {
@@ -42,12 +50,28 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
     Ok(version)
 }
 
+fn enable_wal(connection: &Connection) -> Result<()> {
+    let deadline = Instant::now() + LOCK_TIMEOUT;
+
+    loop {
+        match connection.pragma_update(None, "journal_mode", "WAL") {
+            Ok(()) => return Ok(()),
+            Err(error)
+                if error.sqlite_error_code() == Some(ErrorCode::DatabaseBusy)
+                    && Instant::now() < deadline =>
+            {
+                // Journal-mode lock upgrades can return BUSY without calling the busy handler.
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(storage(error)),
+        }
+    }
+}
+
 impl Sqlite {
     pub fn open(path: &Path) -> Result<Self> {
         let mut connection = Connection::open(path).map_err(storage)?;
-        connection
-            .busy_timeout(Duration::from_secs(5))
-            .map_err(storage)?;
+        connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
 
         // Check an existing database in one read snapshot before changing journal mode or schema.
         let read = connection
@@ -59,9 +83,7 @@ impl Sqlite {
         connection
             .pragma_update(None, "foreign_keys", "ON")
             .map_err(storage)?;
-        connection
-            .pragma_update(None, "journal_mode", "WAL")
-            .map_err(storage)?;
+        enable_wal(&connection)?;
         connection
             .pragma_update(None, "synchronous", "FULL")
             .map_err(storage)?;
