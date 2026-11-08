@@ -5,6 +5,9 @@ pub use error::{Error, Result};
 mod validate_name;
 pub use validate_name::validate_name;
 
+mod validate_topic_name;
+pub use validate_topic_name::validate_topic_name;
+
 mod topic;
 pub use topic::Topic;
 

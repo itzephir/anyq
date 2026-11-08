@@ -1,6 +1,28 @@
 use crate::*;
 
 #[test]
+fn topic_names_reject_commands_and_leading_dashes_in_every_domain_path() {
+    for name in [
+        "create", "capacity", "link", "help", "-", "--", "-cpu", "--list",
+    ] {
+        let mut task = Task::new(1, "build".into()).unwrap();
+
+        assert!(Topic::new(name.into(), 1).is_err(), "{name}");
+        assert!(task.add_topic(name).is_err(), "{name}");
+        assert!(
+            Task::restore(1, "build".into(), TaskState::Queued, vec![name.into()]).is_err(),
+            "{name}"
+        );
+        assert_eq!(task.state(), TaskState::Registered);
+        assert!(task.topics().is_empty());
+    }
+
+    for name in ["cpu", "large-builds", "add", "task", "topic", "Create"] {
+        assert!(Topic::new(name.into(), 1).is_ok(), "{name}");
+    }
+}
+
+#[test]
 fn current_topic_queue_defines_active_states_and_orders_by_registration() {
     let topic = Topic::new("cpu".into(), 1).unwrap();
     let later = Task::restore(2, "a-later".into(), TaskState::Queued, vec!["cpu".into()]).unwrap();

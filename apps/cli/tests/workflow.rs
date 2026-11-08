@@ -65,10 +65,10 @@ fn topic_and_task_inspection_show_state_capacity_and_only_current_queue_entries(
 }
 
 #[test]
-fn reserved_names_can_be_inspected_with_a_separator_and_global_database_option() {
+fn task_names_can_be_inspected_with_a_separator_and_global_database_option() {
     let q = Queue::new();
-    q.topic("capacity");
-    q.task("add", &["capacity"]);
+    q.topic("cpu");
+    q.task("add", &["cpu"]);
     q.call(&["task", "add", "--", "-twc"]);
 
     assert_eq!(
@@ -78,11 +78,7 @@ fn reserved_names_can_be_inspected_with_a_separator_and_global_database_option()
 
     assert_eq!(
         q.call(&["task", "--", "add"]),
-        "task: add\nstatus: queued\ntopics:\n- capacity"
-    );
-    assert_eq!(
-        q.call(&["topic", "--", "capacity"]),
-        "topic: capacity\ncapacity: 1\nqueue:\n- add [queued]"
+        "task: add\nstatus: queued\ntopics:\n- cpu"
     );
 
     let output = TestProcess::spawn(
@@ -666,19 +662,30 @@ fn force_racing_wait_always_leaves_no_owned_slots() {
 }
 
 #[test]
-fn reserved_topic_names_and_capacity_equals_syntax_are_unambiguous() {
+fn topic_command_names_and_leading_dashes_cannot_bypass_domain_validation() {
     let q = Queue::new();
-    q.topic("create");
-    q.topic("capacity");
+
+    for name in [
+        "create", "capacity", "link", "help", "-cpu", "--list", "-", "--",
+    ] {
+        let output = q.raw(&["topic", "create", "--", name]);
+
+        assert_eq!(output.status.code(), Some(2), "{name}");
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("reserved") || error.contains("must not start"),
+            "{name}: {error}"
+        );
+        assert!(!q.db.exists(), "{name}");
+    }
+
     q.call(&["topic", "create", "add", "--capacity=2"]);
-    q.task("wait", &["create", "capacity", "add"]);
+    q.task("wait", &["add"]);
 
     q.call(&["topic", "capacity", "add", "3"]);
     q.call(&["task", "wait", "wait"]);
 
     assert_eq!(q.state("wait"), "running");
-    assert_eq!(q.usage("create"), 1);
-    assert_eq!(q.usage("capacity"), 1);
     assert_eq!(q.usage("add"), 1);
 }
 

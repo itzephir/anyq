@@ -70,6 +70,36 @@ fn usage(store: &Sqlite, resource: &str) -> u64 {
 }
 
 #[test]
+fn topic_storage_uses_domain_validation_for_writes_and_reconstruction() {
+    let (_dir, store) = fixture();
+
+    for name in ["create", "capacity", "link", "help", "-cpu", "--list"] {
+        let result = store.clone().transaction(|records| {
+            records.topics().put_topic(&Topic {
+                name: name.into(),
+                capacity: 1,
+            })
+        });
+
+        assert!(result.is_err(), "{name}");
+        assert!(
+            ListTopicsInteractor::new(store.clone())
+                .list()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    store
+        .connection
+        .borrow()
+        .execute("INSERT INTO topics VALUES ('--invalid', 1)", [])
+        .unwrap();
+
+    assert!(ListTopicsInteractor::new(store.clone()).list().is_err());
+}
+
+#[test]
 fn topic_queue_reads_exact_filters_and_registration_order_without_releasing_slots() {
     let (_dir, store) = fixture();
     topic(&store, "cpu", 1);

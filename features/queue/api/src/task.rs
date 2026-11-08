@@ -1,4 +1,7 @@
-use crate::{Error, ResourceAvailability, Result, StartOutcome, TaskState, validate_name};
+use crate::{
+    Error, ResourceAvailability, Result, StartOutcome, TaskState, validate_name,
+    validate_topic_name,
+};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +31,7 @@ impl Task {
         }
 
         for topic in &topics {
-            validate_name(topic)?;
+            validate_topic_name(topic)?;
         }
 
         topics.sort();
@@ -70,7 +73,7 @@ impl Task {
     }
 
     pub fn add_topic(&mut self, topic: &str) -> Result<()> {
-        validate_name(topic)?;
+        validate_topic_name(topic)?;
 
         if matches!(self.state, TaskState::Running | TaskState::Completed) {
             return Err(Error::Conflict(format!(
