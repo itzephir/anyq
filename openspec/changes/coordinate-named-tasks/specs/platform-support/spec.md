@@ -13,7 +13,7 @@
 
 ### Requirement: Нативный CLI и worker
 **Reason**: CLI координации заменяет worker, запускающий команды с payload и идентичностью группы.
-**Migration**: Использовать task add, topic TOPIC add, task wait и task complete на той же ОС; внешние команды запускать самостоятельно.
+**Migration**: Использовать task add, topic link TOPIC NAME или task link NAME TOPIC, task wait и task complete на той же ОС; внешние команды запускать самостоятельно.
 
 ### Requirement: Завершение дерева процессов
 **Reason**: anyq не запускает внешнюю работу и не владеет её деревом процессов. Падение вызывающей стороны не освобождает слоты автоматически.

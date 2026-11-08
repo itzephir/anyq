@@ -10,8 +10,17 @@ pub use set_topic_capacity::SetTopicCapacityInteractor;
 mod list_topics;
 pub use list_topics::ListTopicsInteractor;
 
+mod list_tasks;
+pub use list_tasks::ListTasksInteractor;
+
 mod get_topic;
 pub use get_topic::GetTopicInteractor;
+
+mod get_task;
+pub use get_task::GetTaskInteractor;
+
+mod get_topic_queue;
+pub use get_topic_queue::GetTopicQueueInteractor;
 
 mod register_task;
 pub use register_task::RegisterTaskInteractor;

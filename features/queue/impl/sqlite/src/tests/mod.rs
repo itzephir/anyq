@@ -26,7 +26,10 @@ fn topic(store: &Sqlite, name: &str, capacity: u32) {
 
 fn register(store: &Sqlite, name: &str) {
     RegisterTaskInteractor::new(store.clone())
-        .register(name.into())
+        .register(RegisterTaskRequest {
+            name: name.into(),
+            topics: Vec::new(),
+        })
         .unwrap();
 }
 
@@ -64,6 +67,97 @@ fn usage(store: &Sqlite, resource: &str) -> u64 {
             })
         })
         .unwrap()
+}
+
+#[test]
+fn topic_queue_reads_exact_filters_and_registration_order_without_releasing_slots() {
+    let (_dir, store) = fixture();
+    topic(&store, "cpu", 1);
+    topic(&store, "other", 1);
+    register(&store, "z-running");
+    add(&store, "z-running", "cpu");
+    start(&store, "z-running").unwrap();
+    register(&store, "a-queued");
+    add(&store, "a-queued", "cpu");
+    register(&store, "completed");
+    add(&store, "completed", "cpu");
+    complete(&store, "completed", true);
+    register(&store, "unrelated");
+    add(&store, "unrelated", "other");
+    register(&store, "unlinked");
+
+    let queue = GetTopicQueueInteractor::new(store.clone())
+        .get("cpu")
+        .unwrap();
+    let before = task(&store, "a-queued").sequence();
+    let earlier = store
+        .clone()
+        .transaction(|records| {
+            records.tasks().tasks(&TaskFilter {
+                topic: "cpu".into(),
+                state: TaskState::Queued,
+                before_sequence: Some(before),
+            })
+        })
+        .unwrap();
+
+    assert_eq!(
+        queue.tasks.iter().map(Task::name).collect::<Vec<_>>(),
+        ["z-running", "a-queued"]
+    );
+    assert!(earlier.is_empty());
+    assert_eq!(usage(&store, "cpu"), 1);
+    assert_eq!(task(&store, "a-queued").state(), TaskState::Queued);
+}
+
+#[test]
+fn failed_initial_membership_rolls_back_registration_and_all_links() {
+    let (_dir, store) = fixture();
+    topic(&store, "cpu", 1);
+    topic(&store, "repo", 1);
+    store
+        .connection
+        .borrow()
+        .execute_batch(
+            "CREATE TRIGGER fail_link BEFORE INSERT ON task_topics
+         WHEN NEW.topic_name='repo' BEGIN SELECT RAISE(ABORT,'injected'); END;",
+        )
+        .unwrap();
+    let request = RegisterTaskRequest {
+        name: "build".into(),
+        topics: vec!["cpu".into(), "repo".into()],
+    };
+
+    let result = RegisterTaskInteractor::new(store.clone()).register(request.clone());
+
+    assert!(result.is_err());
+    assert!(
+        ListTasksInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .is_empty()
+    );
+    let links: i64 = store
+        .connection
+        .borrow()
+        .query_row("SELECT count(*) FROM task_topics", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(links, 0);
+
+    store
+        .connection
+        .borrow()
+        .execute_batch("DROP TRIGGER fail_link")
+        .unwrap();
+    let created = RegisterTaskInteractor::new(store.clone())
+        .register(request)
+        .unwrap();
+
+    assert_eq!(created.state(), TaskState::Queued);
+    assert_eq!(created.topics(), &["cpu", "repo"]);
+    assert_eq!(usage(&store, "cpu"), 0);
+    assert_eq!(usage(&store, "repo"), 0);
+    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Started);
 }
 
 #[test]
@@ -106,7 +200,10 @@ fn every_lifecycle_state_and_global_order_survive_reopening() {
     assert_eq!(usage(&reopened, "repo"), 0);
     assert!(
         RegisterTaskInteractor::new(reopened.clone())
-            .register("done".into())
+            .register(RegisterTaskRequest {
+                name: "done".into(),
+                topics: Vec::new()
+            })
             .is_err()
     );
 }

@@ -4,7 +4,7 @@ mod wait_for_task;
 
 use anyq_queue_api::{Error, Result};
 use clap::Parser;
-use controllers::{Cli, Request, TaskCommand, TopicCommand};
+use controllers::{Cli, Request};
 use std::{io::Write, path::PathBuf, process::ExitCode};
 
 fn default_db() -> Result<PathBuf> {
@@ -43,40 +43,65 @@ fn run(cli: Cli) -> Result<()> {
     let mut cases = anyq_queue_impl::open(&path)?;
 
     let message = match request {
-        Request::Topic(command) => match command {
-            TopicCommand::List => cases
-                .list_topics
-                .list()?
-                .iter()
-                .map(|topic| format!("- {}", topic.name))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            TopicCommand::Create(topic) => {
-                let topic = cases.create_topic.create(topic)?;
-                format!("successfully registered topic '{}'", topic.name)
+        Request::GetTask { name } => presenters::task(&cases.get_task.get(&name)?),
+        Request::GetTopicQueue { name } => {
+            presenters::topic_queue(&cases.get_topic_queue.get(&name)?)
+        }
+        Request::GetTopicCapacity { name } => cases.get_topic.get(&name)?.capacity.to_string(),
+        Request::ListTasks => cases
+            .list_tasks
+            .list()?
+            .iter()
+            .map(|name| format!("- {name}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Request::ListTopics => cases
+            .list_topics
+            .list()?
+            .iter()
+            .map(|topic| format!("- {}", topic.name))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Request::CreateTopic(topic) => {
+            let topic = cases.create_topic.create(topic)?;
+            format!("successfully registered topic '{}'", topic.name)
+        }
+        Request::SetTopicCapacity(topic) => {
+            let topic = cases.set_topic_capacity.set_capacity(topic)?;
+            format!("capacity of '{}' set to {}", topic.name, topic.capacity)
+        }
+        Request::RegisterTask {
+            request,
+            wait,
+            complete,
+        } => {
+            let task = cases.register_task.register(request)?;
+            emit(&presenters::registered(task.name()))?;
+
+            if wait {
+                let message =
+                    wait_for_task::wait_for_task(task.name(), cases.try_start_task.as_mut())?;
+                emit(&message)?;
             }
-            TopicCommand::Capacity(topic) => {
-                let topic = cases.set_topic_capacity.set_capacity(topic)?;
-                format!("capacity of '{}' set to {}", topic.name, topic.capacity)
+
+            if complete {
+                cases.complete_task.complete(task.name(), false)?;
+                emit(&presenters::completed(task.name()))?;
             }
-            TopicCommand::Add { topic, task } => {
-                cases.add_task_to_topic.add(&task, &topic)?;
-                presenters::added(&task, &topic)
-            }
-        },
-        Request::Task(command) => match command {
-            TaskCommand::Add { name } => {
-                cases.register_task.register(name.clone())?;
-                presenters::registered(&name)
-            }
-            TaskCommand::Wait { name } => {
-                wait_for_task::wait_for_task(&name, cases.try_start_task.as_mut())?
-            }
-            TaskCommand::Complete { name, force } => {
-                cases.complete_task.complete(&name, force)?;
-                presenters::completed(&name)
-            }
-        },
+
+            return Ok(());
+        }
+        Request::LinkTask { name, topic } => {
+            cases.add_task_to_topic.add(&name, &topic)?;
+            presenters::added(&name, &topic)
+        }
+        Request::WaitTask { name } => {
+            wait_for_task::wait_for_task(&name, cases.try_start_task.as_mut())?
+        }
+        Request::CompleteTask { name, force } => {
+            cases.complete_task.complete(&name, force)?;
+            presenters::completed(&name)
+        }
     };
 
     if !message.is_empty() {
@@ -87,7 +112,9 @@ fn run(cli: Cli) -> Result<()> {
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
+    let arguments = controllers::expand_task_add_flags(std::env::args_os());
+
+    match run(Cli::parse_from(arguments)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("error: {error}");

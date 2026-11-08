@@ -3,6 +3,9 @@ use anyq_queue_api::{Error, Result, Task, TaskState};
 use anyq_queue_dispatch::ports::{TaskFilter, TaskRecords};
 use rusqlite::{Connection, OptionalExtension, params};
 
+const MATCHING_TASKS: &str = "FROM tasks t JOIN task_topics m ON m.task_id=t.id
+    WHERE m.topic_name=?1 AND t.state=?2 AND (?3 IS NULL OR t.id<?3)";
+
 pub(crate) struct SqliteTasks<'a> {
     pub connection: &'a Connection,
 }
@@ -18,6 +21,40 @@ fn state(value: &str) -> Result<TaskState> {
 }
 
 impl TaskRecords for SqliteTasks<'_> {
+    fn tasks(&mut self, filter: &TaskFilter) -> Result<Vec<Task>> {
+        let query = format!("SELECT t.name {MATCHING_TASKS} ORDER BY t.id");
+        let names = self
+            .connection
+            .prepare(&query)
+            .map_err(storage)?
+            .query_map(
+                params![filter.topic, filter.state.as_str(), filter.before_sequence],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(storage)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage)?;
+
+        names
+            .into_iter()
+            .map(|name| {
+                self.task(&name)?.ok_or_else(|| {
+                    Error::Storage(format!("task '{name}' disappeared inside a transaction"))
+                })
+            })
+            .collect()
+    }
+
+    fn task_names(&mut self) -> Result<Vec<String>> {
+        self.connection
+            .prepare("SELECT name FROM tasks ORDER BY name")
+            .map_err(storage)?
+            .query_map([], |row| row.get(0))
+            .map_err(storage)?
+            .collect::<rusqlite::Result<_>>()
+            .map_err(storage)
+    }
+
     fn task(&mut self, name: &str) -> Result<Option<Task>> {
         let row: Option<(i64, String, String)> = self
             .connection
@@ -94,8 +131,7 @@ impl TaskRecords for SqliteTasks<'_> {
     fn count_tasks(&mut self, filter: &TaskFilter) -> Result<u64> {
         self.connection
             .query_row(
-                "SELECT count(*) FROM tasks t JOIN task_topics m ON m.task_id=t.id
-             WHERE m.topic_name=?1 AND t.state=?2 AND (?3 IS NULL OR t.id<?3)",
+                &format!("SELECT count(*) {MATCHING_TASKS}"),
                 params![filter.topic, filter.state.as_str(), filter.before_sequence],
                 |row| row.get::<_, i64>(0),
             )

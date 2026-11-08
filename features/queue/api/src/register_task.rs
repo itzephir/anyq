@@ -1,5 +1,5 @@
-use crate::{Result, Task};
+use crate::{RegisterTaskRequest, Result, Task};
 
 pub trait RegisterTask {
-    fn register(&mut self, name: String) -> Result<Task>;
+    fn register(&mut self, request: RegisterTaskRequest) -> Result<Task>;
 }

@@ -13,7 +13,10 @@ fn create_topic(store: &MemoryStore, name: &str, capacity: u32) {
 
 fn register(store: &MemoryStore, name: &str) -> Task {
     RegisterTaskInteractor::new(store.clone())
-        .register(name.into())
+        .register(RegisterTaskRequest {
+            name: name.into(),
+            topics: Vec::new(),
+        })
         .unwrap()
 }
 
@@ -28,6 +31,98 @@ fn start(store: &MemoryStore, name: &str) -> Result<StartOutcome> {
 }
 
 #[test]
+fn registration_with_initial_topics_is_queued_without_ownership() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    create_topic(&store, "repo", 1);
+    let request = RegisterTaskRequest {
+        name: "build".into(),
+        topics: vec!["repo".into(), "cpu".into(), "cpu".into()],
+    };
+
+    let task = RegisterTaskInteractor::new(store.clone())
+        .register(request.clone())
+        .unwrap();
+
+    assert_eq!(task.state(), TaskState::Queued);
+    assert_eq!(task.topics(), &["cpu", "repo"]);
+    assert_eq!(store.data.borrow().tasks, [task]);
+    assert!(
+        RegisterTaskInteractor::new(store.clone())
+            .register(request)
+            .is_err()
+    );
+    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Started);
+}
+
+#[test]
+fn failed_initial_membership_leaves_no_registered_task_or_partial_links() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    let before = store.data.borrow().clone();
+
+    let missing = RegisterTaskInteractor::new(store.clone()).register(RegisterTaskRequest {
+        name: "build".into(),
+        topics: vec!["cpu".into(), "missing".into()],
+    });
+
+    assert!(missing.is_err());
+    assert_eq!(*store.data.borrow(), before);
+
+    store.data.borrow_mut().fail_save = true;
+    let before_save = store.data.borrow().clone();
+    let failed_save = RegisterTaskInteractor::new(store.clone()).register(RegisterTaskRequest {
+        name: "build".into(),
+        topics: vec!["cpu".into()],
+    });
+
+    assert!(failed_save.is_err());
+    assert_eq!(*store.data.borrow(), before_save);
+}
+
+#[test]
+fn listing_and_inspection_include_the_requested_states_without_changing_them() {
+    let store = MemoryStore::default();
+    create_topic(&store, "cpu", 1);
+    register(&store, "running");
+    add(&store, "running", "cpu");
+    start(&store, "running").unwrap();
+    register(&store, "registered");
+    register(&store, "queued");
+    add(&store, "queued", "cpu");
+    register(&store, "completed");
+    CompleteTaskInteractor::new(store.clone())
+        .complete("completed", true)
+        .unwrap();
+    let before = store.data.borrow().clone();
+
+    let names = ListTasksInteractor::new(store.clone()).list().unwrap();
+    let queue = GetTopicQueueInteractor::new(store.clone())
+        .get("cpu")
+        .unwrap();
+    let queued = GetTaskInteractor::new(store.clone()).get("queued").unwrap();
+
+    assert_eq!(names, ["completed", "queued", "registered", "running"]);
+    assert_eq!(
+        queue.tasks.iter().map(Task::name).collect::<Vec<_>>(),
+        ["running", "queued"]
+    );
+    assert_eq!(queued.state(), TaskState::Queued);
+    assert_eq!(queued.topics(), &["cpu"]);
+    assert!(
+        GetTopicQueueInteractor::new(store.clone())
+            .get("missing")
+            .is_err()
+    );
+    assert!(
+        GetTaskInteractor::new(store.clone())
+            .get("missing")
+            .is_err()
+    );
+    assert_eq!(*store.data.borrow(), before);
+}
+
+#[test]
 fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effects() {
     let store = MemoryStore::default();
     let task = register(&store, "build");
@@ -35,7 +130,10 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
     assert_eq!(task.sequence(), 1);
     assert!(
         RegisterTaskInteractor::new(store.clone())
-            .register("build".into())
+            .register(RegisterTaskRequest {
+                name: "build".into(),
+                topics: Vec::new()
+            })
             .is_err()
     );
     assert!(
@@ -62,7 +160,10 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
 
     assert!(
         RegisterTaskInteractor::new(store.clone())
-            .register("build".into())
+            .register(RegisterTaskRequest {
+                name: "build".into(),
+                topics: Vec::new()
+            })
             .is_err()
     );
     assert_eq!(register(&store, "next").sequence(), 2);

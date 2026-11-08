@@ -13,6 +13,335 @@ use support::{
 };
 
 #[test]
+fn topic_and_task_inspection_show_state_capacity_and_only_current_queue_entries() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.topic("other");
+
+    assert_eq!(
+        q.call(&["topic", "cpu"]),
+        "topic: cpu\ncapacity: 1\nqueue: (empty)"
+    );
+    assert_eq!(q.call(&["topic", "capacity", "cpu"]), "1");
+    q.task("z-running", &["cpu"]);
+    q.call(&["task", "wait", "z-running"]);
+    q.task("a-queued", &["cpu"]);
+    q.task("completed", &["cpu"]);
+    q.call(&["task", "complete", "-f", "completed"]);
+    q.task("registered", &[]);
+    q.task("unrelated", &["other"]);
+
+    assert_eq!(
+        q.call(&["topic", "cpu"]),
+        "topic: cpu\ncapacity: 1\nqueue:\n- z-running [running]\n- a-queued [queued]"
+    );
+    assert_eq!(
+        q.call(&["task", "a-queued"]),
+        "task: a-queued\nstatus: queued\ntopics:\n- cpu"
+    );
+    assert_eq!(
+        q.call(&["task", "registered"]),
+        "task: registered\nstatus: registered\ntopics: (none)"
+    );
+    assert_eq!(
+        q.call(&["task", "completed"]),
+        "task: completed\nstatus: completed\ntopics:\n- cpu"
+    );
+    assert_eq!(
+        q.call(&["topic", "capacity", "cpu", "2"]),
+        "capacity of 'cpu' set to 2"
+    );
+    assert_eq!(q.call(&["topic", "capacity", "cpu"]), "2");
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.state("a-queued"), "queued");
+
+    for command in [
+        vec!["topic", "missing"],
+        vec!["task", "missing"],
+        vec!["topic", "capacity", "missing"],
+    ] {
+        assert_eq!(q.raw(&command).status.code(), Some(2));
+    }
+}
+
+#[test]
+fn reserved_names_can_be_inspected_with_a_separator_and_global_database_option() {
+    let q = Queue::new();
+    q.topic("capacity");
+    q.task("add", &["capacity"]);
+    q.call(&["task", "add", "--", "-twc"]);
+
+    assert_eq!(
+        q.call(&["task", "--", "-twc"]),
+        "task: -twc\nstatus: registered\ntopics: (none)"
+    );
+
+    assert_eq!(
+        q.call(&["task", "--", "add"]),
+        "task: add\nstatus: queued\ntopics:\n- capacity"
+    );
+    assert_eq!(
+        q.call(&["topic", "--", "capacity"]),
+        "topic: capacity\ncapacity: 1\nqueue:\n- add [queued]"
+    );
+
+    let output = TestProcess::spawn(
+        q.cmd(&["task", "--db"])
+            .arg(&q.db)
+            .arg("--")
+            .arg("add")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("status: queued"));
+}
+
+#[test]
+fn both_link_forms_share_membership_idempotency_and_state_errors() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("build", &[]);
+    let commands = [
+        ["topic", "link", "cpu", "build"],
+        ["task", "link", "build", "cpu"],
+    ];
+
+    for command in &commands {
+        assert_eq!(q.call(command), "successfully added 'build' to topic 'cpu'");
+    }
+
+    assert_eq!(q.state("build"), "queued");
+    assert_eq!(q.usage("cpu"), 0);
+    q.call(&["task", "wait", "build"]);
+    assert_eq!(q.usage("cpu"), 1);
+
+    for command in &commands {
+        let error = q.raw(command);
+
+        assert_eq!(error.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&error.stderr).contains("already running"));
+    }
+
+    q.call(&["task", "complete", "build"]);
+
+    for command in &commands {
+        assert_eq!(q.raw(command).status.code(), Some(2));
+    }
+
+    for command in [
+        ["topic", "link", "missing", "build"],
+        ["task", "link", "missing", "cpu"],
+    ] {
+        assert_eq!(q.raw(&command).status.code(), Some(2));
+    }
+}
+
+#[test]
+fn short_options_and_initial_topics_preserve_capacity_and_manual_ownership() {
+    let q = Queue::new();
+    q.call(&["topic", "create", "cpu", "-c", "2"]);
+    q.call(&["topic", "create", "repo", "--capacity=2"]);
+
+    assert_eq!(q.call(&["topic", "-l"]), q.call(&["topic", "--list"]));
+    assert_eq!(
+        q.call(&["topic", "capacity", "cpu", "2"]),
+        "capacity of 'cpu' set to 2"
+    );
+
+    for name in ["a", "b"] {
+        assert_eq!(
+            q.call(&[
+                "task", "add", name, "--topic", "cpu", "-t", "repo", "-t", "cpu"
+            ]),
+            format!("successfully registered task '{name}'")
+        );
+        assert_eq!(q.state(name), "queued");
+    }
+
+    assert_eq!(q.usage("cpu"), 0);
+    assert_eq!(q.usage("repo"), 0);
+    q.call(&["task", "wait", "a"]);
+    q.call(&["task", "wait", "b"]);
+    assert_eq!(q.usage("cpu"), 2);
+    assert_eq!(q.usage("repo"), 2);
+
+    q.call(&["task", "complete", "a", "-f"]);
+    q.call(&["task", "complete", "--force", "b"]);
+
+    assert_eq!(q.usage("cpu"), 0);
+    assert_eq!(q.usage("repo"), 0);
+}
+
+#[test]
+fn registration_with_unknown_initial_topic_is_atomic_and_can_be_retried() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.topic("repo");
+
+    let failed = q.raw(&["task", "add", "build", "-t", "cpu", "-t", "missing"]);
+
+    assert_eq!(failed.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("topic 'missing' does not exist"));
+    assert_eq!(q.call(&["task", "--list"]), "");
+
+    q.call(&["task", "add", "build", "-t", "cpu", "--topic", "repo"]);
+    q.call(&["task", "wait", "build"]);
+
+    assert_eq!(q.state("build"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.usage("repo"), 1);
+}
+
+#[test]
+fn flag_dependencies_and_replaced_syntax_fail_before_opening_a_database() {
+    let q = Queue::new();
+
+    for command in [
+        vec!["topic", "cpu", "add", "build"],
+        vec!["topic", "capacity", "cpu", "--capacity", "2"],
+        vec!["topic", "capacity", "cpu", "0"],
+        vec!["topic", "--list", "create", "cpu"],
+        vec!["task", "-l", "add", "build"],
+        vec!["task", "add", "build", "--wait"],
+        vec!["task", "add", "build", "--complete"],
+        vec!["task", "add", "build", "--topic", "cpu", "--complete"],
+        vec!["task", "add", "build", "-tc", "cpu"],
+    ] {
+        let output = q.raw(&command);
+
+        assert_eq!(output.status.code(), Some(2), "{command:?}");
+        assert!(!q.db.exists(), "{command:?}");
+    }
+}
+
+#[test]
+fn help_and_version_shortcuts_are_equal_and_do_not_open_a_database() {
+    let q = Queue::new();
+
+    assert_eq!(q.call(&["-v"]), q.call(&["--version"]));
+    assert_eq!(q.call(&["-h"]), q.call(&["--help"]));
+    let help = q.call(&["task", "add", "--help"]);
+
+    for option in ["--topic", "--wait", "--complete"] {
+        assert!(help.contains(option));
+    }
+
+    assert!(!q.db.exists());
+}
+
+#[test]
+fn chained_registration_waits_before_completing_and_can_keep_ownership() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.topic("repo");
+    q.task("owner", &["cpu"]);
+    q.call(&["task", "wait", "owner"]);
+    let mut chained = TestProcess::spawn(
+        q.cmd(&["task", "add", "chained", "-twc", "cpu", "-t", "repo"])
+            .arg("--db")
+            .arg(&q.db)
+            .stdout(Stdio::piped())
+            .stderr(fs::File::create(q.log("chained")).unwrap()),
+    );
+    q.wait_for_log("chained", "waiting for 'chained' to start");
+
+    chained.assert_running();
+    assert_eq!(q.state("chained"), "queued");
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.usage("repo"), 0);
+
+    q.call(&["task", "complete", "owner"]);
+    let output = chained.output();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        fs::read_to_string(q.log("chained")).unwrap()
+    );
+    assert_eq!(q.state("chained"), "completed");
+    assert_eq!(q.usage("cpu"), 0);
+    assert_eq!(q.usage("repo"), 0);
+
+    q.call(&["task", "add", "held", "-tw", "cpu"]);
+
+    assert_eq!(q.state("held"), "running");
+    assert_eq!(q.usage("cpu"), 1);
+    q.call(&["task", "complete", "held"]);
+    assert_eq!(
+        q.call(&[
+            "task",
+            "add",
+            "long",
+            "--topic",
+            "cpu",
+            "--wait",
+            "--complete"
+        ]),
+        "successfully registered task 'long'\n'long' started\n'long' successfully completed"
+    );
+}
+
+#[test]
+fn forcing_a_chained_wait_stops_before_start_or_automatic_completion() {
+    let q = Queue::new();
+    q.topic("cpu");
+    q.task("owner", &["cpu"]);
+    q.call(&["task", "wait", "owner"]);
+    let chained = TestProcess::spawn(
+        q.cmd(&["task", "add", "pending", "-twc", "cpu"])
+            .stdout(Stdio::piped())
+            .stderr(fs::File::create(q.log("pending-chain")).unwrap()),
+    );
+    q.wait_for_log("pending-chain", "waiting for 'pending'");
+
+    q.call(&["task", "complete", "pending", "-f"]);
+    let output = chained.output();
+
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "successfully registered task 'pending'\n"
+    );
+    assert!(
+        fs::read_to_string(q.log("pending-chain"))
+            .unwrap()
+            .contains("already completed")
+    );
+    assert_eq!(q.state("owner"), "running");
+    assert_eq!(q.state("pending"), "completed");
+    assert_eq!(q.usage("cpu"), 1);
+}
+
+#[test]
+fn task_list_shortcut_includes_every_state_and_preserves_ownership() {
+    let q = Queue::new();
+
+    assert_eq!(q.call(&["task", "--list"]), "");
+    q.topic("cpu");
+    q.task("running", &["cpu"]);
+    q.call(&["task", "wait", "running"]);
+    q.task("registered", &[]);
+    q.task("queued", &["cpu"]);
+    q.task("completed", &[]);
+    q.call(&["task", "complete", "-f", "completed"]);
+
+    assert_eq!(
+        q.call(&["task", "--list"]),
+        "- completed\n- queued\n- registered\n- running"
+    );
+    assert_eq!(q.call(&["task", "-l"]), q.call(&["task", "--list"]));
+    assert_eq!(q.usage("cpu"), 1);
+    assert_eq!(q.state("queued"), "queued");
+}
+
+#[test]
 fn native_lifecycle_matches_the_user_protocol() {
     let q = Queue::new();
 
@@ -47,12 +376,12 @@ fn native_lifecycle_matches_the_user_protocol() {
 
     for topic in ["itzdesign-commands", "itzdesign-repo-lock"] {
         assert_eq!(
-            q.call(&["topic", topic, "add", "my-task"]),
+            q.call(&["topic", "link", topic, "my-task"]),
             format!("successfully added 'my-task' to topic '{topic}'")
         );
     }
 
-    q.call(&["topic", "itzdesign-commands", "add", "my-task"]);
+    q.call(&["topic", "link", "itzdesign-commands", "my-task"]);
     assert_eq!(q.usage("itzdesign-commands"), 0);
     assert_eq!(q.call(&["task", "wait", "my-task"]), "'my-task' started");
     assert_eq!(q.state("my-task"), "running");
@@ -60,7 +389,7 @@ fn native_lifecycle_matches_the_user_protocol() {
     assert_eq!(q.usage("itzdesign-repo-lock"), 1);
     assert!(!q.raw(&["task", "wait", "my-task"]).status.success());
     assert!(
-        !q.raw(&["topic", "pixel-10-emulator", "add", "my-task"])
+        !q.raw(&["topic", "link", "pixel-10-emulator", "my-task"])
             .status
             .success()
     );
@@ -81,7 +410,7 @@ fn native_lifecycle_matches_the_user_protocol() {
             .success()
     );
     assert!(
-        !q.raw(&["topic", "unknown", "add", "my-task"])
+        !q.raw(&["topic", "link", "unknown", "my-task"])
             .status
             .success()
     );
@@ -183,8 +512,8 @@ fn crossing_topic_links_use_global_task_order_across_processes() {
     q.topic("repo");
     q.task("first", &["cpu"]);
     q.task("second", &["repo"]);
-    q.call(&["topic", "repo", "add", "first"]);
-    q.call(&["topic", "cpu", "add", "second"]);
+    q.call(&["topic", "link", "repo", "first"]);
+    q.call(&["topic", "link", "cpu", "second"]);
     let mut second = q.spawn_wait("second", "second");
     q.wait_for_log("second", "waiting for 'second'");
 
@@ -220,11 +549,7 @@ fn capacity_two_is_respected_by_independent_wait_processes() {
     assert!(first.output().status.success());
     third.assert_running();
     assert_eq!(q.usage("cpu"), 2);
-    assert!(
-        !q.raw(&["topic", "capacity", "cpu", "--capacity", "1"])
-            .status
-            .success()
-    );
+    assert!(!q.raw(&["topic", "capacity", "cpu", "1"]).status.success());
 
     q.call(&["task", "complete", "a"]);
 
@@ -293,7 +618,7 @@ fn adding_a_topic_racing_wait_is_atomic() {
     q.task("build", &["cpu"]);
 
     let addition = TestProcess::spawn(
-        q.cmd(&["topic", "repo", "add", "build"])
+        q.cmd(&["topic", "link", "repo", "build"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()),
     );
@@ -348,7 +673,7 @@ fn reserved_topic_names_and_capacity_equals_syntax_are_unambiguous() {
     q.call(&["topic", "create", "add", "--capacity=2"]);
     q.task("wait", &["create", "capacity", "add"]);
 
-    q.call(&["topic", "capacity", "add", "--capacity=3"]);
+    q.call(&["topic", "capacity", "add", "3"]);
     q.call(&["task", "wait", "wait"]);
 
     assert_eq!(q.state("wait"), "running");

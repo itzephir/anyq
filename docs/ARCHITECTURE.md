@@ -4,8 +4,8 @@ anyq координирует именованные задачи и допус�
 
 | Модуль | Ответственность |
 | --- | --- |
-| queue/api | Task, TaskState, Topic, ResourceAvailability, переходы состояния и политика допуска; отдельные контракты сценариев |
-| queue/impl/dispatch | RegisterTask, AddTaskToTopic, TryStartTask, CompleteTask и управление топиками; consumer-owned persistence-порты |
+| queue/api | Task, TaskState, Topic, TopicQueue, ResourceAvailability, переходы и политика допуска; RegisterTaskRequest и отдельные контракты сценариев |
+| queue/impl/dispatch | RegisterTask, AddTaskToTopic, TryStartTask, CompleteTask, ListTasks, GetTask, GetTopicQueue и управление топиками; consumer-owned persistence-порты |
 | queue/impl/sqlite | Схема и точные запросы к данным; IMMEDIATE transaction boundary |
 | queue/impl/composition | Явная сборка адаптеров и отдельных интеракторов |
 | apps/cli | Разбор синтаксиса, текстовые ответы и блокирующий опрос TryStartTask |
@@ -27,6 +27,10 @@ TryStartTask в одной транзакции читает актуальны�
 
 CompleteTask проверяет переход и сохраняет completed в общей транзакции. Использование ресурсов выводится из running-задач и связей; отдельных изменяемых счётчиков слотов нет. Ошибка сохранения откатывает все изменения. Снижение capacity ниже текущего использования отклоняется.
 
+RegisterTask принимает типизированный RegisterTaskRequest: имя и необязательные начальные топики. Проверка топиков, регистрация и сохранение всех связей атомарны. Task владеет переводом в queued и уникальностью связей; ошибка не оставляет частично созданной задачи.
+
+ListTasks читает все имена, GetTask возвращает агрегат со статусом и топиками. GetTopicQueue в одном снимке запрашивает заданные доменом TopicQueue.STATES и строит текущую очередь; TopicQueue упорядочивает её по регистрации. SQLite применяет те же точные TaskFilter при чтении задач и подсчёте. Просмотр не меняет владение.
+
 Store/UnitOfWork, TopicRecords, TaskRecords и TaskFilter принадлежат dispatch. Интерактор задаёт state, topic и границу номера в фильтре; SQLite только выполняет точный запрос, не выбирая политику допуска.
 
 ## Внешние детали
@@ -34,6 +38,8 @@ Store/UnitOfWork, TopicRecords, TaskRecords и TaskFilter принадлежат
 Домен и сценарии используют std для коллекций, типов и вычислений, без IO, SQL, часов, CLI и SDK. SQLite остаётся во внешнем адаптере. Composition roots: features/queue/impl/composition и apps/cli/src/main.rs; только они собирают реализации.
 
 CLI повторяет TryStartTask с короткой паузой после Busy и не держит транзакцию во время ожидания. Код 0 выдаётся после фиксации running. Команду выполняет вызывающая сторона: anyq не запускает процессы и не оценивает их exit code.
+
+Обе формы link нормализуются в один запрос CLI и вызывают один AddTaskToTopic. Цепочка task add -twc объединяет вызовы отдельных RegisterTask, TryStartTask и CompleteTask только во внешнем слое. Зависимости флагов проверяются до открытия базы. Без -c владение остаётся running, ошибка wait прекращает цепочку. Нормализация коротких флагов сохраняет значения аргументов и разделитель --.
 
 Выход wait и падение вызывающего процесса не освобождают слоты. Нет lease, heartbeat, reaper или автоматического повтора; восстановление выполняется явным complete после проверки внешней работы.
 

@@ -51,7 +51,7 @@ impl Queue {
         self.call(&["task", "add", name]);
 
         for topic in topics {
-            self.call(&["topic", topic, "add", name]);
+            self.call(&["topic", "link", topic, name]);
         }
     }
 

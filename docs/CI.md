@@ -6,7 +6,7 @@ Workflow [.github/workflows/ci.yml](../.github/workflows/ci.yml) запуска�
 | --- | --- | --- |
 | Lint | Только Linux | Rustfmt, Clippy с запретом предупреждений, Rust AST-линтер, Cargo/API boundary checker, Ruff, OpenSpec |
 | Build & unit tests | Linux, macOS, Windows | Сборка workspace; unit tests библиотек и бинарников без SQLite и CLI integration suite |
-| Integration tests | Linux, macOS, Windows | SQLite adapter suite; именованные задачи, несколько топиков, конкурентные wait/complete, падение внешнего вызывающего процесса и demo |
+| Integration tests | Linux, macOS, Windows | SQLite adapter suite; атомарная регистрация со связями, link, списки/просмотр, зависимые флаги -twc, несколько топиков, конкурентные wait/complete, падение внешнего вызывающего процесса и demo |
 | CI passed | Итог всех категорий | Проходит только при success Lint и обеих матриц сборки/тестов |
 
 `CI passed` использует `always()` и проверяет конкретные результаты зависимостей. Failure, cancelled и skipped не дают успешного gate. Матрицы используют `fail-fast: false`, чтобы ошибка одной ОС не скрывала результаты остальных. Только этот стабильный итоговый статус связан с правилом branch protection; изменение имени требует одновременного изменения защиты.

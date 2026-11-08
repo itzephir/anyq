@@ -26,6 +26,26 @@ impl TopicRecords for Memory {
 }
 
 impl TaskRecords for Memory {
+    fn tasks(&mut self, filter: &TaskFilter) -> Result<Vec<Task>> {
+        Ok(self
+            .tasks
+            .iter()
+            .filter(|task| matches_filter(task, filter))
+            .cloned()
+            .collect())
+    }
+
+    fn task_names(&mut self) -> Result<Vec<String>> {
+        let mut names: Vec<_> = self
+            .tasks
+            .iter()
+            .map(|task| task.name().to_owned())
+            .collect();
+        names.sort();
+
+        Ok(names)
+    }
+
     fn task(&mut self, name: &str) -> Result<Option<Task>> {
         Ok(self.tasks.iter().find(|task| task.name() == name).cloned())
     }
@@ -61,15 +81,17 @@ impl TaskRecords for Memory {
         Ok(self
             .tasks
             .iter()
-            .filter(|task| {
-                task.state() == filter.state
-                    && task.topics().contains(&filter.topic)
-                    && filter
-                        .before_sequence
-                        .is_none_or(|sequence| task.sequence() < sequence)
-            })
+            .filter(|task| matches_filter(task, filter))
             .count() as u64)
     }
+}
+
+fn matches_filter(task: &Task, filter: &TaskFilter) -> bool {
+    task.state() == filter.state
+        && task.topics().contains(&filter.topic)
+        && filter
+            .before_sequence
+            .is_none_or(|sequence| task.sequence() < sequence)
 }
 
 impl UnitOfWork for Memory {

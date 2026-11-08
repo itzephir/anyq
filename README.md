@@ -17,6 +17,44 @@ anyq --help
 
 **Версия 0.2 использует схему 2.** База прежних сообщений схемы 1 отклоняется без преобразования и удаления данных. Выберите отдельный файл через --db или ANYQ_DB; старый бинарник и старую базу можно сохранить для просмотра истории.
 
+## Команды
+
+| Команда | Действие |
+| --- | --- |
+| `anyq topic --list` / `anyq topic -l` | Список топиков |
+| `anyq topic create TOPIC [-c N]` | Создать топик; `-c` = `--capacity`, по умолчанию 1 |
+| `anyq topic TOPIC` | Показать текущие running/queued в порядке регистрации |
+| `anyq topic capacity TOPIC [N]` | Прочитать вместимость или изменить её на N |
+| `anyq topic link TOPIC NAME` | Связать задачу с топиком |
+| `anyq task --list` / `anyq task -l` | Все имена задач по алфавиту, включая completed |
+| `anyq task NAME` | Показать состояние и топики задачи |
+| `anyq task add NAME [-t TOPIC] [-w] [-c]` | Зарегистрировать задачу с необязательными связями и следующими шагами |
+| `anyq task link NAME TOPIC` | Та же операция, что topic link |
+| `anyq task wait NAME` | Получить допуск во всех связанных топиках |
+| `anyq task complete NAME [-f]` | Завершить задачу; `-f` = `--force` |
+
+`-v` = `--version`, `-h` = `--help`. Параметр `--db PATH` доступен во всех командах. Для имени, совпадающего с подкомандой, используйте разделитель: `anyq task -- add`, `anyq topic -- capacity`.
+
+Просмотр не изменяет состояния и владение. Завершённые задачи сохраняют связи для истории, но не входят в текущую очередь топика. Неизвестное имя даёт ошибку.
+
+У `task add` флаг `--topic/-t` можно повторять; все связи создаются вместе с задачей в одной транзакции. Неизвестный топик или ошибка сохранения откатывает всю регистрацию. `--wait/-w` требует хотя бы один топик, `--complete/-c` требует wait. Последующие шаги можно опустить:
+
+```bash
+anyq task add build-002 -t itzdesign-commands -t itzdesign-repo-lock
+# queued, без владения
+anyq task complete build-002 -f
+
+anyq task add build-003 -tw itzdesign-commands -t itzdesign-repo-lock
+# ждёт оба ресурса, затем остаётся running до отдельного complete
+npm run build
+anyq task complete build-003
+
+anyq task add probe-001 -twc pixel-10-emulator
+# регистрация → допуск → немедленное завершение
+```
+
+Форма `-twc TOPIC` равнозначна `--topic TOPIC --wait --complete`. Ошибка ожидания прерывает цепочку. Флаг complete не выполняет внешнюю команду между допуском и завершением; внешняя работа остаётся у вызывающей стороны.
+
 ## Регистрация и допуск
 
 Для новой базы в текущем терминале:
@@ -28,10 +66,11 @@ anyq topic create itzdesign-commands
 anyq topic create itzdesign-repo-lock
 anyq topic create pixel-10-emulator
 anyq topic --list
+anyq topic capacity itzdesign-commands
 
 anyq task add build-revision-001
-anyq topic itzdesign-commands add build-revision-001
-anyq topic itzdesign-repo-lock add build-revision-001
+anyq topic link itzdesign-commands build-revision-001
+anyq task link build-revision-001 itzdesign-repo-lock
 anyq task wait build-revision-001
 ```
 
@@ -40,6 +79,8 @@ anyq task wait build-revision-001
 ```bash
 npm run build
 anyq task complete build-revision-001
+anyq task build-revision-001
+anyq task -l
 ```
 
 На Windows путь можно задать в PowerShell:
@@ -48,7 +89,7 @@ anyq task complete build-revision-001
 $env:ANYQ_DB = "$env:LOCALAPPDATA\anyq\tasks-v2.db"
 anyq topic create itzdesign-commands
 anyq task add windows-build-001
-anyq topic itzdesign-commands add windows-build-001
+anyq task link windows-build-001 itzdesign-commands
 anyq task wait windows-build-001
 ```
 
@@ -85,7 +126,7 @@ anyq task complete --force unfinished
 
 ```bash
 anyq topic create parallel-builds --capacity 2
-anyq topic capacity parallel-builds --capacity 3
+anyq topic capacity parallel-builds 3
 ```
 
 По умолчанию топик имеет один слот. Running-задача занимает один слот каждого своего топика. Уменьшение capacity ниже текущего использования отклоняется.

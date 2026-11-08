@@ -1,5 +1,26 @@
 use crate::*;
 
+#[test]
+fn current_topic_queue_defines_active_states_and_orders_by_registration() {
+    let topic = Topic::new("cpu".into(), 1).unwrap();
+    let later = Task::restore(2, "a-later".into(), TaskState::Queued, vec!["cpu".into()]).unwrap();
+    let earlier = Task::restore(
+        1,
+        "z-earlier".into(),
+        TaskState::Running,
+        vec!["cpu".into()],
+    )
+    .unwrap();
+
+    let queue = TopicQueue::new(topic, vec![later, earlier]);
+
+    assert_eq!(TopicQueue::STATES, [TaskState::Queued, TaskState::Running]);
+    assert_eq!(
+        queue.tasks.iter().map(Task::name).collect::<Vec<_>>(),
+        ["z-earlier", "a-later"]
+    );
+}
+
 fn resource(name: &str, capacity: u32, running: u64, queued_before: u64) -> ResourceAvailability {
     ResourceAvailability {
         topic: Topic::new(name.into(), capacity).unwrap(),

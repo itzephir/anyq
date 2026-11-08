@@ -7,7 +7,10 @@ anyq должен координировать допуск внешней ра�
 ## What Changes
 
 - **BREAKING:** заменить сообщения, consumer groups, leases, retries и worker моделью именованных задач; не сохранять прежний API параллельно.
-- Добавить нативные команды `anyq task add NAME`, `anyq topic TOPIC add NAME`, `anyq task wait NAME`, `anyq task complete NAME`, `anyq task complete --force NAME` и список `anyq topic --list`.
+- Добавить нативные команды `anyq task add NAME [--topic TOPIC]`, `anyq topic link TOPIC NAME`, равнозначную `anyq task link NAME TOPIC`, `anyq task wait NAME`, `anyq task complete NAME`, `anyq task complete --force NAME` и список `anyq topic --list`. Вместимость изменяется через `anyq topic capacity TOPIC N`; создание сохраняет `--capacity N`.
+- Поддержать краткие флаги `-t` для повторяемого `--topic`, `-l` для `--list`, `-c` для `--capacity` при создании топика и `-f` для `--force`. Регистрация с начальными топиками атомарна и не занимает слоты.
+- Добавить `task add NAME -t TOPIC --wait/-w --complete/-c`, включая `-twc TOPIC`: wait требует topic, complete требует wait. Без complete владение остаётся running. `-v` и `-h` равнозначны --version и --help.
+- Добавить `task --list/-l` со всеми именами, `task NAME` со статусом и топиками, `topic TOPIC` с текущими queued/running по номеру регистрации и `topic capacity TOPIC` для чтения вместимости. Просмотр не меняет состояние и не создаёт неизвестные имена.
 - Одна задача может требовать слоты нескольких топиков. `wait` атомарно получает допуск во всех них и возвращается; внешнюю команду выполняет вызывающая сторона.
 - Хранить владение до явного завершения. Выход CLI, падение вызывающего процесса и прошедшее время не освобождают слоты.
 - Отклонять `wait` без топиков и обычный `complete` до запуска. `--force` позволяет завершить зарегистрированную или ожидающую задачу, не исполняя её.

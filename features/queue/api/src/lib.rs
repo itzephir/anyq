@@ -29,11 +29,26 @@ pub use set_topic_capacity::SetTopicCapacity;
 mod list_topics;
 pub use list_topics::ListTopics;
 
+mod list_tasks;
+pub use list_tasks::ListTasks;
+
 mod get_topic;
 pub use get_topic::GetTopic;
 
+mod get_task;
+pub use get_task::GetTask;
+
+mod get_topic_queue;
+pub use get_topic_queue::GetTopicQueue;
+
+mod topic_queue;
+pub use topic_queue::TopicQueue;
+
 mod register_task;
 pub use register_task::RegisterTask;
+
+mod register_task_request;
+pub use register_task_request::RegisterTaskRequest;
 
 mod add_task_to_topic;
 pub use add_task_to_topic::AddTaskToTopic;

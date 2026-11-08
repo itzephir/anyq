@@ -37,8 +37,14 @@ def main():
         ]:
             queue("task", "add", name)
 
-            for topic in topics:
-                queue("topic", topic, "add", name)
+            for index, topic in enumerate(topics):
+                if index == 0:
+                    queue("topic", "link", topic, name)
+                else:
+                    queue("task", "link", name, topic)
+
+            queue("task", name)
+            queue("topic", topics[0])
 
             queue("task", "wait", name)
 
@@ -54,6 +60,10 @@ def main():
                 )
             finally:
                 queue("task", "complete", name)
+
+        queue("task", "add", "probe-001", "-twc", "large-builds")
+        queue("task", "-l")
+        queue("topic", "capacity", "large-builds")
 
 
 if __name__ == "__main__":
