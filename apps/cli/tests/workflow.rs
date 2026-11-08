@@ -688,7 +688,7 @@ fn help_and_syntax_errors_do_not_open_a_database_and_explicit_path_wins() {
     let help = q.raw(&["topic", "create", "--help"]);
 
     assert!(help.status.success());
-    assert!(String::from_utf8_lossy(&help.stdout).contains("anyq topic create"));
+    assert!(String::from_utf8_lossy(&help.stdout).contains("topic create [OPTIONS] <TOPIC>"));
     assert!(!q.db.exists());
     assert!(
         !q.raw(&["topic", "create", "cpu", "--capacity", "invalid"])
