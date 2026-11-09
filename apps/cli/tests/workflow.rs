@@ -264,15 +264,13 @@ fn registration_with_unknown_initial_topic_is_atomic_and_can_be_retried() {
 }
 
 #[test]
-fn flag_dependencies_and_replaced_syntax_fail_before_opening_a_database() {
+fn flag_dependencies_and_invalid_syntax_fail_before_opening_a_database() {
     let q = Queue::new();
 
     for command in [
-        vec!["topic", "cpu", "add", "build"],
-        vec!["topic", "capacity", "cpu", "--capacity", "2"],
         vec!["topic", "capacity", "cpu", "0"],
         vec!["topic", "--list", "create", "cpu"],
-        vec!["task", "-l", "add", "build"],
+        vec!["task", "-l", "create", "build"],
         vec!["task", "create", "build", "--wait"],
         vec!["task", "create", "build", "--complete"],
         vec!["task", "create", "build", "--topic", "cpu", "--complete"],
@@ -795,30 +793,21 @@ fn help_and_syntax_errors_do_not_open_a_database_and_explicit_path_wins() {
 }
 
 #[test]
-fn the_legacy_cli_is_removed() {
-    let q = Queue::new();
-
-    for command in [
-        "publish", "claim", "ack", "nack", "renew", "retry", "jobs", "group", "worker",
-    ] {
-        let output = q.raw(&[command]);
-
-        assert_eq!(output.status.code(), Some(2), "{command}");
-        assert!(!q.db.exists());
-    }
-}
-
-#[test]
-fn legacy_database_returns_a_clear_error_without_modifying_it() {
+fn incompatible_database_returns_a_clear_error_without_modifying_it() {
     let q = Queue::new();
     let connection = Connection::open(&q.db).unwrap();
-    connection.execute_batch("CREATE TABLE messages(payload TEXT); INSERT INTO messages VALUES ('old-data'); PRAGMA user_version=1").unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=3",
+        )
+        .unwrap();
     drop(connection);
     let before = fs::read(&q.db).unwrap();
 
     let result = q.raw(&["topic", "--list"]);
 
     assert_eq!(result.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("unsupported database schema"));
     assert!(String::from_utf8_lossy(&result.stderr).contains("separate database with --db"));
     assert_eq!(fs::read(&q.db).unwrap(), before);
 }

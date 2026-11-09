@@ -35,7 +35,7 @@ anyq --help
 | `anyq config list` / `--list` / `-l` | Действующие настройки |
 | `anyq help [command]` | Справка, например help task link |
 
--v = --version, -h = --help, -w = --wait, -c = --complete у задач. --db PATH доступен на любом уровне. Task add заменён на task create; старый add не является командой.
+-v = --version, -h = --help, -w = --wait, -c = --complete у задач. --db PATH доступен на любом уровне.
 
 Для всех действий есть name-first форма: topic link cpu job = topic cpu link job; task link job cpu = task job link cpu; topic cpu capacity [N]; topic cpu create [-c N]; task job create/wait/complete. Имена и глобальные параметры сохраняются при нормализации.
 
@@ -86,7 +86,7 @@ anyq config --get task.autocreate
 anyq config --unset db.path
 ```
 
-task.autocreate и topic.autocreate принимают true/false, default false. db.path — непустая строка; ~/ раскрывается относительно home, относительный путь — относительно рабочего каталога. Unset возвращает default. Неизвестные ключи и неверные значения дают ошибку. list — подкоманда, ключом быть не может. Старые autoadd-ключи не поддерживаются.
+task.autocreate и topic.autocreate принимают true/false, default false. db.path — непустая строка; ~/ раскрывается относительно home, относительный путь — относительно рабочего каталога. Unset возвращает default. Неизвестные ключи и неверные значения дают ошибку. list — подкоманда, ключом быть не может.
 
 Autocreate создаёт отсутствующий именованный объект внутри транзакции основной операции; новый топик capacity 1. Link может создать обе сущности и связь вместе. Успешный просмотр тоже может создать отсутствующую сущность. Ошибка откатывает автоматические создания: обычный task complete missing даёт was not run и не оставляет missing; --force может успешно создать и завершить его. Существующие состояния и правила имён сохраняются.
 
@@ -143,7 +143,7 @@ Capacity положительна, default 1; уменьшение ниже те
 
 ## Постоянное владение и прерывания
 
-Выход wait, падение вызывающего процесса и время не освобождают слоты. Нет heartbeat и таймаута владения. После аварии проверьте внешнюю работу, затем явно завершите известную задачу.
+Выход wait, падение вызывающего процесса и время не освобождают слоты. После аварии проверьте внешнюю работу, затем явно завершите известную задачу.
 
 Ctrl+C до commit откатывает текущую транзакцию; после commit сохраняет результат. В цепочке -twc это может быть queued/running/completed. При коде 130 проверьте task NAME: сохранённое running требует complete. Таблица исходов и native integration suite — [INTERRUPTIONS.md](docs/INTERRUPTIONS.md).
 
@@ -171,4 +171,4 @@ cargo test --locked -p anyq --test interruptions --features integration-test-hoo
 
 Python нужен для tooling/демонстрации, Node — для закреплённого OpenSpec. Runtime anyq их не требует.
 
-[Правила кода](docs/CODE-RULES.md), [архитектура](docs/ARCHITECTURE.md), [CI и защита main](docs/CI.md). [Базовые specs](openspec/specs/), [текущий change](openspec/changes/coordinate-named-tasks/), [архив](openspec/changes/archive/).
+[Правила кода](docs/CODE-RULES.md), [архитектура](docs/ARCHITECTURE.md), [CI и защита main](docs/CI.md). [Базовые specs](openspec/specs/), [изменения](openspec/changes/), [архив](openspec/changes/archive/).
