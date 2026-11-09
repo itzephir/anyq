@@ -1,211 +1,261 @@
+mod checkpoint;
 mod controllers;
-
+mod error;
+mod interrupt;
+mod output;
+mod paths;
 mod presenters;
+mod task_flow;
+mod wait_for_task;
 
-use anyq_queue_api::{
-    CompleteDeliveryRequest, ConsumerGroup, Error, MessageQuery, Publish, RejectDeliveryRequest,
-    Result, Topic,
+use anyq_config_api::ConfigKey;
+use anyq_queue_api::{AutoCreatePolicy, format_name, parse_topic_name};
+use checkpoint::checkpoint;
+use clap::Parser;
+use controllers::{Cli, ConfigCommand, Request};
+use error::{Error, Result};
+use std::{
+    process::ExitCode,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
-use anyq_worker_api::Run;
-use clap::Parser;
-use controllers::{Cli, Commands};
-use std::{io::Write, path::PathBuf, process::ExitCode};
+fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
+    let request = Request::try_from(cli.command)?;
+    checkpoint("cli.before-command", &cancelled)?;
+    let config_path = paths::home()?.join(".anyq/config.toml");
+    let mut configuration = anyq_config_impl::open(&config_path, cancelled.clone());
 
-fn emit(value: serde_json::Value) -> Result<()> {
-    writeln!(std::io::stdout().lock(), "{value}").map_err(|e| Error::Storage(e.to_string()))
-}
+    if let Request::Config(command) = request {
+        let message = match command {
+            ConfigCommand::List => {
+                let config = configuration.get_config.get()?;
+                Some(
+                    ConfigKey::ALL
+                        .into_iter()
+                        .filter_map(|key| {
+                            config
+                                .get(key)
+                                .map(|value| format!("{}={value}", key.as_str()))
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                )
+            }
+            ConfigCommand::Get(key) => Some(
+                configuration
+                    .get_value
+                    .get(key)?
+                    .ok_or(Error::MissingConfigValue)?
+                    .to_string(),
+            ),
+            ConfigCommand::Set(request) => {
+                configuration.set_value.set(request)?;
+                None
+            }
+            ConfigCommand::Unset(key) => {
+                configuration.unset_value.unset(key)?;
+                None
+            }
+        };
 
-fn default_db() -> Result<PathBuf> {
-    #[cfg(windows)]
-    let data = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .ok_or_else(|| Error::Invalid("set ANYQ_DB or --db: LOCALAPPDATA is unavailable".into()))?;
-    #[cfg(not(windows))]
-    let data = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".local/share")))
-        .ok_or_else(|| {
-            Error::Invalid("set ANYQ_DB or --db: HOME and XDG_DATA_HOME are unavailable".into())
-        })?;
+        if let Some(message) = message {
+            output::emit(&message, &cancelled)?;
+        }
 
-    Ok(data.join("anyq/queue.db"))
-}
+        return checkpoint("cli.after-command", &cancelled);
+    }
 
-fn run(cli: Cli) -> Result<u8> {
+    let config = configuration.get_config.get()?;
     let path = match cli.db {
-        Some(p) => p,
-        None => default_db()?,
+        Some(path) => path,
+        None => match config.db_path() {
+            Some(value) => paths::configured_db(value)?,
+            None => paths::default_db()?,
+        },
     };
 
-    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent).map_err(|e| Error::Storage(e.to_string()))?;
+    if let Some(parent) = path.parent().filter(|path| !path.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
     }
 
-    let mut cases = anyq_queue_impl::open(&path)?;
+    let policy = AutoCreatePolicy {
+        tasks: config.task_autocreate(),
+        topics: config.topic_autocreate(),
+    };
+    let mut cases = anyq_queue_impl::open_with_options(&path, policy, cancelled.clone())?;
+    checkpoint("cli.before-operation", &cancelled)?;
 
-    match cli.command {
-        Commands::Worker(args) => {
-            let (settings, command, once) = args.domain()?;
-            let dependencies = anyq_worker_impl::WorkerDependencies {
-                claim: cases.claim_delivery,
-                renew: cases.renew_lease,
-                complete: cases.complete_delivery,
-                reject: cases.reject_delivery,
-                topics: cases.get_topic,
-            };
-
-            let mut worker = anyq_worker_impl::create(dependencies, command, settings)?;
-
-            loop {
-                let result = worker.run_one()?;
-
-                if once || result != Run::Idle {
-                    emit(presenters::run(result))?;
-                }
-
-                if result == Run::Stopped || worker.stopped() {
-                    return Ok(130);
-                }
-
-                if once {
-                    return Ok(if matches!(result, Run::Failed(_)) {
-                        1
-                    } else {
-                        0
-                    });
-                }
-
-                if result == Run::Idle {
-                    worker.idle();
-                }
-            }
+    let message = match request {
+        Request::Config(_) => unreachable!("configuration handled before opening the queue"),
+        Request::GetTask { name } => Some(presenters::task(&cases.get_task.get(&name)?)),
+        Request::GetTopicQueue { name } => {
+            Some(presenters::topic_queue(&cases.get_topic_queue.get(&name)?))
         }
-
-        command => {
-            emit(route(command, &mut cases)?)?;
-
-            Ok(0)
+        Request::GetTopicCapacity { name } => {
+            Some(cases.get_topic.get(&name)?.capacity.to_string())
         }
-    }
-}
-
-fn route(command: Commands, cases: &mut anyq_queue_impl::QueueModule) -> Result<serde_json::Value> {
-    use controllers::json::json;
-    use controllers::{Groups, Jobs, Topics};
-    use serde_json::json as value;
-
-    Ok(match command {
-        Commands::Topic(Topics::Create { name, capacity }) => {
-            presenters::topic(&cases.create_topic.create(Topic::new(name, capacity)?)?)
-        }
-
-        Commands::Topic(Topics::Capacity { name, capacity }) => presenters::topic(
-            &cases
-                .set_topic_capacity
-                .set_capacity(Topic::new(name, capacity)?)?,
+        Request::ListTasks => Some(
+            cases
+                .list_tasks
+                .list()?
+                .iter()
+                .map(|name| format!("- {}", format_name(name)))
+                .collect::<Vec<_>>()
+                .join("\n"),
         ),
-        Commands::Topic(Topics::List) => value!(
+        Request::ListTopics => Some(
             cases
                 .list_topics
                 .list()?
                 .iter()
-                .map(presenters::topic)
+                .map(|topic| format!("- {}", format_name(&topic.name)))
                 .collect::<Vec<_>>()
+                .join("\n"),
         ),
-        Commands::Group(Groups::Create { topic, name }) => presenters::group(
-            &cases
-                .create_consumer_group
-                .create(ConsumerGroup { topic, name })?,
-        ),
-        Commands::Group(Groups::List { topic }) => value!(
-            cases
-                .list_consumer_groups
-                .list(&topic)?
-                .iter()
-                .map(presenters::group)
-                .collect::<Vec<_>>()
-        ),
-        Commands::Publish {
-            topic,
-            data,
-            key,
-            max_attempts,
-        } => presenters::message(&cases.publish_message.publish(Publish {
-            topic,
-            payload: data.read()?,
-            key,
-            max_attempts,
-        })?),
-        Commands::Claim(args) => {
-            presenters::assignment(&cases.claim_delivery.claim(args.domain())?)
+        Request::CreateTopic(topic) => {
+            let topic = cases.create_topic.create(topic)?;
+            Some(format!(
+                "successfully registered topic '{}'",
+                format_name(&topic.name)
+            ))
         }
-
-        Commands::Ack {
-            lease,
-            result,
-            next,
+        Request::SetTopicCapacity(topic) => {
+            let topic = cases.set_topic_capacity.set_capacity(topic)?;
+            Some(format!(
+                "capacity of '{}' set to {}",
+                format_name(&topic.name),
+                topic.capacity
+            ))
+        }
+        Request::RegisterTask {
+            request,
+            wait,
+            complete,
         } => {
-            presenters::completion(&cases.complete_delivery.complete(CompleteDeliveryRequest {
-                lease: lease.domain(),
-                result: result.map(|v| json(&v)).transpose()?,
-                next: next.domain()?,
-            })?)
-        }
+            let input_name = request.name.clone();
+            let task = cases.register_task.register(request)?;
+            checkpoint("cli.after-registration", &cancelled)?;
+            output::emit(&presenters::registered(task.name()), &cancelled)?;
 
-        Commands::Nack {
-            lease,
-            reason,
-            delay_ms,
-        } => presenters::delivery(&cases.reject_delivery.reject(RejectDeliveryRequest {
-            lease: lease.domain(),
-            reason,
-            delay_ms,
-        })?),
-        Commands::Renew { lease, lease_ms } => {
-            presenters::delivery(&cases.renew_lease.renew(lease.domain(), lease_ms)?)
-        }
+            if wait {
+                let completion = if complete {
+                    Some(cases.complete_task.as_mut())
+                } else {
+                    None
+                };
+                task_flow::wait_then_complete(
+                    &input_name,
+                    cases.try_start_task.as_mut(),
+                    completion,
+                    &cancelled,
+                )?;
+            }
 
-        Commands::Retry { message_id, group } => {
-            presenters::delivery(&cases.retry_delivery.retry(message_id, group)?)
+            None
         }
-
-        Commands::Jobs(Jobs::Show { message_id }) => {
-            presenters::view(&cases.inspect_message.inspect(message_id)?)
-        }
-
-        Commands::Jobs(Jobs::List {
+        Request::LinkTask {
+            name,
             topic,
-            group,
-            after,
-            limit,
-        }) => value!(
-            cases
-                .list_messages
-                .list(MessageQuery {
-                    topic,
-                    group,
-                    after,
-                    limit
-                })?
-                .iter()
-                .map(presenters::view)
-                .collect::<Vec<_>>()
-        ),
-        Commands::Worker(_) => {
-            return Err(Error::Invalid(
-                "worker is assembled separately by main".into(),
-            ));
+            wait,
+            complete,
+        } => {
+            let task = cases.add_task_to_topic.add(&name, &topic)?;
+            checkpoint("cli.after-link", &cancelled)?;
+            output::emit(
+                &presenters::added(task.name(), &parse_topic_name(&topic)?),
+                &cancelled,
+            )?;
+
+            if wait {
+                let completion = if complete {
+                    Some(cases.complete_task.as_mut())
+                } else {
+                    None
+                };
+                task_flow::wait_then_complete(
+                    &name,
+                    cases.try_start_task.as_mut(),
+                    completion,
+                    &cancelled,
+                )?;
+            }
+
+            None
         }
-    })
+        Request::WaitTask { name, complete } => {
+            let completion = if complete {
+                Some(cases.complete_task.as_mut())
+            } else {
+                None
+            };
+            task_flow::wait_then_complete(
+                &name,
+                cases.try_start_task.as_mut(),
+                completion,
+                &cancelled,
+            )?;
+            None
+        }
+        Request::CompleteTask { name, force } => Some(task_flow::complete(
+            &name,
+            force,
+            cases.complete_task.as_mut(),
+            &cancelled,
+        )?),
+    };
+
+    if let Some(message) = message.filter(|message| !message.is_empty()) {
+        output::emit(&message, &cancelled)?;
+    }
+
+    checkpoint("cli.after-command", &cancelled)
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
-        Ok(code) => ExitCode::from(code),
+    let cancelled = match interrupt::install() {
+        Ok(cancelled) => cancelled,
         Err(error) => {
-            eprintln!("{}", presenters::error(&error));
-            ExitCode::from(2)
+            let _ = output::emit_error(&format!("error: {error}"), &AtomicBool::new(false));
+            return ExitCode::from(2);
+        }
+    };
+
+    if checkpoint("cli.before-parse", &cancelled).is_err() {
+        return ExitCode::from(130);
+    }
+
+    let arguments = controllers::normalize_arguments(std::env::args_os());
+    let cli = match Cli::try_parse_from(arguments) {
+        Ok(cli) => cli,
+        Err(error) => {
+            let code = error.exit_code() as u8;
+            let _ = output::write(move || error.print(), &cancelled);
+            return ExitCode::from(if cancelled.load(Ordering::SeqCst) {
+                130
+            } else {
+                code
+            });
+        }
+    };
+    let result = run(cli, cancelled.clone());
+
+    if cancelled.load(Ordering::SeqCst) {
+        return ExitCode::from(130);
+    }
+
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(Error::MissingConfigValue) => ExitCode::from(1),
+        Err(error) => {
+            let _ = output::emit_error(&format!("error: {error}"), &cancelled);
+            ExitCode::from(if cancelled.load(Ordering::SeqCst) {
+                130
+            } else {
+                error.exit_code()
+            })
         }
     }
 }

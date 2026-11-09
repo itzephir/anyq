@@ -16,47 +16,47 @@ ALLOWED = {
         "anyq-queue-dispatch",
         "rusqlite",
         "tempfile",
+        "anyq-integration-test-hooks",
     },
     "anyq-queue-impl": {
         "anyq-queue-api",
         "anyq-queue-dispatch",
         "anyq-queue-sqlite",
-        "uuid",
     },
-    "anyq-worker-api": {"anyq-queue-api"},
-    "anyq-worker-execution": {"anyq-queue-api", "anyq-worker-api"},
-    "anyq-worker-process": {
-        "anyq-queue-api",
-        "anyq-worker-api",
-        "anyq-worker-execution",
-        "libc",
-        "signal-hook",
-        "ctrlc",
-        "windows-sys",
+    "anyq-config-api": set(),
+    "anyq-config-dispatch": {"anyq-config-api"},
+    "anyq-config-file": {
+        "anyq-config-api",
+        "anyq-config-dispatch",
+        "anyq-integration-test-hooks",
+        "toml",
+        "tempfile",
+        "fs2",
     },
-    "anyq-worker-impl": {
-        "anyq-queue-api",
-        "anyq-worker-api",
-        "anyq-worker-execution",
-        "anyq-worker-process",
+    "anyq-config-impl": {
+        "anyq-config-api",
+        "anyq-config-dispatch",
+        "anyq-config-file",
     },
+    "anyq-integration-test-hooks": set(),
     "anyq": {
         "anyq-queue-api",
         "anyq-queue-impl",
-        "anyq-worker-api",
-        "anyq-worker-impl",
+        "anyq-config-api",
+        "anyq-config-impl",
+        "anyq-integration-test-hooks",
+        "ctrlc",
         "clap",
-        "serde_json",
+        "rusqlite",
         "tempfile",
-        "windows-sys",
     },
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
     "anyq-queue-api",
     "anyq-queue-dispatch",
-    "anyq-worker-api",
-    "anyq-worker-execution",
+    "anyq-config-api",
+    "anyq-config-dispatch",
 }
 IO = re.compile(
     r"\bstd\s*::\s*(?:fs|io|net|process|thread|env)\b|\b(?:SystemTime|Instant)\b|\b(?:include|include_str|include_bytes)\s*!|#\s*\[\s*path\s*=|\b(?:unsafe|extern)\b|\b(?:print|println|eprint|eprintln|dbg)\s*!|#\s*\[\s*link\b"
@@ -90,7 +90,7 @@ def check(graph, sources):
             if (
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
-                and re.search(r"\banyq_(?:queue|worker)_impl\b", source)
+                and re.search(r"\banyq_(?:queue|config)_impl\b", source)
             ):
                 errors.append(f"{path}: factory imports belong only to main.rs")
 
@@ -154,7 +154,10 @@ def main():
     for owner, dep in [
         ("anyq-queue-api", "anyq-queue-dispatch"),
         ("anyq-queue-dispatch", "rusqlite"),
-        ("anyq-worker-execution", "anyq-queue-impl"),
+        ("anyq-queue-api", "anyq-queue-impl"),
+        ("anyq-config-api", "anyq-config-file"),
+        ("anyq-config-dispatch", "toml"),
+        ("anyq-queue-dispatch", "anyq-integration-test-hooks"),
     ]:
         mutant = copy.deepcopy(graph)
         mutant[owner].add(dep)
@@ -166,9 +169,10 @@ def main():
         '#[path="outside.rs"] mod bypass;',
     ]:
         # Nested std imports are separately prohibited below, including aliases.
-        mutant = copy.deepcopy(sources)
-        mutant["anyq-queue-api"]["negative.rs"] = bad
-        assert check(graph, mutant), bad
+        for inner in INNER:
+            mutant = copy.deepcopy(sources)
+            mutant[inner]["negative.rs"] = bad
+            assert check(graph, mutant), (inner, bad)
     mutant = copy.deepcopy(sources)
     mutant["anyq"]["apps/cli/src/controllers.rs"] = "use anyq_queue_impl::open;"
     assert check(graph, mutant)

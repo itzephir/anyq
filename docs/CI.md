@@ -4,12 +4,14 @@ Workflow [.github/workflows/ci.yml](../.github/workflows/ci.yml) запуска�
 
 | Job | Платформы | Содержание |
 | --- | --- | --- |
-| Lint | Только Linux | Rustfmt, Clippy с запретом предупреждений, Rust AST-линтер, Cargo/API boundary checker, Ruff, OpenSpec |
-| Build & unit tests | Linux, macOS, Windows | Сборка workspace; unit tests библиотек и бинарников без SQLite и CLI integration suite |
-| Integration tests | Linux, macOS, Windows | SQLite adapter suite; настоящие CLI-процессы, handoff, concurrency, heartbeat, cleanup/cancellation и demo |
+| Lint | Только Linux | Rustfmt, Clippy --all-features с запретом предупреждений, Rust AST-линтер, Cargo/API boundary checker, Ruff, OpenSpec |
+| Build & unit tests | Linux, macOS, Windows | Сборка workspace; unit tests без SQLite/file adapters и CLI integration suites |
+| Integration tests | Linux, macOS, Windows | SQLite/file adapter suites; CLI aliases/имена/config/autocreate, конкуренция, demo; отдельный обязательный Native Ctrl+C integration tests step |
 | CI passed | Итог всех категорий | Проходит только при success Lint и обеих матриц сборки/тестов |
 
 `CI passed` использует `always()` и проверяет конкретные результаты зависимостей. Failure, cancelled и skipped не дают успешного gate. Матрицы используют `fail-fast: false`, чтобы ошибка одной ОС не скрывала результаты остальных. Только этот стабильный итоговый статус связан с правилом branch protection; изменение имени требует одновременного изменения защиты.
+
+Native suite запускается с integration-test-hooks и отправляет реальный SIGINT на Unix, CTRL_C_EVENT в отдельную консоль на Windows. Проверяются commits, промежуточные записи, цепочки, autocreate, config replace, реальное ожидание locks и заполненные stdout/stderr pipes; без skip/ignore. Workflow/file suites отклоняют неизвестные TOML-разделы и таблицы вместо значений без перезаписи файла. Обычный cargo test без feature не заменяет обязательный запуск native target. Таблица исходов — [INTERRUPTIONS.md](INTERRUPTIONS.md).
 
 Default branch `main` защищена на GitHub. Точное тело настройки хранится в [.github/branch-protection.json](../.github/branch-protection.json):
 

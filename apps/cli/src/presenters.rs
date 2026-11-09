@@ -1,60 +1,68 @@
-use anyq_queue_api::*;
-use serde_json::{Value, json};
+use anyq_queue_api::{Task, TopicQueue, format_name};
 
-fn opaque(raw: &str) -> Value {
-    serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))
+pub fn registered(name: &str) -> String {
+    format!("successfully registered task '{}'", format_name(name))
 }
 
-pub fn topic(t: &Topic) -> Value {
-    json!({"name":t.name,"capacity":t.capacity})
+pub fn added(name: &str, topic: &str) -> String {
+    format!(
+        "successfully added '{}' to topic '{}'",
+        format_name(name),
+        format_name(topic)
+    )
 }
 
-pub fn group(g: &ConsumerGroup) -> Value {
-    json!({"topic":g.topic,"name":g.name})
+pub fn waiting(name: &str) -> String {
+    format!("waiting for '{}' to start", format_name(name))
 }
 
-pub fn message(m: &Message) -> Value {
-    json!({"id":m.id,"topic":m.topic,"payload":opaque(&m.payload),"key":m.key,"max_attempts":m.max_attempts,"created_at":m.created_at})
+pub fn started(name: &str) -> String {
+    format!("'{}' started", format_name(name))
 }
 
-pub fn delivery(d: &Delivery) -> Value {
-    json!({"message_id":d.message_id,"group":d.group,"state":d.state.as_str(),"attempts":d.attempts,"max_attempts":d.max_attempts,"available_at":d.available_at,"consumer":d.consumer,"token":d.token,"lease_until":d.lease_until,"finished_at":d.finished_at,"result":d.result.as_deref().map(opaque),"last_error":d.last_error})
+pub fn completed(name: &str) -> String {
+    format!("'{}' successfully completed", format_name(name))
 }
 
-pub fn view(v: &MessageView) -> Value {
-    json!({"message":message(&v.message),"deliveries":v.deliveries.iter().map(delivery).collect::<Vec<_>>()})
-}
-
-pub fn error(e: &Error) -> Value {
-    let kind = match e {
-        Error::Invalid(_) => "invalid",
-        Error::NotFound(_) => "not_found",
-        Error::Conflict(_) => "conflict",
-        Error::LeaseLost => "lease_lost",
-        Error::Storage(_) => "storage",
+pub fn task(task: &Task) -> String {
+    let topics = if task.topics().is_empty() {
+        "topics: (none)".into()
+    } else {
+        format!(
+            "topics:\n{}",
+            task.topics()
+                .iter()
+                .map(|topic| format!("- {}", format_name(topic)))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
     };
 
-    json!({"error":{"kind":kind,"message":e.to_string()}})
+    format!(
+        "task: {}\nstatus: {}\n{topics}",
+        format_name(task.name()),
+        task.state().as_str()
+    )
 }
 
-pub fn run(run: anyq_worker_api::Run) -> Value {
-    use anyq_worker_api::Run;
+pub fn topic_queue(queue: &TopicQueue) -> String {
+    let tasks = if queue.tasks.is_empty() {
+        "queue: (empty)".into()
+    } else {
+        format!(
+            "queue:\n{}",
+            queue
+                .tasks
+                .iter()
+                .map(|task| format!("- {} [{}]", format_name(task.name()), task.state().as_str()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    };
 
-    match run {
-        Run::Idle => json!({"state":"idle"}),
-        Run::Stopped => json!({"state":"stopped"}),
-        Run::Succeeded(id) => json!({"state":"succeeded","message_id":id}),
-        Run::Failed(id) => json!({"state":"failed","message_id":id}),
-    }
-}
-
-pub fn assignment(value: &Option<Assignment>) -> Value {
-    value
-        .as_ref()
-        .map(|a| json!({"message":message(&a.message),"delivery":delivery(&a.delivery)}))
-        .unwrap_or(Value::Null)
-}
-
-pub fn completion(value: &Completion) -> Value {
-    json!({"delivery":delivery(&value.delivery),"next":value.next.as_ref().map(message)})
+    format!(
+        "topic: {}\ncapacity: {}\n{tasks}",
+        format_name(&queue.topic.name),
+        queue.topic.capacity
+    )
 }

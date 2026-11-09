@@ -1,11 +1,13 @@
-//! Transactional SQLite adapters; one responsibility per adapter.
+//! SQLite adapter for the named-task transaction boundary.
+mod begin_transaction;
+mod checkpoint;
 mod sqlite;
-mod sqlite_deliveries;
-mod sqlite_groups;
-mod sqlite_messages;
+pub use sqlite::Sqlite;
+
+mod sqlite_tasks;
 mod sqlite_topics;
 mod sqlite_unit_of_work;
 mod storage_error;
-pub use sqlite::Sqlite;
+
 #[cfg(test)]
 mod tests;

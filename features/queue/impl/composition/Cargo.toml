@@ -5,11 +5,13 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+integration-test-hooks = ["anyq-queue-sqlite/integration-test-hooks"]
+
 [dependencies]
 anyq-queue-api = { path = "../../api" }
 anyq-queue-dispatch = { path = "../dispatch" }
 anyq-queue-sqlite = { path = "../sqlite" }
-uuid = { version = "1", features = ["v4"] }
 
 [lints]
 workspace = true

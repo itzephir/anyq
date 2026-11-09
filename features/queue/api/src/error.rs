@@ -7,18 +7,17 @@ pub enum Error {
     Invalid(String),
     NotFound(String),
     Conflict(String),
-    LeaseLost,
     Storage(String),
+    Interrupted,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Interrupted => f.write_str("interrupted"),
             Self::Invalid(s) | Self::NotFound(s) | Self::Conflict(s) | Self::Storage(s) => {
                 f.write_str(s)
             }
-
-            Self::LeaseLost => f.write_str("lease expired, replaced, or already completed"),
         }
     }
 }

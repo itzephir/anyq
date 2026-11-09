@@ -1,45 +1,30 @@
-//! Pure entities and focused, typed use-case contracts.
+//! Named tasks, resource admission and focused use-case contracts. No IO.
+mod error;
+pub use error::{Error, Result};
+
+mod auto_create_policy;
+pub use auto_create_policy::AutoCreatePolicy;
+
+mod parse_name;
+pub use parse_name::{parse_name, parse_name as parse_topic_name};
+
+mod format_name;
+pub use format_name::format_name;
+
 mod topic;
 pub use topic::Topic;
 
-mod consumer_group;
-pub use consumer_group::ConsumerGroup;
+mod task_state;
+pub use task_state::TaskState;
 
-mod publish;
-pub use publish::Publish;
+mod start_outcome;
+pub use start_outcome::StartOutcome;
 
-mod message;
-pub use message::Message;
+mod resource_availability;
+pub use resource_availability::ResourceAvailability;
 
-mod state;
-pub use state::State;
-
-mod delivery;
-pub use delivery::Delivery;
-
-mod lease;
-pub use lease::Lease;
-
-mod claim;
-pub use claim::Claim;
-
-mod assignment;
-pub use assignment::Assignment;
-
-mod message_view;
-pub use message_view::MessageView;
-
-mod completion;
-pub use completion::Completion;
-
-mod complete_delivery_request;
-pub use complete_delivery_request::CompleteDeliveryRequest;
-
-mod reject_delivery_request;
-pub use reject_delivery_request::RejectDeliveryRequest;
-
-mod message_query;
-pub use message_query::MessageQuery;
+mod task;
+pub use task::Task;
 
 mod create_topic;
 pub use create_topic::CreateTopic;
@@ -50,46 +35,35 @@ pub use set_topic_capacity::SetTopicCapacity;
 mod list_topics;
 pub use list_topics::ListTopics;
 
+mod list_tasks;
+pub use list_tasks::ListTasks;
+
 mod get_topic;
 pub use get_topic::GetTopic;
 
-mod create_consumer_group;
-pub use create_consumer_group::CreateConsumerGroup;
+mod get_task;
+pub use get_task::GetTask;
 
-mod list_consumer_groups;
-pub use list_consumer_groups::ListConsumerGroups;
+mod get_topic_queue;
+pub use get_topic_queue::GetTopicQueue;
 
-mod publish_message;
-pub use publish_message::PublishMessage;
+mod topic_queue;
+pub use topic_queue::TopicQueue;
 
-mod claim_delivery;
-pub use claim_delivery::ClaimDelivery;
+mod register_task;
+pub use register_task::RegisterTask;
 
-mod renew_lease;
-pub use renew_lease::RenewLease;
+mod register_task_request;
+pub use register_task_request::RegisterTaskRequest;
 
-mod complete_delivery;
-pub use complete_delivery::CompleteDelivery;
+mod add_task_to_topic;
+pub use add_task_to_topic::AddTaskToTopic;
 
-mod reject_delivery;
-pub use reject_delivery::RejectDelivery;
+mod try_start_task;
+pub use try_start_task::TryStartTask;
 
-mod retry_delivery;
-pub use retry_delivery::RetryDelivery;
+mod complete_task;
+pub use complete_task::CompleteTask;
 
-mod inspect_message;
-pub use inspect_message::InspectMessage;
-
-mod list_messages;
-pub use list_messages::ListMessages;
-
-mod error;
-pub use error::{Error, Result};
-
-mod validate_name;
-pub use validate_name::validate_name;
-
-mod deadline;
-pub use deadline::deadline;
 #[cfg(test)]
 mod tests;

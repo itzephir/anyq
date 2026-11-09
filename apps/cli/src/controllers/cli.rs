@@ -6,14 +6,17 @@ use std::path::PathBuf;
 #[command(
     name = "anyq",
     version,
-    about = "Durable local topic queues with independent consumer groups"
+    disable_version_flag = true,
+    about = "Coordinate named tasks across local resource queues"
 )]
 pub struct Cli {
+    #[arg(short = 'v', long, action = clap::ArgAction::Version)]
+    version: Option<bool>,
     #[arg(
         long,
         env = "ANYQ_DB",
         global = true,
-        help = "Local SQLite file (default: LOCALAPPDATA/anyq on Windows; XDG_DATA_HOME/anyq or ~/.local/share/anyq on Unix)"
+        help = "Shared local SQLite database (schema 2)"
     )]
     pub db: Option<PathBuf>,
     #[command(subcommand)]

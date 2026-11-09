@@ -1,20 +1,63 @@
 # Архитектура anyq
 
-Применяется классическая Clean Architecture Роберта Мартина с организацией по предметным фичам и реальными границами Cargo crates `api`/`impl`. Основа соответствует правилам Ephir в itzmoney и itzdesign; специфические денежные и графические модели сюда не переносятся.
+anyq координирует именованные задачи и допуск к локальным ресурсам. Clean Architecture организована вокруг доменных фич queue и config, затем слоёв; api и impl имеют отдельные Cargo crates. Межфичевые связи возможны только через api; в текущем графе обе фичи независимы.
 
-| Владелец | Правила | Внутренние модули |
-| --- | --- | --- |
-| queue | Топик и его вместимость, независимость consumer groups, неизменность сообщений, доставка/попытки, срок владения и fencing, атомарный handoff | api → entities и отдельные контракты сценариев; impl/dispatch → один interactor на сценарий и его порты; impl/sqlite → отдельные адаптеры записей и транзакции; impl/composition → фабрика |
-| worker | Получение задания, heartbeat, интерпретация результата процесса, ack/nack и следующий этап | api → настройки/контракт; impl/execution → интерактор и порты; impl/process → POSIX adapter; impl/composition → фабрика |
+| Модуль | Ответственность |
+| --- | --- |
+| queue/api | Task, TaskState, Topic, TopicQueue, ResourceAvailability, AutoCreatePolicy, разбор и отображение имён; отдельные контракты сценариев |
+| queue/impl/dispatch | Регистрация, связи, допуск, завершение, чтение и управление топиками; consumer-owned persistence-порты |
+| queue/impl/sqlite | Схема, точные запросы, IMMEDIATE transaction boundary |
+| queue/impl/composition | Явная сборка отдельных queue-интеракторов |
+| config/api | Config, типизированные ключи/значения, defaults, отдельные контракты чтения/изменения |
+| config/impl/dispatch | GetConfig, GetConfigValue, SetConfigValue, UnsetConfigValue и consumer-owned Store |
+| config/impl/file | TOML, файловая блокировка, атомарная замена |
+| config/impl/composition | Явная сборка отдельных config-интеракторов |
+| apps/cli | Синтаксис, текстовые ответы, разрешение путей, блокирующий опрос TryStartTask и сигналы |
+| tooling/architecture-lint | Проверка структуры Rust |
+| tooling/integration-test-hooks | Только опциональные внешние контрольные точки интеграционных тестов |
 
-Внутренние crates используют std для коллекций, типов и вычислений, без IO. Публичные entities и чистые инварианты живут в api. Порты TopicRecords/GroupRecords/MessageRecords/DeliveryRecords, Store/UnitOfWork/Clock/Tokens принадлежат dispatch; Process/Runner/Wait — execution. SQLite, POSIX и Win32 не входят в эти контракты. Controllers и presenters находятся в apps/cli и только преобразуют внешний JSON/аргументы в типизированный вход сценария и результат обратно в JSON.
+## Домен
 
-У каждого сценария отдельный контракт и interactor: CreateTopic, SetTopicCapacity, ListTopics, GetTopic, CreateConsumerGroup, ListConsumerGroups, PublishMessage, ClaimDelivery, RenewLease, CompleteDelivery, RejectDelivery, RetryDelivery, InspectMessage, ListMessages. Универсальных Queue/Command/Output и execute-dispatcher нет. Worker получает только ClaimDelivery/RenewLease/CompleteDelivery/RejectDelivery/GetTopic. UnitOfWork объединяет границу атомарности и четыре persistence-порта; он не выполняет бизнес-маршрутизацию. Composition structures содержат явно созданные handles, без поведения и string lookup.
+Task имеет уникальное имя, неизменный монотонный номер регистрации, состояние и набор топиков. Registered не имеет топиков; после добавления связи задача queued. Полный допуск переводит её в running; complete переводит в completed. Имя не переиспользуется после завершения.
 
-Межфичевая связь worker → queue идёт только через queue-api. SQL получает конкретные фильтры интерактора, не решает самостоятельно, что выдавать consumer, когда истекает lease и сколько попыток разрешено. Транзакционный порт гарантирует all-or-nothing; интерактор задаёт действия внутри транзакции. Domain policy не переносится в SQL ради атомарности.
+Task владеет переходами, полнотой набора ресурсов и запретом менять членство running/completed. ResourceAvailability проверяет свободные слоты и queued-предшественников. Один порядок регистрации используется во всех топиках. Queued-задача сохраняет место даже без активного wait; ненужную задачу снимают через complete --force.
 
-Composition roots перечислены явно: features/queue/impl/composition, features/worker/impl/composition и apps/cli/src/main.rs. Первые две собирают только свою фичу; main связывает обе фабрики через API. Ни контроллеры, ни бизнес-сценарии не импортируют чужие impl. Реализации передаются явно, глобальных контейнеров нет.
+parse_name и parse_topic_name задают общую схему: bare-имя начинается с ASCII Latin и не равно list/create/capacity/link/add/wait/complete/config/help, хвост произволен. Одна буквальная внешняя пара обратных кавычек допускает любое содержимое, включая пустое, зарезервированные слова, начальные дефисы и вложенные кавычки. Она снимается ровно один раз. build и `build` — одна идентичность.
 
-Один самостоятельный struct/enum/trait — один файл, включая DTO и doubles. Подробные SRP/SOLID/DRY/KISS и правила ревью закреплены в [CODE-RULES.md](CODE-RULES.md). AST-линтер tooling/architecture-lint проверяет структуру реального Rust-синтаксиса и запрет универсального бизнес-dispatcher. tooling/check_architecture.py проверяет точный Cargo graph, отсутствие IO во внутренних слоях и factory imports только из main. Обе проверки имеют отрицательные fixtures. Cargo обеспечивает отсутствие незаявленных crate imports, приватность модулей и ацикличность графа. Unit tests проверяют домен и конкретные сценарии с узкими doubles; SQLite и нативные CLI/process integration проверяются отдельно.
+Хранилище и порты работают с каноническими строками. Task::restore и Topic::restore восстанавливают уже разобранное имя без повторного снятия кавычек и проверяют структурные инварианты агрегата. format_name создаёт обратимое представление канонического имени. CLI и SQL не копируют правила имён.
 
-Платформенные детали worker находятся в impl/process: общие CommandRunner/ManagedProcess/SystemWait и отдельные unix/windows ChildTree/Interrupt. Unix использует process groups и SIGINT/SIGTERM; Windows — Job Object, suspended launch перед назначением в job и консольное прерывание. Их порты и бизнес-сценарии одинаковы.
+Config владеет ключами task.autocreate/topic.autocreate (bool, default false) и db.path (непустая строка или отсутствие). AutoCreatePolicy принадлежит queue и отдельно разрешает создание каждого вида сущности. CLI передаёт значения из снимка Config; queue не зависит от config impl.
+
+ConfigKey определяет также допустимые контейнеры как строгие префиксы известных ключей. TOML-адаптер проверяет контейнер до обхода таблицы: пустые task/topic/db допустимы, неизвестные разделы и таблицы на месте конечных значений отклоняются. Перечень бизнес-ключей не дублируется в адаптере.
+
+## Сценарии и атомарность
+
+У каждого сценария свой контракт и interactor. Нет универсального execute(Command) -> Output. QueueModule и ConfigModule содержат явно созданные handles без бизнес-поведения, string lookup и service locator.
+
+RegisterTask принимает RegisterTaskRequest с именем и начальными топиками. Проверка топиков, регистрация и сохранение всех связей атомарны. AddTaskToTopic использует ту же границу для одной связи. Autocreate выполняется внутри основной транзакции: неуспешные wait/complete/link откатывают и новые сущности. Успешный просмотр может создать отсутствующую сущность, когда это явно разрешено настройкой.
+
+TryStartTask в одной транзакции читает состояние, топики, running и queued-предшественников. Только домен принимает решение, и только при полном допуске сохраняется running. Частичного захвата нет. CompleteTask сохраняет completed в общей транзакции. Использование ресурсов выводится из running-задач и связей; изменяемых счётчиков слотов нет. Снижение capacity ниже использования отклоняется.
+
+ListTasks читает все имена, GetTask возвращает агрегат. GetTopicQueue запрашивает доменные TopicQueue.STATES и строит очередь по регистрации. Store/UnitOfWork, TopicRecords, TaskRecords и TaskFilter принадлежат dispatch. Интерактор задаёт точный фильтр; SQLite выполняет его без решения о допуске. Просмотр не меняет существующее владение.
+
+Config Store объединяет чтение/изменение одного Config. FileConfig под файловой блокировкой перечитывает актуальное состояние, применяет typed-сценарий, записывает и синхронизирует временный файл в том же каталоге, затем атомарно заменяет config.toml. Ошибка до замены сохраняет прежний файл. Блокировка освобождается при выходе; постоянный .lock-файл не означает удерживаемый lock.
+
+## Внешние детали
+
+Домен и сценарии не используют IO, SQL, часы, CLI или SDK. Composition roots: features/queue/impl/composition, features/config/impl/composition и apps/cli/src/main.rs; только они собирают реализации. Workspace содержит 11 crates, включая два инструмента разработки.
+
+CLI нормализует command-first/name-first, link-направления и короткие флаги, сохраняя аргументы. Зависимости флагов проверяются до открытия базы. Цепочки create/link → wait → complete последовательно вызывают отдельные сценарии. Между стадиями есть отдельные commits; это не единая транзакция. Complete не исполняет внешнюю команду.
+
+CLI повторяет TryStartTask после Busy с короткой паузой без удержания транзакции. Код 0 выдаётся после сохранения running. Внешнюю работу запускает вызывающая сторона. Выход CLI и авария не освобождают слоты; lease, heartbeat и таймаута владения нет.
+
+Первый Ctrl+C устанавливает внешний cancellation token. Адаптеры проверяют его на границах IO/commit и при ожидании блокировок; RAII откатывает открытую транзакцию и удаляет временный файл. После commit состояние сохраняется, даже если CLI вернул 130. Второй Ctrl+C принудительно завершает процесс. Семантика границ и проверки описаны в [INTERRUPTIONS.md](INTERRUPTIONS.md).
+
+Запись stdout/stderr, включая справку, выполняется отдельным потоком только с принадлежащим ему сообщением. Основной поток ждёт результата через канал с коротким timeout и проверяет cancellation token. При отмене он освобождает свои ресурсы и возвращает 130 без join заблокированного writer; writer завершается вместе с CLI. При обычном выполнении следующий шаг начинается только после результата записи. Используются стандартные потоки Rust с их платформенным поведением; бизнес-состояние в writer не передаётся.
+
+Схема 2 содержит topics/tasks/task_topics. Версия 1 и неизвестная будущая версия отклоняются до изменения существующей базы. Автоматического преобразования старых сообщений нет.
+
+## Проверки
+
+Один самостоятельный тип — один файл; правила в [CODE-RULES.md](CODE-RULES.md). Rust AST-линтер проверяет структуру и запрет универсального dispatcher. Python checker проверяет Cargo graph, inward dependencies и фабрики только в main.
+
+Domain/use-case tests проверяют правила без инфраструктуры. SQLite и file integration suites используют настоящие данные, сбои и независимых писателей. CLI workflow и native Ctrl+C suites запускают реальные процессы на Linux/macOS/Windows. Test hooks включаются отдельной feature только во внешних адаптерах; в обычном бинарнике их нет.
