@@ -33,6 +33,7 @@ fn list_aliases_name_first_actions_and_nested_help_share_the_same_contract() {
         vec!["task"],
         vec!["topic"],
         vec!["config"],
+        vec!["config", "list"],
         vec!["task", "create"],
         vec!["task", "link"],
         vec!["task", "wait"],
@@ -188,6 +189,7 @@ fn configuration_defaults_get_set_unset_and_errors_never_open_the_queue() {
         "task.autocreate=false\ntopic.autocreate=false"
     );
     assert_eq!(q.call(&["config", "--list"]), q.call(&["config", "-l"]));
+    assert_eq!(q.call(&["config", "list"]), q.call(&["config", "-l"]));
     assert_eq!(q.call(&["config", "--get", "task.autocreate"]), "false");
     assert_eq!(q.raw(&["config", "db.path"]).status.code(), Some(1));
     assert!(!path.exists());
@@ -205,8 +207,35 @@ fn configuration_defaults_get_set_unset_and_errors_never_open_the_queue() {
 
     let before = fs::read(&path).unwrap();
 
+    for alias in ["list", "--list", "-l"] {
+        assert_eq!(
+            q.call(&["config", alias]),
+            "task.autocreate=true\ntopic.autocreate=true\ndb.path=folder with spaces/🔥.db"
+        );
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+
+    let database = q.db.to_str().unwrap();
+
+    for command in [
+        vec!["--db", database, "config", "list"],
+        vec!["config", "--db", database, "list"],
+        vec!["config", "list", "--db", database],
+    ] {
+        assert_eq!(q.call(&command), q.call(&["config", "--list"]));
+        assert!(!q.db.exists());
+    }
+
     for command in [
         vec!["config"],
+        vec!["config", "list", "true"],
+        vec!["config", "--get", "list"],
+        vec!["config", "--unset", "list"],
+        vec!["config", "`list`", "true"],
+        vec!["config", "list", "--get", "db.path"],
+        vec!["config", "list", "--unset", "db.path"],
+        vec!["config", "list", "--list"],
+        vec!["config", "-l", "list"],
         vec!["config", "task.autoadd", "true"],
         vec!["config", "topic.autoadd", "true"],
         vec!["config", "db.path", ""],
@@ -220,6 +249,9 @@ fn configuration_defaults_get_set_unset_and_errors_never_open_the_queue() {
         assert_eq!(q.raw(&command).status.code(), Some(2), "{command:?}");
         assert_eq!(fs::read(&path).unwrap(), before);
     }
+
+    q.call(&["config", "db.path", "list"]);
+    assert_eq!(q.call(&["config", "--get", "db.path"]), "list");
 
     for key in ["task.autocreate", "topic.autocreate", "db.path"] {
         q.call(&["config", "--unset", key]);
@@ -310,6 +342,7 @@ fn invalid_config_keeps_its_bytes_and_blocks_queue_commands_but_not_help() {
 
     for invalid in [
         "[broken",
+        "list = true",
         "[task]\nautocreate = 1",
         "[topic]\nautocreate = \"true\"",
         "[db]\npath = \"\"",
@@ -318,6 +351,7 @@ fn invalid_config_keeps_its_bytes_and_blocks_queue_commands_but_not_help() {
         fs::write(&path, invalid).unwrap();
 
         for command in [
+            vec!["config", "list"],
             vec!["config", "--list"],
             vec!["config", "task.autocreate", "true"],
             vec!["task", "list"],

@@ -1,4 +1,4 @@
-use super::{Commands, ConfigCommand, TaskCommand, TopicCommand};
+use super::{Commands, ConfigCommand, TaskCommand, TopicCommand, config_action::ConfigAction};
 use crate::error::{Error, Result};
 use anyq_config_api::{ConfigKey, ConfigValue, SetConfigRequest};
 use anyq_queue_api::{RegisterTaskRequest, Topic};
@@ -46,11 +46,20 @@ impl TryFrom<Commands> for Request {
     fn try_from(command: Commands) -> Result<Self> {
         match command {
             Commands::Config(args) => {
-                let command = match (args.list, args.get, args.unset, args.words.as_slice()) {
-                    (true, false, false, []) => ConfigCommand::List,
-                    (false, _, false, [key]) => ConfigCommand::Get(ConfigKey::parse(key)?),
-                    (false, false, true, [key]) => ConfigCommand::Unset(ConfigKey::parse(key)?),
-                    (false, false, false, [key, value]) => {
+                let command = match (
+                    args.list,
+                    args.get,
+                    args.unset,
+                    args.words.as_slice(),
+                    args.action,
+                ) {
+                    (true, false, false, [], None)
+                    | (false, false, false, [], Some(ConfigAction::List)) => ConfigCommand::List,
+                    (false, _, false, [key], None) => ConfigCommand::Get(ConfigKey::parse(key)?),
+                    (false, false, true, [key], None) => {
+                        ConfigCommand::Unset(ConfigKey::parse(key)?)
+                    }
+                    (false, false, false, [key, value], None) => {
                         let key = ConfigKey::parse(key)?;
                         ConfigCommand::Set(SetConfigRequest {
                             key,
@@ -59,7 +68,8 @@ impl TryFrom<Commands> for Request {
                     }
                     _ => {
                         return Err(Error::Invalid(
-                            "use config KEY [VALUE], --get KEY, --unset KEY, or --list".into(),
+                            "use config KEY [VALUE], --get KEY, --unset KEY, or list/--list/-l"
+                                .into(),
                         ));
                     }
                 };

@@ -18,7 +18,7 @@
 - **THEN** операция возвращает ошибку и сохраняет прежние настройки
 
 ### Requirement: Git-style config CLI
-Команда config SHALL поддерживать KEY для чтения, KEY VALUE для записи, --get KEY, --unset KEY и --list/-l. Настройки SHALL храниться в ~/.anyq/config.toml на Unix и Windows. Config и help SHALL не открывать базу очереди.
+Команда config SHALL поддерживать KEY для чтения, KEY VALUE для записи, --get KEY, --unset KEY и равнозначные list/--list/-l. List SHALL быть подкомандой, не допустимым ключом. Настройки SHALL храниться в ~/.anyq/config.toml на Unix и Windows. Config и help SHALL не открывать базу очереди.
 
 #### Scenario: Запись и чтение
 - **WHEN** после config task.autocreate true запускается новый процесс config task.autocreate
@@ -27,6 +27,14 @@
 #### Scenario: Сброс
 - **WHEN** установленный ключ сброшен через --unset
 - **THEN** используется default или отсутствующее переопределение пути
+
+#### Scenario: Равнозначные списки
+- **WHEN** вызываются config list, config --list и config -l
+- **THEN** вывод совпадает, настройки и база не изменяются
+
+#### Scenario: List не является ключом
+- **WHEN** переданы config list VALUE, config --get list или config --unset list
+- **THEN** команда возвращает ошибку и сохраняет прежние настройки
 
 ### Requirement: Приоритет пути базы
 Путь базы SHALL выбираться в порядке --db, ANYQ_DB, db.path, системный default. Переданный путь SHALL не теряться при нормализации command-first/name-first форм.

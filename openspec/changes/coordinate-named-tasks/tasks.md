@@ -33,6 +33,8 @@
 - [x] 5.4 Ввести доменную AutoCreatePolicy, явно внедряемую в сценарии queue. task.autocreate/topic.autocreate создают отсутствующие сущности внутри транзакции основного сценария; при ошибке создание откатывается, остальные инварианты сохраняются. Unit/SQLite/CLI tests проверяют defaults false, read/link/wait/complete/capacity, rollback и независимые процессы.
 - [x] 5.5 Обновить артефакты OpenSpec, README, docs/ARCHITECTURE.md, CODE-RULES и demo под окончательный синтаксис, quoted/bare identity, config и autocreate; сверить полный контракт после зелёного CI и не синхронизировать baseline до разрешённого merge.
 
+- [x] 5.6 Добавить config list как подкоманду, равнозначную --list/-l; list не является допустимым ConfigKey. Интеграционно проверить defaults и сохранённые настройки, отсутствие записи/открытия базы, справку, неверные сочетания и настоящий Ctrl+C на границах чтения; обновить README и delta spec.
+
 ## Workflow follow-up
 
 - Сливать PR только по явной просьбе пользователя, сохраняя защиту main.

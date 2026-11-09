@@ -1,3 +1,4 @@
+use super::config_action::ConfigAction;
 use clap::Args;
 
 #[derive(Args)]
@@ -10,4 +11,6 @@ pub struct ConfigArgs {
     pub unset: bool,
     #[arg(num_args = 0..=2, value_name = "KEY [VALUE]")]
     pub words: Vec<String>,
+    #[command(subcommand)]
+    pub action: Option<ConfigAction>,
 }

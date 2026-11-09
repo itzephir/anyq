@@ -172,7 +172,9 @@ fn ctrl_c_autocreating_read_rolls_back_before_commit_and_never_grants_admission(
 #[test]
 fn ctrl_c_config_reads_unset_and_path_writes_obey_the_same_atomic_boundary() {
     for command in [
+        vec!["config", "list"],
         vec!["config", "--list"],
+        vec!["config", "-l"],
         vec!["config", "task.autocreate"],
         vec!["config", "--get", "db.path"],
     ] {
@@ -251,6 +253,7 @@ fn ctrl_c_before_parsing_covers_every_command_family_without_creating_data() {
         vec!["task", "job", "wait"],
         vec!["task", "complete", "job"],
         vec!["task", "job", "complete", "-f"],
+        vec!["config", "list"],
         vec!["config", "--list"],
         vec!["config", "task.autocreate", "true"],
         vec!["config", "--get", "db.path"],

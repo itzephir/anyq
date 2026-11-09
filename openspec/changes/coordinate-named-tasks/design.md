@@ -38,7 +38,7 @@ CLI выбирает --db > ANYQ_DB > db.path > системный default; ~/ �
 
 ### CLI и внешний исполнитель
 
-List/list flags, просмотр task/topic, capacity read/write, create/link/wait/complete, name-first и command-first формы описаны в README. CLI нормализует только синтаксис, не бизнес-правила. Task create заменяет прежнее add; оба config-параметра названы autocreate. Help и version не открывают config/DB, config не открывает DB.
+List/list flags, просмотр task/topic, capacity read/write, create/link/wait/complete, name-first и command-first формы описаны в README. Config list/--list/-l равнозначны; list является подкомандой и не проходит доменную проверку ConfigKey. CLI нормализует только синтаксис, не бизнес-правила. Task create заменяет прежнее add; оба config-параметра названы autocreate. Help и version не открывают config/DB, config не открывает DB.
 
 Task create -t -w -c и link -w -c вызывают отдельные сценарии последовательно, wait -c вызывает допуск и завершение. У create wait требует topic, complete требует wait; у link complete требует wait. Короткая форма -twc TOPIC переставляет value-taking -t при разборе. Неизвестные/неполные сочетания отклоняются до IO.
 

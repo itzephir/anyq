@@ -59,6 +59,7 @@ fn invalid_keys_types_and_paths_do_not_mutate_configuration() {
     }
 
     assert!(ConfigKey::parse("task.unknown").is_err());
+    assert!(ConfigKey::parse("list").is_err());
     assert_eq!(
         ConfigValue::parse(ConfigKey::TopicAutocreate, "false").unwrap(),
         ConfigValue::Boolean(false)

@@ -34,7 +34,7 @@ anyq --help
 | `anyq task complete NAME [-f]` | Завершить; -f = --force |
 | `anyq config KEY [VALUE]` | Прочитать или записать настройку |
 | `anyq config --get KEY` / `--unset KEY` | Прочитать или сбросить настройку |
-| `anyq config --list` / `-l` | Действующие настройки |
+| `anyq config list` / `--list` / `-l` | Действующие настройки |
 | `anyq help [command]` | Справка, например help task link |
 
 -v = --version, -h = --help, -w = --wait, -c = --complete у задач. --db PATH доступен на любом уровне. Task add заменён на task create; старый add не является командой.
@@ -83,12 +83,12 @@ anyq task create build\ with\ spaces -t '`list`'
 anyq config task.autocreate true
 anyq config topic.autocreate true
 anyq config db.path '~/queues/tasks.db'
-anyq config --list
+anyq config list
 anyq config --get task.autocreate
 anyq config --unset db.path
 ```
 
-task.autocreate и topic.autocreate принимают true/false, default false. db.path — непустая строка; ~/ раскрывается относительно home, относительный путь — относительно рабочего каталога. Unset возвращает default. Неизвестные ключи и неверные значения дают ошибку. Старые autoadd-ключи не поддерживаются.
+task.autocreate и topic.autocreate принимают true/false, default false. db.path — непустая строка; ~/ раскрывается относительно home, относительный путь — относительно рабочего каталога. Unset возвращает default. Неизвестные ключи и неверные значения дают ошибку. list — подкоманда, ключом быть не может. Старые autoadd-ключи не поддерживаются.
 
 Autocreate создаёт отсутствующий именованный объект внутри транзакции основной операции; новый топик capacity 1. Link может создать обе сущности и связь вместе. Успешный просмотр тоже может создать отсутствующую сущность. Ошибка откатывает автоматические создания: обычный task complete missing даёт was not run и не оставляет missing; --force может успешно создать и завершить его. Существующие состояния и правила имён сохраняются.
 

@@ -1,4 +1,5 @@
 mod cli;
+mod config_action;
 mod config_args;
 mod config_command;
 mod normalize_arguments;
