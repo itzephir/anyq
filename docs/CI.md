@@ -36,3 +36,9 @@ gh api repos/itzephir/anyq/branches/main/protection
 ```
 
 Если default branch меняется, правило нужно перенести на новую default branch и обновить push filter workflow. Workflow не содержит административных токенов и сам не изменяет свою защиту.
+
+Матрица Native distribution проверяет системную установку в /usr/local/bin и
+Program Files/anyq, обновление и правильный контекст Windows PATH. Эти проверки
+выполняются только на одноразовых CI runners с очисткой созданного бинарника и
+восстановлением PATH. Пользовательский режим, отказ повышения прав и откат при
+ошибке PATH проверяются отдельно.

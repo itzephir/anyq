@@ -210,8 +210,8 @@ anyq task complete build-01</code></pre>
               </div>
               <pre><code id="unix-command">curl -fsSL https://anyq.itzephir.com/install.sh -o install-anyq &amp;&amp; chmod +x install-anyq &amp;&amp; ./install-anyq</code></pre>
               <p>
-                Установка в <code>~/.local/bin</code>. Скрипт подскажет, как
-                добавить каталог в PATH.
+                Установка в <code>/usr/local/bin</code>. При необходимости
+                скрипт запросит sudo.
               </p>
             </div>
           </details>
@@ -231,8 +231,8 @@ anyq task complete build-01</code></pre>
               </div>
               <pre><code id="windows-command">curl.exe -fL https://anyq.itzephir.com/install.ps1 -o install-anyq.ps1; if ($?) { powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 }</code></pre>
               <p>
-                Установка в <code>%LOCALAPPDATA%\anyq\bin</code>. PATH
-                обновляется для пользователя; откройте новый терминал.
+                Установка в <code>%ProgramFiles%\anyq</code> для всех пользователей.
+                После установки перезапустите терминал.
               </p>
             </div>
           </details>

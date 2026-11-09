@@ -47,7 +47,7 @@ jobs:
       - run: cargo build --locked --release -p anyq --target ${{ matrix.target }}
       - run: python tooling/package_release.py --target ${{ matrix.target }}
       - name: Install latest, pinned version and reject broken downloads
-        run: python tooling/test_installers.py --target ${{ matrix.target }}
+        run: python tooling/test_installers.py --target ${{ matrix.target }} --system
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.target }}
