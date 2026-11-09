@@ -15,8 +15,6 @@ anyq --help
 
 Приоритет базы: --db PATH > ANYQ_DB > db.path в config > системный default. Default: $XDG_DATA_HOME/anyq/queue.db или ~/.local/share/anyq/queue.db на Unix; %LOCALAPPDATA%\anyq\queue.db на Windows.
 
-**Версия 0.2 использует схему 2.** База прежних сообщений схемы 1 отклоняется без изменения или удаления. Выберите отдельный файл через --db; старый бинарник и базу можно сохранить для истории.
-
 ## Команды
 
 | Команда | Действие |
