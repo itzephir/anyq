@@ -61,7 +61,11 @@ function Publish-Anyq {
 
         if (-not $Install.NoPathUpdate) {
             $entries = @($oldPath -split ';' | Where-Object { $_ })
-            if (-not ($entries | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -ieq $Install.BinDir.TrimEnd('\') })) {
+            if (-not ($entries | Where-Object {
+                $entry = [Environment]::ExpandEnvironmentVariables($_)
+                try { $entry = [IO.Path]::GetFullPath($entry) } catch { }
+                $entry.TrimEnd('\') -ieq $Install.BinDir.TrimEnd('\')
+            })) {
                 & $WritePath (($entries + $Install.BinDir) -join ';') $target
                 $pathChanged = $true
             }

@@ -17,6 +17,7 @@ from check_system_install import (
     check_sudo_denial,
     check_system_install,
     check_windows_worker,
+    path_entries,
     path_value,
     restore_path,
 )
@@ -126,6 +127,7 @@ def main():
                     "ANYQ_RELEASE_BASE_URL": base_url,
                     **(extra_environment or {}),
                 }
+                environment.pop("ANYQ_BIN_DIR", None)
 
                 result = subprocess.run(
                     command, env=environment, capture_output=True, text=True, timeout=60
@@ -215,13 +217,14 @@ def main():
                     install(update_path=True)
                     install(update_path=True)
                     updated = path_value("User")
-                    assert (
-                        sum(
-                            entry.casefold() == str(bin_dir).casefold()
-                            for entry in updated.split(";")
-                        )
-                        == 1
-                    )
+                    assert len(path_entries(updated, bin_dir)) == 1, {
+                        "expected": str(bin_dir),
+                        "new_entries": [
+                            entry
+                            for entry in (updated or "").split(";")
+                            if entry not in (old_user_path or "").split(";")
+                        ],
+                    }
                     check_windows_worker(
                         ROOT / "install/install.ps1", destination, root
                     )

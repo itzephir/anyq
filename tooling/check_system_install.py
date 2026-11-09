@@ -45,6 +45,16 @@ def restore_path(target, value):
     )
 
 
+def path_entries(value, directory):
+    expected = os.path.normcase(os.path.realpath(directory))
+    return [
+        entry
+        for entry in (value or "").split(";")
+        if entry
+        and os.path.normcase(os.path.realpath(os.path.expandvars(entry))) == expected
+    ]
+
+
 def check_sudo_denial(install, root, original, checksum_file, valid_checksum):
     assert os.geteuid() != 0, "The sudo boundary fixture requires a non-root runner"
     protected = root / "protected installation"
@@ -221,14 +231,11 @@ def check_system_install(install, windows, original):
         if windows:
             check_windows_elevation(destination)
             assert path_value("User") == before["User"]
-            entries = path_value("Machine").split(";")
-            assert (
-                sum(
-                    entry.rstrip("\\").casefold() == str(directory).casefold()
-                    for entry in entries
-                )
-                == 1
-            )
+            updated = path_value("Machine")
+            assert len(path_entries(updated, directory)) == 1, {
+                "expected": str(directory),
+                "actual": updated,
+            }
         else:
             assert destination.stat().st_mode & 0o777 == 0o755
     finally:
