@@ -103,12 +103,12 @@ $source = $env:ANYQ_WORKER_SOURCE
 $directory = Join-Path $env:ANYQ_WORKER_ROOT "worker O'Brien & spaces"
 $request = [pscustomobject]@{
     Source = $source; BinDir = $directory; Scope = 'User'; NoPathUpdate = $true
-    Hash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+    Hash = (Get-AnyqSha256 $source)
 }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand (New-AnyqPlacementCommand $request)
 if ($LASTEXITCODE -ne 0) { throw 'Encoded placement failed' }
 $destination = Join-Path $directory 'anyq.exe'
-if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -cne $request.Hash) { throw 'Transport changed the binary' }
+if ((Get-AnyqSha256 $destination) -cne $request.Hash) { throw 'Transport changed the binary' }
 [IO.File]::WriteAllText($destination, 'previous binary')
 $request.NoPathUpdate = $false
 $denied = $false
@@ -118,13 +118,19 @@ $request.Scope = 'System'
 $denied = $false
 try { Invoke-AnyqPlacement $request -Administrator:$false -Elevate { return 1 } } catch { $denied = $true }
 if (-not $denied -or [IO.File]::ReadAllText($destination) -cne 'previous binary') { throw 'Elevation failure changed the binary' }
+$request.Scope = 'User'
+$request.NoPathUpdate = $true
+Invoke-AnyqPlacement $request -Administrator:$false -Elevate { throw 'Unexpected user-mode elevation' }
+if ((Get-AnyqSha256 $destination) -cne $request.Hash) { throw 'User placement failed' }
+[IO.File]::WriteAllText($destination, 'previous binary')
 $request.Hash = '0' * 64
 $denied = $false
 try { Publish-Anyq $request } catch { $denied = $true }
 if (-not $denied -or [IO.File]::ReadAllText($destination) -cne 'previous binary') { throw 'Placement hash failure changed the binary' }
 if (Get-ChildItem -LiteralPath $directory -Force | Where-Object Name -like '.anyq*') { throw 'Worker temporary files leaked' }
+'ANYQ_WORKER_CHECKS_OK'
 """
-    powershell(
+    output = powershell(
         command,
         {
             **os.environ,
@@ -133,6 +139,7 @@ if (Get-ChildItem -LiteralPath $directory -Force | Where-Object Name -like '.any
             "ANYQ_WORKER_ROOT": str(root),
         },
     )
+    assert "ANYQ_WORKER_CHECKS_OK" in output, "PowerShell worker checks did not finish"
     assert {target: path_value(target) for target in before} == before
 
 

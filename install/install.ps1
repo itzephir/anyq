@@ -9,6 +9,19 @@ param(
     [string]$Scope = 'System'
 )
 
+function Get-AnyqSha256 {
+    param([string]$Path)
+
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
+
 function Publish-Anyq {
     param(
         [pscustomobject]$Install,
@@ -36,7 +49,7 @@ function Publish-Anyq {
 
     try {
         Copy-Item -LiteralPath $Install.Source -Destination $staged
-        if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Install.Hash) {
+        if ((Get-AnyqSha256 $staged) -cne $Install.Hash) {
             throw 'Staged binary changed; installed binary preserved'
         }
         if (Test-Path -LiteralPath $destination) {
@@ -79,6 +92,9 @@ function New-AnyqPlacementCommand {
     $worker = @'
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+function Get-AnyqSha256 {
+__HASH__
+}
 try {
     $request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__PAYLOAD__')) | ConvertFrom-Json
     & {
@@ -90,7 +106,7 @@ __PLACEMENT__
     exit 1
 }
 '@
-    $worker = $worker.Replace('__PAYLOAD__', $payload).Replace('__PLACEMENT__', ${function:Publish-Anyq}.ToString())
+    $worker = $worker.Replace('__PAYLOAD__', $payload).Replace('__HASH__', ${function:Get-AnyqSha256}.ToString()).Replace('__PLACEMENT__', ${function:Publish-Anyq}.ToString())
     return [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($worker))
 }
 
@@ -162,7 +178,7 @@ try {
     $lines = @(Get-Content -LiteralPath $checksums | Where-Object { $_ -cmatch ('^[0-9a-f]{64}  ' + [regex]::Escape($asset) + '$') })
     if ($lines.Count -ne 1) { throw 'Missing or ambiguous SHA-256 checksum' }
     $expected = $lines[0].Substring(0, 64)
-    if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected) {
+    if ((Get-AnyqSha256 $archive) -cne $expected) {
         throw 'SHA-256 mismatch; the installed binary was preserved'
     }
     $unpacked = Join-Path $tempDir 'unpacked'
@@ -175,13 +191,13 @@ try {
     $install = [pscustomobject]@{
         Source = $binary
         BinDir = $BinDir
-        Hash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+        Hash = Get-AnyqSha256 $binary
         Scope = $Scope
         NoPathUpdate = [bool]$NoPathUpdate
     }
 
     Invoke-AnyqPlacement $install
-    if ((Get-FileHash -LiteralPath (Join-Path $BinDir 'anyq.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -cne $install.Hash) {
+    if ((Get-AnyqSha256 (Join-Path $BinDir 'anyq.exe')) -cne $install.Hash) {
         throw 'Installed binary does not match the verified download'
     }
     if (-not $NoPathUpdate -and -not ($env:Path -split ';' | Where-Object { $_.TrimEnd('\') -ieq $BinDir.TrimEnd('\') })) {
