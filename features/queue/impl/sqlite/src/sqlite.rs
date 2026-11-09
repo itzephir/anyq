@@ -26,15 +26,9 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(storage)?;
 
-    if version == 1 {
-        return Err(Error::Storage(
-            "schema version 1 contains legacy messages; choose a separate database with --db; existing data was not migrated".into()
-        ));
-    }
-
     if version != 0 && version != 2 {
         return Err(Error::Storage(format!(
-            "unsupported database schema version {version}"
+            "unsupported database schema version {version}; choose a separate database with --db"
         )));
     }
 

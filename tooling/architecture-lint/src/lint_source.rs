@@ -140,8 +140,8 @@ mod tests {
         );
         assert!(
             lint_source(
-                Path::new("publish.rs"),
-                "trait PublishMessage { fn publish(&mut self, request: Publish) -> Message; }"
+                Path::new("register_task.rs"),
+                "trait RegisterTask { fn register(&mut self, request: RegisterTaskRequest) -> Task; }"
             )
             .unwrap()
             .is_empty()
