@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -19,6 +20,7 @@ def powershell(command, environment=None):
         ],
         env=environment,
         text=True,
+        timeout=120,
     )
 
 
@@ -143,6 +145,37 @@ if (Get-ChildItem -LiteralPath $directory -Force | Where-Object Name -like '.any
     assert {target: path_value(target) for target in before} == before
 
 
+def check_windows_elevation(source):
+    with tempfile.TemporaryDirectory(prefix="anyq elevation ") as temporary:
+        command = r"""
+$ErrorActionPreference = 'Stop'
+. $env:ANYQ_WORKER_INSTALLER
+$request = [pscustomobject]@{
+    Source = $env:ANYQ_WORKER_SOURCE; BinDir = $env:ANYQ_WORKER_DESTINATION
+    Scope = 'System'; NoPathUpdate = $true; Hash = (Get-AnyqSha256 $env:ANYQ_WORKER_SOURCE)
+}
+Invoke-AnyqPlacement $request -Administrator:$false
+if ((Get-AnyqSha256 (Join-Path $request.BinDir 'anyq.exe')) -cne $request.Hash) { throw 'Elevated placement changed the binary' }
+'ANYQ_ELEVATION_CHECKS_OK'
+"""
+        output = powershell(
+            command,
+            {
+                **os.environ,
+                "ANYQ_WORKER_INSTALLER": str(
+                    Path(__file__).resolve().parents[1] / "install/install.ps1"
+                ),
+                "ANYQ_WORKER_SOURCE": str(source),
+                "ANYQ_WORKER_DESTINATION": str(
+                    Path(temporary) / "elevated O'Brien & spaces"
+                ),
+            },
+        )
+        assert "ANYQ_ELEVATION_CHECKS_OK" in output, (
+            "Windows elevation checks did not finish"
+        )
+
+
 def check_system_install(install, windows, original):
     assert os.environ.get("GITHUB_ACTIONS") == "true", (
         "System installation tests run only on disposable CI runners"
@@ -186,6 +219,7 @@ def check_system_install(install, windows, original):
         install(scope=None, directory=None, update_path=True)
         assert destination.read_bytes() == original
         if windows:
+            check_windows_elevation(destination)
             assert path_value("User") == before["User"]
             entries = path_value("Machine").split(";")
             assert (

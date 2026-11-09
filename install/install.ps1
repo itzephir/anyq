@@ -119,6 +119,7 @@ function Invoke-AnyqPlacement {
             $executable = Join-Path $PSHOME 'powershell.exe'
             if (-not (Test-Path -LiteralPath $executable)) { $executable = Join-Path $PSHOME 'pwsh.exe' }
             $process = Start-Process -FilePath $executable -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $Command)
+            $process.WaitForExit()
             return $process.ExitCode
         }
     )
