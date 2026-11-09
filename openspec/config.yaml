@@ -9,13 +9,13 @@ context: |
   The global registration sequence orders queued tasks consistently across topics.
   The caller performs external work after task wait returns; anyq never executes commands.
   Running ownership persists until explicit task complete, including after caller failure.
-  There are no message streams, consumer groups, leases, heartbeats or automatic retries.
+  Callers own external work, its outcome and any decision to run it again.
   Wait without topic membership and ordinary completion before admission are errors.
   Forced completion may remove a registered or queued task without executing work.
   Follow AGENTS.md and docs/ARCHITECTURE.md: domain-owned invariants, api/impl Cargo
   boundaries, consumer-owned ports, explicit DI and narrow typed use-case contracts.
   Keep one standalone type per file and separate logical phases with blank lines.
   SQL executes exact filters; the domain decides admission and state transitions.
-  Schema 2 uses a separate database from legacy schema 1; never delete or convert old data silently.
+  Reject incompatible databases before changing their data or journal mode.
   Runtime requires neither a server nor Python/Node; Node is pinned OpenSpec development tooling.
   Do not mark unverified tasks complete or sync unfinished behavior into baseline specs.

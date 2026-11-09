@@ -422,11 +422,11 @@ fn transaction_failure_rolls_back_prior_writes_and_ownership() {
 fn incompatible_databases_are_rejected_without_changing_their_bytes() {
     for version in [0, 1, 3] {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("legacy.db");
+        let path = dir.path().join("incompatible.db");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
-                "CREATE TABLE messages(payload TEXT); INSERT INTO messages VALUES ('preserve-me')",
+                "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me')",
             )
             .unwrap();
         connection
@@ -443,7 +443,7 @@ fn incompatible_databases_are_rejected_without_changing_their_bytes() {
         assert_eq!(std::fs::read(&path).unwrap(), before);
         assert!(!path.with_extension("db-wal").exists());
 
-        if version <= 1 {
+        if version == 0 {
             assert!(error.contains("--db"));
         } else {
             assert!(error.contains("unsupported database schema"));

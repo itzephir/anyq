@@ -16,7 +16,7 @@ pub struct Cli {
         long,
         env = "ANYQ_DB",
         global = true,
-        help = "Shared local SQLite database (schema 2)"
+        help = "Shared local SQLite database"
     )]
     pub db: Option<PathBuf>,
     #[command(subcommand)]

@@ -98,12 +98,10 @@ fn link_and_wait_chains_complete_or_preserve_manual_ownership_in_all_forms() {
 }
 
 #[test]
-fn invalid_chain_dependencies_and_old_add_are_errors_before_database_access() {
+fn invalid_chain_dependencies_are_errors_before_database_access() {
     let q = Queue::new();
 
     for command in [
-        vec!["task", "add", "job"],
-        vec!["task", "job", "add"],
         vec!["task", "job", "create", "-w"],
         vec!["task", "job", "create", "-tc", "cpu"],
         vec!["task", "link", "job", "cpu", "-c"],
@@ -236,8 +234,8 @@ fn configuration_defaults_get_set_unset_and_errors_never_open_the_queue() {
         vec!["config", "list", "--unset", "db.path"],
         vec!["config", "list", "--list"],
         vec!["config", "-l", "list"],
-        vec!["config", "task.autoadd", "true"],
-        vec!["config", "topic.autoadd", "true"],
+        vec!["config", "task.unknown", "true"],
+        vec!["config", "topic.unknown", "true"],
         vec!["config", "db.path", ""],
         vec!["config", "unknown", "x"],
         vec!["config", "task.autocreate", "yes"],
@@ -346,7 +344,7 @@ fn invalid_config_keeps_its_bytes_and_blocks_queue_commands_but_not_help() {
         "[task]\nautocreate = 1",
         "[topic]\nautocreate = \"true\"",
         "[db]\npath = \"\"",
-        "[task]\nautoadd = true",
+        "[task]\nunknown = true",
     ] {
         fs::write(&path, invalid).unwrap();
 
