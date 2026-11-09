@@ -14,7 +14,7 @@ while [ "$#" -gt 0 ]; do
             case "$1" in --version) version=$2 ;; --bin-dir) bin_dir=$2 ;; esac
             shift 2 ;;
         -h|--help)
-            printf '%s\n' 'Usage: ./install-anyq [--version v0.2.0] [--bin-dir PATH]'
+            printf '%s\n' 'Usage: ./install-anyq [--version v0.1.0] [--bin-dir PATH]'
             exit 0 ;;
         *) die "Unknown argument: $1" ;;
     esac
@@ -47,7 +47,7 @@ if [ "$version" = latest ]; then
     version=${resolved##*/}
 fi
 case "$version" in *[!0-9A-Za-z.-]*) die 'Invalid release version' ;; esac
-printf '%s\n' "$version" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || die 'Expected a release version such as v0.2.0'
+printf '%s\n' "$version" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || die 'Expected a release version such as v0.1.0'
 
 tmp_dir=$(mktemp -d)
 staged=

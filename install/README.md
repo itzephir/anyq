@@ -7,14 +7,14 @@ macOS/Linux:
 
 ```sh
 curl -fsSL https://anyq.itzephir.com/install.sh -o install-anyq && chmod +x install-anyq && ./install-anyq
-./install-anyq --version v0.2.0 --bin-dir "$HOME/bin"
+./install-anyq --version v0.1.0 --bin-dir "$HOME/bin"
 ```
 
 Windows x64 (PowerShell 5.1+):
 
 ```powershell
 curl.exe -fL https://anyq.itzephir.com/install.ps1 -o install-anyq.ps1; if ($?) { powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 }
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 -Version v0.2.0 -BinDir "$env:USERPROFILE\bin"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 -Version v0.1.0 -BinDir "$env:USERPROFILE\bin"
 ```
 
 ExecutionPolicy действует только в новом процессе; постоянная политика Windows
@@ -38,8 +38,8 @@ PATH дополняется без дубликатов, изменение до
 После review/merge commit с версией Cargo.toml:
 
 ```sh
-git tag v0.2.0 MAIN_COMMIT
-git push origin v0.2.0
+git tag v0.1.0 MAIN_COMMIT
+git push origin v0.1.0
 ```
 
 Workflow отклоняет tag вне main и несовпадающую Cargo-версию. Пять нативных
