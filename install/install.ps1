@@ -40,10 +40,18 @@ try {
     $lines = @(Get-Content -LiteralPath $checksums | Where-Object { $_ -cmatch ('^[0-9a-f]{64}  ' + [regex]::Escape($asset) + '$') })
     if ($lines.Count -ne 1) { throw 'Missing or ambiguous SHA-256 checksum' }
     $expected = $lines[0].Substring(0, 64)
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($archive)
+    try {
+        $actual = ([BitConverter]::ToString($hasher.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $stream.Dispose()
+        $hasher.Dispose()
+    }
     if ($actual -cne $expected) { throw 'SHA-256 mismatch; the installed binary was preserved' }
     $unpacked = Join-Path $tempDir 'unpacked'
-    Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($archive, $unpacked)
     $binary = Join-Path $unpacked 'anyq.exe'
     if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw 'Archive has no anyq.exe' }
 

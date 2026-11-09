@@ -20,7 +20,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 -Version 
 ExecutionPolicy действует только в новом процессе; постоянная политика Windows
 не изменяется. Можно сначала прочитать скачанный скрипт, затем запустить его.
 Поддерживаются macOS Intel/Apple Silicon, Linux x86_64/ARM64 (musl static) и
-Windows x64 MSVC без WSL. Нет Rust, C toolchain, Python или Node в runtime.
+Windows x64 MSVC со статическим C runtime, без WSL и отдельной установки VC++.
+Нет Rust, C toolchain, Python или Node в runtime.
 
 Архив и SHA256SUMS берутся из одной версии. До замены бинарника проверяются
 SHA-256, распаковка и --version. Ошибка сохраняет старый файл. Запущенный Windows
