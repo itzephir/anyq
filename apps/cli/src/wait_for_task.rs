@@ -1,7 +1,7 @@
-use crate::presenters;
 use crate::{checkpoint::checkpoint, error::Result};
+use crate::{output, presenters};
 use anyq_queue_api::{StartOutcome, TryStartTask, parse_name};
-use std::{io::Write, sync::atomic::AtomicBool, thread, time::Duration};
+use std::{sync::atomic::AtomicBool, thread, time::Duration};
 
 pub fn wait_for_task(
     name: &str,
@@ -20,11 +20,7 @@ pub fn wait_for_task(
             }
             StartOutcome::Busy => {
                 if !announced {
-                    writeln!(
-                        std::io::stderr().lock(),
-                        "{}",
-                        presenters::waiting(&display_name)
-                    )?;
+                    output::emit_error(&presenters::waiting(&display_name), cancelled)?;
                     announced = true;
                 }
             }

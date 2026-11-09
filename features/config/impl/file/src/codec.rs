@@ -19,6 +19,7 @@ fn decode_table(prefix: &str, table: &toml::Table, config: &mut Config) -> Resul
         };
 
         if let toml::Value::Table(table) = value {
+            ConfigKey::require_section(&name)?;
             decode_table(&name, table, config)?;
             continue;
         }

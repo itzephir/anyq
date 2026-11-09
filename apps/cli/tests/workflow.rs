@@ -1,5 +1,11 @@
 mod support;
 
+#[path = "support/config_regressions.rs"]
+mod config_regressions;
+
+#[path = "support/output_regressions.rs"]
+mod output_regressions;
+
 #[path = "support/cli_extensions.rs"]
 mod cli_extensions;
 

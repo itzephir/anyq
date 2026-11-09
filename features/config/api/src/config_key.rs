@@ -28,4 +28,18 @@ impl ConfigKey {
             Self::DbPath => "db.path",
         }
     }
+
+    pub fn require_section(name: &str) -> Result<()> {
+        if Self::ALL.iter().any(|key| {
+            key.as_str()
+                .strip_prefix(name)
+                .is_some_and(|suffix| suffix.starts_with('.'))
+        }) {
+            return Ok(());
+        }
+
+        Err(Error::Invalid(format!(
+            "unsupported configuration section '{name}'"
+        )))
+    }
 }

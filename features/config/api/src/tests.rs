@@ -1,6 +1,28 @@
 use crate::*;
 
 #[test]
+fn only_containers_of_known_keys_are_valid_configuration_sections() {
+    for section in ["task", "topic", "db"] {
+        assert!(ConfigKey::require_section(section).is_ok());
+    }
+
+    for section in [
+        "",
+        "list",
+        "unknown",
+        "task.unknown",
+        "task.autocreate",
+        "topic.autocreate",
+        "db.path",
+        "task.",
+        "Task",
+        "task2",
+    ] {
+        assert!(ConfigKey::require_section(section).is_err(), "{section}");
+    }
+}
+
+#[test]
 fn defaults_overrides_and_unset_have_distinct_persistence() {
     let mut config = Config::default();
 

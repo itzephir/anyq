@@ -62,7 +62,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         };
 
         if let Some(message) = message {
-            output::emit(&message)?;
+            output::emit(&message, &cancelled)?;
         }
 
         return checkpoint("cli.after-command", &cancelled);
@@ -138,7 +138,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             let input_name = request.name.clone();
             let task = cases.register_task.register(request)?;
             checkpoint("cli.after-registration", &cancelled)?;
-            output::emit(&presenters::registered(task.name()))?;
+            output::emit(&presenters::registered(task.name()), &cancelled)?;
 
             if wait {
                 let completion = if complete {
@@ -164,7 +164,10 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         } => {
             let task = cases.add_task_to_topic.add(&name, &topic)?;
             checkpoint("cli.after-link", &cancelled)?;
-            output::emit(&presenters::added(task.name(), &parse_topic_name(&topic)?))?;
+            output::emit(
+                &presenters::added(task.name(), &parse_topic_name(&topic)?),
+                &cancelled,
+            )?;
 
             if wait {
                 let completion = if complete {
@@ -205,7 +208,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     };
 
     if let Some(message) = message.filter(|message| !message.is_empty()) {
-        output::emit(&message)?;
+        output::emit(&message, &cancelled)?;
     }
 
     checkpoint("cli.after-command", &cancelled)
@@ -215,7 +218,7 @@ fn main() -> ExitCode {
     let cancelled = match interrupt::install() {
         Ok(cancelled) => cancelled,
         Err(error) => {
-            eprintln!("error: {error}");
+            let _ = output::emit_error(&format!("error: {error}"), &AtomicBool::new(false));
             return ExitCode::from(2);
         }
     };
@@ -228,11 +231,12 @@ fn main() -> ExitCode {
     let cli = match Cli::try_parse_from(arguments) {
         Ok(cli) => cli,
         Err(error) => {
-            let _ = error.print();
+            let code = error.exit_code() as u8;
+            let _ = output::write(move || error.print(), &cancelled);
             return ExitCode::from(if cancelled.load(Ordering::SeqCst) {
                 130
             } else {
-                error.exit_code() as u8
+                code
             });
         }
     };
@@ -246,8 +250,12 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(Error::MissingConfigValue) => ExitCode::from(1),
         Err(error) => {
-            eprintln!("error: {error}");
-            ExitCode::from(error.exit_code())
+            let _ = output::emit_error(&format!("error: {error}"), &cancelled);
+            ExitCode::from(if cancelled.load(Ordering::SeqCst) {
+                130
+            } else {
+                error.exit_code()
+            })
         }
     }
 }

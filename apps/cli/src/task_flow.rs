@@ -23,10 +23,10 @@ pub fn wait_then_complete<'service>(
     completion: Option<&mut (dyn CompleteTask + 'service)>,
     cancelled: &AtomicBool,
 ) -> Result<()> {
-    emit(&wait_for_task(name, start, cancelled)?)?;
+    emit(&wait_for_task(name, start, cancelled)?, cancelled)?;
 
     if let Some(completion) = completion {
-        emit(&complete(name, false, completion, cancelled)?)?;
+        emit(&complete(name, false, completion, cancelled)?, cancelled)?;
     }
 
     Ok(())

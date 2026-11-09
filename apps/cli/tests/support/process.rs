@@ -1,4 +1,5 @@
 use std::{
+    io::Read,
     process::{Child, Command, Output},
     thread,
     time::{Duration, Instant},
@@ -21,6 +22,25 @@ impl TestProcess {
     }
 
     pub fn output(mut self) -> Output {
+        let child = self.child.as_mut().unwrap();
+        let stdout = drain(child.stdout.take());
+        let stderr = drain(child.stderr.take());
+
+        self.wait_for_exit();
+        let status = self.child.take().unwrap().wait().unwrap();
+
+        Output {
+            status,
+            stdout: stdout
+                .map(|reader| reader.join().unwrap())
+                .unwrap_or_default(),
+            stderr: stderr
+                .map(|reader| reader.join().unwrap())
+                .unwrap_or_default(),
+        }
+    }
+
+    pub fn wait_for_exit(&mut self) {
         let deadline = Instant::now() + Duration::from_secs(20);
 
         while self.child.as_mut().unwrap().try_wait().unwrap().is_none() {
@@ -30,8 +50,6 @@ impl TestProcess {
             );
             thread::sleep(Duration::from_millis(10));
         }
-
-        self.child.take().unwrap().wait_with_output().unwrap()
     }
 
     pub fn stop(mut self) {
@@ -43,6 +61,17 @@ impl TestProcess {
             child.wait().unwrap();
         }
     }
+}
+
+fn drain<R: Read + Send + 'static>(reader: Option<R>) -> Option<thread::JoinHandle<Vec<u8>>> {
+    reader.map(|mut reader| {
+        thread::spawn(move || {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).unwrap();
+
+            bytes
+        })
+    })
 }
 
 impl Drop for TestProcess {

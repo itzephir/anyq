@@ -11,6 +11,48 @@ use std::{
 };
 
 #[test]
+fn invalid_tables_fail_before_applying_an_update_and_keep_original_bytes() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("config.toml");
+    let mut store = FileConfig::new(&path);
+
+    for invalid in [
+        "task.autocreate = {}",
+        "topic.autocreate = {}",
+        "db.path = {}",
+        "[task.autocreate]",
+        "[topic.autocreate]",
+        "[db.path]",
+        "list = {}",
+        "[list]",
+        "unknown = {}",
+        "[unknown]",
+        "task.autocreate = true\nlist = {}",
+    ] {
+        fs::write(&path, invalid).unwrap();
+        let before = fs::read(&path).unwrap();
+        let mut called = false;
+
+        assert!(store.read().is_err(), "{invalid}");
+        let result = store.change(|config| {
+            called = true;
+            config.set(ConfigKey::TopicAutocreate, ConfigValue::Boolean(true))
+        });
+
+        assert!(result.is_err(), "{invalid}");
+        assert!(!called);
+        assert_eq!(fs::read(&path).unwrap(), before);
+
+        fs::write(&path, "").unwrap();
+        store
+            .change(|config| config.set(ConfigKey::TaskAutocreate, ConfigValue::Boolean(true)))
+            .unwrap();
+
+        assert!(store.read().unwrap().task_autocreate());
+    }
+}
+
+#[test]
 fn missing_file_and_round_trip_preserve_typed_values_and_literal_path() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("home/.anyq/config.toml");

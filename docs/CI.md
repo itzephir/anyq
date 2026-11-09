@@ -11,7 +11,7 @@ Workflow [.github/workflows/ci.yml](../.github/workflows/ci.yml) запуска�
 
 `CI passed` использует `always()` и проверяет конкретные результаты зависимостей. Failure, cancelled и skipped не дают успешного gate. Матрицы используют `fail-fast: false`, чтобы ошибка одной ОС не скрывала результаты остальных. Только этот стабильный итоговый статус связан с правилом branch protection; изменение имени требует одновременного изменения защиты.
 
-Native suite запускается с integration-test-hooks и отправляет реальный SIGINT на Unix, CTRL_C_EVENT в отдельную консоль на Windows. Проверяются commits, промежуточные записи, цепочки, autocreate, config replace и реальное ожидание locks; без skip/ignore. Обычный cargo test без feature не заменяет обязательный запуск этого target. Таблица исходов — [INTERRUPTIONS.md](INTERRUPTIONS.md).
+Native suite запускается с integration-test-hooks и отправляет реальный SIGINT на Unix, CTRL_C_EVENT в отдельную консоль на Windows. Проверяются commits, промежуточные записи, цепочки, autocreate, config replace, реальное ожидание locks и заполненные stdout/stderr pipes; без skip/ignore. Workflow/file suites отклоняют неизвестные TOML-разделы и таблицы вместо значений без перезаписи файла. Обычный cargo test без feature не заменяет обязательный запуск native target. Таблица исходов — [INTERRUPTIONS.md](INTERRUPTIONS.md).
 
 Default branch `main` защищена на GitHub. Точное тело настройки хранится в [.github/branch-protection.json](../.github/branch-protection.json):
 

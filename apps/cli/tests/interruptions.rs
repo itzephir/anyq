@@ -6,6 +6,62 @@ use interrupt_process::InterruptProcess;
 use std::fs;
 use support::queue::Queue;
 
+#[test]
+fn ctrl_c_interrupts_a_full_stdout_pipe_without_reading_it_or_releasing_ownership() {
+    let queue = Queue::new();
+    let expected_size = support::large_output::seed_tasks(&queue).len();
+    resources(&queue);
+    owned(&queue, "owner");
+    let mut child = InterruptProcess::spawn(&queue, &["task", "list"], "cli.before-operation", 1);
+
+    child.resume();
+    child.assert_stdout_started();
+    let output = child.interrupt();
+
+    assert!(!output.stdout.is_empty());
+    assert!(output.stdout.len() < expected_size);
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+    assert_eq!(queue.usage("repo"), 1);
+
+    queue.call(&["task", "complete", "owner"]);
+    queue.call(&["task", "create", "next", "-twc", "cpu", "-t", "repo"]);
+
+    assert_eq!(queue.state("next"), "completed");
+    assert_eq!(queue.usage("cpu"), 0);
+    assert_eq!(queue.usage("repo"), 0);
+}
+
+#[test]
+fn ctrl_c_interrupts_a_full_stderr_pipe_without_changing_config_or_ownership() {
+    let queue = Queue::new();
+    resources(&queue);
+    owned(&queue, "owner");
+    let path = queue.dir.path().join(".anyq/config.toml");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let contents = format!("{} = true\n", "x".repeat(2 * 1024 * 1024));
+    fs::write(&path, &contents).unwrap();
+    let mut child = InterruptProcess::spawn(&queue, &["config", "list"], "cli.before-command", 1);
+
+    child.resume();
+    child.assert_stderr_started();
+    let output = child.interrupt();
+
+    assert!(!output.stderr.is_empty());
+    assert!(output.stderr.len() < contents.len());
+    assert_eq!(fs::read_to_string(&path).unwrap(), contents);
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+    assert_eq!(queue.usage("repo"), 1);
+
+    fs::write(&path, "").unwrap();
+    queue.call(&["config", "task.autocreate", "true"]);
+    queue.call(&["task", "complete", "owner"]);
+
+    assert_eq!(queue.usage("cpu"), 0);
+    assert_eq!(queue.usage("repo"), 0);
+}
+
 fn resources(queue: &Queue) {
     queue.topic("cpu");
     queue.topic("repo");

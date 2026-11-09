@@ -5,6 +5,7 @@ use crate::support::{
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{
     fs,
+    io::Read,
     path::PathBuf,
     process::{Command, Output, Stdio},
 };
@@ -29,7 +30,7 @@ impl InterruptProcess {
             .env("ANYQ_TEST_CHECKPOINT_HIT", hit.to_string())
             .env("ANYQ_TEST_CHECKPOINT_DIR", &gate)
             .stdout(Stdio::piped())
-            .stderr(fs::File::create(queue.log(checkpoint)).unwrap());
+            .stderr(Stdio::piped());
 
         #[cfg(windows)]
         {
@@ -45,7 +46,7 @@ impl InterruptProcess {
         child
     }
 
-    pub fn interrupt(self) -> Output {
+    pub fn interrupt(mut self) -> Output {
         let pid = self.process.child.as_ref().unwrap().id();
         let python = if cfg!(windows) { "python" } else { "python3" };
         let helper =
@@ -61,6 +62,7 @@ impl InterruptProcess {
             "interrupt sender: {}",
             String::from_utf8_lossy(&signal.stderr)
         );
+        self.process.wait_for_exit();
         let output = self.process.output();
         assert_eq!(output.status.code(), Some(130));
 
@@ -68,7 +70,35 @@ impl InterruptProcess {
     }
 
     pub fn release(self) -> Output {
-        fs::write(self.gate.join("release"), "continue").unwrap();
+        self.resume();
         self.process.output()
+    }
+
+    pub fn resume(&self) {
+        fs::write(self.gate.join("release"), "continue").unwrap();
+    }
+
+    pub fn assert_stdout_started(&mut self) {
+        self.process
+            .child
+            .as_mut()
+            .unwrap()
+            .stdout
+            .as_mut()
+            .unwrap()
+            .read_exact(&mut [0])
+            .unwrap();
+    }
+
+    pub fn assert_stderr_started(&mut self) {
+        self.process
+            .child
+            .as_mut()
+            .unwrap()
+            .stderr
+            .as_mut()
+            .unwrap()
+            .read_exact(&mut [0])
+            .unwrap();
     }
 }
