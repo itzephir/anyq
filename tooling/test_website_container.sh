@@ -12,7 +12,7 @@ trap cleanup EXIT
 docker network create "$ANYQ_SITE_NETWORK" >/dev/null
 bash tooling/deploy_website.sh anyq-site:test
 original=$(docker inspect --format '{{.Id}}' anyq-site-ci)
-printf 'FROM anyq-site:test\nUSER root\nRUN rm /usr/share/nginx/html/index.html\nUSER 101\n' | docker build -q -t anyq-site:broken - >/dev/null
+printf 'FROM anyq-site:test\nUSER root\nRUN rm /srv/site/current/index.html\nUSER 101\n' | docker build -q -t anyq-site:broken - >/dev/null
 if bash tooling/deploy_website.sh anyq-site:broken; then
     echo 'Broken website was accepted' >&2
     exit 1

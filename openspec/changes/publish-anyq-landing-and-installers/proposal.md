@@ -11,6 +11,7 @@
 - Нативная сборка release-артефактов для macOS/Linux/Windows и публикация полных релизов через GitHub Releases.
 - Воспроизводимый пакет для OpenDesign и контейнер лендинга для существующего project gateway.
 - Запись anyq в каталоге через /dev, без изменения кода портфолио.
+- Автоматический dev-стенд dev.anyq.itzephir.com из PR и production из main; проектный ingress самостоятельно выбирает стенд по Host.
 
 ## Capabilities
 
