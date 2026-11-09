@@ -63,7 +63,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $reported -cne "anyq $($Version.Substring(1))") { throw 'Binary cannot run or its version does not match the release' }
     $destination = Join-Path $BinDir 'anyq.exe'
     if (Test-Path -LiteralPath $destination) {
-        [IO.File]::Replace($staged, $destination, $null)
+        [IO.File]::Replace($staged, $destination, [NullString]::Value)
     } else {
         [IO.File]::Move($staged, $destination)
     }

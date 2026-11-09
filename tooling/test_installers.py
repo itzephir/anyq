@@ -123,6 +123,32 @@ def main():
                     == f"anyq {VERSION[1:]}"
                 )
                 original = destination.read_bytes()
+                smoke_environment = {
+                    **os.environ,
+                    "HOME": str(root),
+                    "USERPROFILE": str(root),
+                    "LOCALAPPDATA": str(root / "appdata"),
+                }
+                for command in (
+                    ["topic", "create", "installer-resource"],
+                    [
+                        "task",
+                        "create",
+                        "installer-probe",
+                        "-t",
+                        "installer-resource",
+                        "-w",
+                    ],
+                    ["task", "complete", "installer-probe"],
+                ):
+                    subprocess.run(
+                        [destination, "--db", str(root / "smoke queue.db"), *command],
+                        env=smoke_environment,
+                        capture_output=True,
+                        check=True,
+                        timeout=15,
+                    )
+
                 install(VERSION)
                 assert destination.read_bytes() == original
 
