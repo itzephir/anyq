@@ -6,6 +6,11 @@
 
 ## Установка
 
+Готовые бинарники для macOS, Linux и Windows устанавливаются короткими
+[Shell/PowerShell скриптами](install/README.md), без Rust и с проверкой SHA-256.
+До первого GitHub Release доступна установка из исходников ниже.
+Лендинг и его доставка находятся в [website/](website/README.md).
+
 Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются Linux, macOS и Windows MSVC с Visual Studio Build Tools C++.
 
 ```bash

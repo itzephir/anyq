@@ -1,0 +1,72 @@
+name: Native distribution
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  binaries:
+    name: Package and install (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: distribution-${{ matrix.target }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure static Linux toolchain
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          echo 'CC=musl-gcc' >> "$GITHUB_ENV"
+          echo 'RUSTFLAGS=-C linker=musl-gcc' >> "$GITHUB_ENV"
+      - name: Link the Windows C runtime statically
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Add-Content $env:GITHUB_ENV 'RUSTFLAGS=-C target-feature=+crt-static'
+      - run: cargo build --locked --release -p anyq --target ${{ matrix.target }}
+      - run: python tooling/package_release.py --target ${{ matrix.target }}
+      - name: Install latest, pinned version and reject broken downloads
+        run: python tooling/test_installers.py --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: release-dist/*
+          if-no-files-found: error
+  complete-set:
+    needs: binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: release-dist
+          merge-multiple: true
+      - run: python tooling/package_release.py --checksums
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anyq-release
+          path: release-dist/*
+          if-no-files-found: error

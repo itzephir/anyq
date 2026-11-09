@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -73,10 +74,28 @@ jobs:
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
+  distribution:
+    uses: ./.github/workflows/distribution.yml
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python tooling/build_website.py
+      - run: python -m unittest discover -s tooling -p 'receiver_website_test.py'
+      - run: docker build -f website/Dockerfile -t anyq-site:test .
+      - run: bash tooling/test_website_container.sh
+      - run: python tooling/hosting_website_test.py
+      - run: python tooling/package_website.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anyq-website
+          path: website/site.zip
+          if-no-files-found: error
   ci-passed:
     name: CI passed
     if: ${{ always() }}
-    needs: [lint, build-and-unit-tests, integration-tests]
+    needs: [lint, build-and-unit-tests, integration-tests, distribution, website]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -85,7 +104,27 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs['build-and-unit-tests'].result }}
           INTEGRATION_RESULT: ${{ needs['integration-tests'].result }}
+          DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
+          WEBSITE_RESULT: ${{ needs.website.result }}
         run: |
           test "$LINT_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$INTEGRATION_RESULT" = success
+          test "$DISTRIBUTION_RESULT" = success
+          test "$WEBSITE_RESULT" = success
+  deploy-dev:
+    needs: ci-passed
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') ||
+      (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+    uses: ./.github/workflows/website.yml
+    with:
+      stand: dev
+    secrets: inherit
+  deploy-prod:
+    needs: ci-passed
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/website.yml
+    with:
+      stand: prod
+    secrets: inherit

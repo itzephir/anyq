@@ -5,3 +5,8 @@
 *.db-shm
 *.db-wal
 /.anyq/
+/website/dist/
+/website/screenshots/
+/website/site.zip
+/release-dist/
+__pycache__/
