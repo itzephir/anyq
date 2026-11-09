@@ -78,7 +78,8 @@ impl InterruptProcess {
         fs::write(self.gate.join("release"), "continue").unwrap();
     }
 
-    pub fn assert_stdout_started(&mut self) {
+    pub fn read_stdout_byte(&mut self) -> u8 {
+        let mut byte = [0];
         self.process
             .child
             .as_mut()
@@ -86,11 +87,14 @@ impl InterruptProcess {
             .stdout
             .as_mut()
             .unwrap()
-            .read_exact(&mut [0])
+            .read_exact(&mut byte)
             .unwrap();
+
+        byte[0]
     }
 
-    pub fn assert_stderr_started(&mut self) {
+    pub fn read_stderr_byte(&mut self) -> u8 {
+        let mut byte = [0];
         self.process
             .child
             .as_mut()
@@ -98,7 +102,9 @@ impl InterruptProcess {
             .stderr
             .as_mut()
             .unwrap()
-            .read_exact(&mut [0])
+            .read_exact(&mut byte)
             .unwrap();
+
+        byte[0]
     }
 }

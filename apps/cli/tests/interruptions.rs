@@ -15,11 +15,10 @@ fn ctrl_c_interrupts_a_full_stdout_pipe_without_reading_it_or_releasing_ownershi
     let mut child = InterruptProcess::spawn(&queue, &["task", "list"], "cli.before-operation", 1);
 
     child.resume();
-    child.assert_stdout_started();
+    assert_eq!(child.read_stdout_byte(), b'-');
     let output = child.interrupt();
 
-    assert!(!output.stdout.is_empty());
-    assert!(output.stdout.len() < expected_size);
+    assert!(output.stdout.len() + 1 < expected_size);
     assert_eq!(queue.state("owner"), "running");
     assert_eq!(queue.usage("cpu"), 1);
     assert_eq!(queue.usage("repo"), 1);
@@ -44,11 +43,10 @@ fn ctrl_c_interrupts_a_full_stderr_pipe_without_changing_config_or_ownership() {
     let mut child = InterruptProcess::spawn(&queue, &["config", "list"], "cli.before-command", 1);
 
     child.resume();
-    child.assert_stderr_started();
+    assert_eq!(child.read_stderr_byte(), b'e');
     let output = child.interrupt();
 
-    assert!(!output.stderr.is_empty());
-    assert!(output.stderr.len() < contents.len());
+    assert!(output.stderr.len() + 1 < contents.len());
     assert_eq!(fs::read_to_string(&path).unwrap(), contents);
     assert_eq!(queue.state("owner"), "running");
     assert_eq!(queue.usage("cpu"), 1);
