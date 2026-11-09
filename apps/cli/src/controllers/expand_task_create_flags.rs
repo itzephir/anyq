@@ -59,7 +59,7 @@ fn topic_cluster(argument: &str) -> Option<String> {
 
     if flags.len() < 2
         || flags.bytes().filter(|flag| *flag == b't').count() != 1
-        || !flags.bytes().all(|flag| b"twc".contains(&flag))
+        || !flags.bytes().all(|flag| b"twcs".contains(&flag))
     {
         return None;
     }

@@ -8,6 +8,8 @@ context: |
   A task requires one slot of every attached topic, acquired atomically.
   The global registration sequence orders queued tasks consistently across topics.
   The caller performs external work after task wait returns; anyq never executes commands.
+  Automatic admission defaults on; topic overrides task defaults. Explicit stop persists until start.
+  Start must obtain admission immediately unless --wait is requested; wait only observes running.
   Running ownership persists until explicit task complete, including after caller failure.
   Callers own external work, its outcome and any decision to run it again.
   Wait without topic membership and ordinary completion before admission are errors.

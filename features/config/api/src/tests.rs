@@ -87,3 +87,39 @@ fn invalid_keys_types_and_paths_do_not_mutate_configuration() {
         ConfigValue::Boolean(false)
     );
 }
+
+#[test]
+fn task_autostart_defaults_to_true_and_persists_explicit_overrides() {
+    let mut config = Config::default();
+
+    assert!(config.task_autostart());
+    assert_eq!(
+        config.get(ConfigKey::TaskAutostart),
+        Some(ConfigValue::Boolean(true))
+    );
+    assert!(
+        !config
+            .overrides()
+            .iter()
+            .any(|(key, _)| *key == ConfigKey::TaskAutostart)
+    );
+
+    config
+        .set(ConfigKey::TaskAutostart, ConfigValue::Boolean(false))
+        .unwrap();
+
+    assert!(!config.task_autostart());
+    assert_eq!(
+        config.overrides(),
+        [(ConfigKey::TaskAutostart, ConfigValue::Boolean(false))]
+    );
+    assert!(
+        config
+            .set(ConfigKey::TaskAutostart, ConfigValue::Text("false".into()))
+            .is_err()
+    );
+    assert!(!config.task_autostart());
+    config.unset(ConfigKey::TaskAutostart);
+    assert!(config.task_autostart());
+    assert!(config.overrides().is_empty());
+}

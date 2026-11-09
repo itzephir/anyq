@@ -263,3 +263,71 @@ fn autocreate_defaults_and_independent_switches_have_one_domain_owner() {
         assert_eq!(policy.require_topic_creation("cpu").is_ok(), topics);
     }
 }
+
+#[test]
+fn running_checks_observe_without_mutating_or_restarting() {
+    let mut task = Task::new(1, "build".into()).unwrap();
+    assert!(task.check_running().is_err());
+    task.add_topic("cpu").unwrap();
+    let queued = task.clone();
+
+    assert!(!task.check_running().unwrap());
+    assert_eq!(task, queued);
+    task.try_start(&[ResourceAvailability {
+        topic: Topic::new("cpu".into(), 1).unwrap(),
+        running: 0,
+        queued_before: 0,
+    }])
+    .unwrap();
+    let running = task.clone();
+
+    assert!(task.check_running().unwrap());
+    assert!(task.check_running().unwrap());
+    assert_eq!(task, running);
+    task.complete(false).unwrap();
+    assert!(task.check_running().is_err());
+}
+
+#[test]
+fn topic_autostart_overrides_defaults_and_toggle_uses_the_effective_value() {
+    for (default, override_value, automatic) in [
+        (true, None, true),
+        (false, None, false),
+        (false, Some(true), true),
+        (true, Some(false), false),
+    ] {
+        let mut topic = Topic::new("cpu".into(), 1).unwrap();
+        topic.autostart = override_value;
+        let mut task = Task::new(1, "job".into())
+            .unwrap()
+            .with_start_policy(default, false);
+        task.link_topic(&topic).unwrap();
+
+        assert_eq!(task.permits_autostart(&[topic.clone()]), automatic);
+        let explicit = task
+            .configure_start(StartPreference::Toggle, &[topic])
+            .unwrap();
+
+        assert_eq!(explicit, !automatic);
+        assert_eq!(task.stopped(), automatic);
+    }
+}
+
+#[test]
+fn stopped_and_incomplete_topic_snapshots_never_allow_automatic_admission() {
+    let cpu = Topic::new("cpu".into(), 1).unwrap();
+    let mut repo = Topic::new("repo".into(), 1).unwrap();
+    let mut task = Task::new(1, "job".into()).unwrap();
+    task.link_topic(&cpu).unwrap();
+    task.link_topic(&repo).unwrap();
+
+    assert!(!task.permits_autostart(std::slice::from_ref(&cpu)));
+    assert!(!task.permits_autostart(&[cpu.clone(), cpu.clone()]));
+    repo.autostart = Some(false);
+    assert!(!task.permits_autostart(&[cpu.clone(), repo.clone()]));
+    repo.autostart = Some(true);
+    assert!(task.permits_autostart(&[cpu.clone(), repo.clone()]));
+    task.configure_start(StartPreference::Stop, &[cpu.clone(), repo.clone()])
+        .unwrap();
+    assert!(!task.permits_autostart(&[cpu, repo]));
+}

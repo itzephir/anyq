@@ -6,9 +6,13 @@ fn list_aliases_name_first_actions_and_nested_help_share_the_same_contract() {
     let q = Queue::new();
     q.call(&["topic", "cpu", "create", "-c", "2"]);
     q.call(&["topic", "repo", "create"]);
+    q.task("owner", &["cpu"]);
+    q.task("owner-two", &["cpu"]);
     q.call(&["task", "job", "create", "-t", "cpu"]);
     q.call(&["topic", "repo", "link", "job"]);
     q.call(&["task", "job", "link", "repo"]);
+    q.call(&["task", "complete", "owner"]);
+    q.call(&["task", "complete", "owner-two"]);
 
     for kind in ["task", "topic"] {
         let expected = q.call(&[kind, "list"]);
@@ -85,7 +89,14 @@ fn link_and_wait_chains_complete_or_preserve_manual_ownership_in_all_forms() {
     ] {
         let q = Queue::new();
         q.topic("cpu");
-        q.task("job", &["cpu"]);
+        q.task(
+            "job",
+            if command.contains(&"link") {
+                &[]
+            } else {
+                &["cpu"]
+            },
+        );
         q.call(&command);
 
         let completed = command.contains(&"-c") || command.contains(&"--complete");
@@ -184,7 +195,7 @@ fn configuration_defaults_get_set_unset_and_errors_never_open_the_queue() {
 
     assert_eq!(
         q.call(&["config", "-l"]),
-        "task.autocreate=false\ntopic.autocreate=false"
+        "task.autocreate=false\ntask.autostart=true\ntopic.autocreate=false"
     );
     assert_eq!(q.call(&["config", "--list"]), q.call(&["config", "-l"]));
     assert_eq!(q.call(&["config", "list"]), q.call(&["config", "-l"]));
@@ -208,7 +219,7 @@ fn configuration_defaults_get_set_unset_and_errors_never_open_the_queue() {
     for alias in ["list", "--list", "-l"] {
         assert_eq!(
             q.call(&["config", alias]),
-            "task.autocreate=true\ntopic.autocreate=true\ndb.path=folder with spaces/🔥.db"
+            "task.autocreate=true\ntask.autostart=true\ntopic.autocreate=true\ndb.path=folder with spaces/🔥.db"
         );
         assert_eq!(fs::read(&path).unwrap(), before);
     }
@@ -454,6 +465,7 @@ fn independent_processes_autocreate_one_pair_of_objects_without_lost_links() {
     let q = Queue::new();
     q.call(&["config", "task.autocreate", "true"]);
     q.call(&["config", "topic.autocreate", "true"]);
+    q.task("owner", &["cpu"]);
     let children: Vec<_> = (0..4)
         .map(|_| {
             TestProcess::spawn(
@@ -474,12 +486,13 @@ fn independent_processes_autocreate_one_pair_of_objects_without_lost_links() {
         );
     }
 
-    assert_eq!(q.call(&["task", "list"]), "- job");
+    assert_eq!(q.call(&["task", "list"]), "- job\n- owner");
     assert_eq!(q.call(&["topic", "list"]), "- cpu");
     assert_eq!(
         q.call(&["task", "job"]),
         "task: job\nstatus: queued\ntopics:\n- cpu"
     );
+    q.call(&["task", "complete", "owner"]);
     q.call(&["task", "job", "wait", "-c"]);
 
     assert_eq!(q.state("job"), "completed");

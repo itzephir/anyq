@@ -5,11 +5,15 @@ mod interrupt;
 mod output;
 mod paths;
 mod presenters;
+mod start_task;
 mod task_flow;
 mod wait_for_task;
 
 use anyq_config_api::ConfigKey;
-use anyq_queue_api::{AutoCreatePolicy, format_name, parse_topic_name};
+use anyq_queue_api::{
+    AddTaskToTopicsRequest, AddTasksToTopicRequest, AutoCreatePolicy, QueuePolicy, format_name,
+    parse_topic_name,
+};
 use checkpoint::checkpoint;
 use clap::Parser;
 use controllers::{Cli, ConfigCommand, Request};
@@ -81,9 +85,12 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    let policy = AutoCreatePolicy {
-        tasks: config.task_autocreate(),
-        topics: config.topic_autocreate(),
+    let policy = QueuePolicy {
+        autocreate: AutoCreatePolicy {
+            tasks: config.task_autocreate(),
+            topics: config.topic_autocreate(),
+        },
+        task_autostart: config.task_autostart(),
     };
     let mut cases = anyq_queue_impl::open_with_options(&path, policy, cancelled.clone())?;
     checkpoint("cli.before-operation", &cancelled)?;
@@ -130,6 +137,14 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
                 topic.capacity
             ))
         }
+        Request::SetTopicAutostart { name, enabled } => {
+            let topic = cases.set_topic_autostart.set_autostart(&name, enabled)?;
+            Some(format!(
+                "autostart of '{}' set to {}",
+                format_name(&topic.name),
+                if enabled { "on" } else { "off" }
+            ))
+        }
         Request::RegisterTask {
             request,
             wait,
@@ -148,7 +163,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
                 };
                 task_flow::wait_then_complete(
                     &input_name,
-                    cases.try_start_task.as_mut(),
+                    cases.check_task_running.as_mut(),
                     completion,
                     &cancelled,
                 )?;
@@ -158,16 +173,21 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         }
         Request::LinkTask {
             name,
-            topic,
+            topics,
             wait,
             complete,
         } => {
-            let task = cases.add_task_to_topic.add(&name, &topic)?;
+            let task = cases.add_task_to_topics.add(AddTaskToTopicsRequest {
+                task: name.clone(),
+                topics: topics.clone(),
+            })?;
             checkpoint("cli.after-link", &cancelled)?;
-            output::emit(
-                &presenters::added(task.name(), &parse_topic_name(&topic)?),
-                &cancelled,
-            )?;
+            for topic in topics {
+                output::emit(
+                    &presenters::added(task.name(), &parse_topic_name(&topic)?),
+                    &cancelled,
+                )?;
+            }
 
             if wait {
                 let completion = if complete {
@@ -177,12 +197,68 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
                 };
                 task_flow::wait_then_complete(
                     &name,
-                    cases.try_start_task.as_mut(),
+                    cases.check_task_running.as_mut(),
                     completion,
                     &cancelled,
                 )?;
             }
 
+            None
+        }
+        Request::LinkTasks {
+            names,
+            topic,
+            wait,
+            complete,
+        } => {
+            let tasks = cases.add_tasks_to_topic.add(AddTasksToTopicRequest {
+                tasks: names,
+                topic: topic.clone(),
+            })?;
+            checkpoint("cli.after-link", &cancelled)?;
+
+            for task in &tasks {
+                output::emit(
+                    &presenters::added(task.name(), &parse_topic_name(&topic)?),
+                    &cancelled,
+                )?;
+            }
+
+            if wait {
+                for task in tasks {
+                    let completion = if complete {
+                        Some(cases.complete_task.as_mut())
+                    } else {
+                        None
+                    };
+                    task_flow::wait_then_complete(
+                        &format_name(task.name()),
+                        cases.check_task_running.as_mut(),
+                        completion,
+                        &cancelled,
+                    )?;
+                }
+            }
+
+            None
+        }
+        Request::StartTask {
+            name,
+            wait,
+            complete,
+        } => {
+            let completion = if complete {
+                Some(cases.complete_task.as_mut())
+            } else {
+                None
+            };
+            task_flow::start_then_complete(
+                &name,
+                wait,
+                cases.start_task.as_mut(),
+                completion,
+                &cancelled,
+            )?;
             None
         }
         Request::WaitTask { name, complete } => {
@@ -193,7 +269,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             };
             task_flow::wait_then_complete(
                 &name,
-                cases.try_start_task.as_mut(),
+                cases.check_task_running.as_mut(),
                 completion,
                 &cancelled,
             )?;

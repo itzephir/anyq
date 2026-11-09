@@ -1,10 +1,10 @@
 use crate::ports::UnitOfWork;
-use anyq_queue_api::{AutoCreatePolicy, Result, Task, parse_name};
+use anyq_queue_api::{QueuePolicy, Result, Task, parse_name};
 
 pub(crate) fn lookup_task(
     records: &mut dyn UnitOfWork,
     input: &str,
-    policy: AutoCreatePolicy,
+    policy: QueuePolicy,
 ) -> Result<Task> {
     let name = parse_name(input)?;
 
@@ -12,6 +12,15 @@ pub(crate) fn lookup_task(
         return Ok(task);
     }
 
-    policy.require_task_creation(&name)?;
-    records.tasks().insert_task(&name)
+    policy.autocreate.require_task_creation(&name)?;
+    let task = records
+        .tasks()
+        .insert_task(&name)?
+        .with_start_policy(policy.task_autostart, false);
+
+    if !policy.task_autostart {
+        records.tasks().save_task(&task)?;
+    }
+
+    Ok(task)
 }

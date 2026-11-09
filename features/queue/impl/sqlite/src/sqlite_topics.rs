@@ -10,17 +10,22 @@ pub(crate) struct SqliteTopics<'a> {
     pub cancelled: &'a AtomicBool,
 }
 
-fn restore_topic((name, capacity): (String, u32)) -> Result<Topic> {
-    Topic::restore(name, capacity).map_err(|error| Error::Storage(error.to_string()))
+fn restore_topic((name, capacity, autostart): (String, u32, Option<bool>)) -> Result<Topic> {
+    Topic::restore(name, capacity)
+        .map(|mut topic| {
+            topic.autostart = autostart;
+            topic
+        })
+        .map_err(|error| Error::Storage(error.to_string()))
 }
 
 impl TopicRecords for SqliteTopics<'_> {
     fn topics(&mut self) -> Result<Vec<Topic>> {
         let mut s = self
             .connection
-            .prepare("SELECT name, capacity FROM topics ORDER BY name")
+            .prepare("SELECT name, capacity, autostart FROM topics ORDER BY name")
             .map_err(storage)?;
-        s.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        s.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .map_err(storage)?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(storage)?
@@ -32,9 +37,9 @@ impl TopicRecords for SqliteTopics<'_> {
     fn topic(&mut self, name: &str) -> Result<Option<Topic>> {
         self.connection
             .query_row(
-                "SELECT name, capacity FROM topics WHERE name=?1",
+                "SELECT name, capacity, autostart FROM topics WHERE name=?1",
                 [name],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(storage)?
@@ -43,13 +48,14 @@ impl TopicRecords for SqliteTopics<'_> {
     }
 
     fn put_topic(&mut self, t: &Topic) -> Result<()> {
-        let topic = Topic::restore(t.name.clone(), t.capacity)?;
+        let mut topic = Topic::restore(t.name.clone(), t.capacity)?;
+        topic.autostart = t.autostart;
 
         self.connection
             .execute(
-                "INSERT INTO topics(name, capacity) VALUES (?1,?2)
-                 ON CONFLICT(name) DO UPDATE SET capacity=excluded.capacity",
-                params![topic.name, topic.capacity],
+                "INSERT INTO topics(name, capacity, autostart) VALUES (?1,?2,?3)
+                 ON CONFLICT(name) DO UPDATE SET capacity=excluded.capacity, autostart=excluded.autostart",
+                params![topic.name, topic.capacity, topic.autostart],
             )
             .map_err(storage)?;
 

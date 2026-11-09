@@ -27,6 +27,7 @@ fn topic(store: &Sqlite, name: &str, capacity: u32) {
 fn register(store: &Sqlite, name: &str) {
     RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            start: anyq_queue_api::StartPreference::Default,
             name: name.into(),
             topics: Vec::new(),
         })
@@ -39,8 +40,8 @@ fn add(store: &Sqlite, name: &str, resource: &str) {
         .unwrap();
 }
 
-fn start(store: &Sqlite, name: &str) -> Result<StartOutcome> {
-    TryStartTaskInteractor::new(store.clone()).try_start(name)
+fn check(store: &Sqlite, name: &str) -> Result<bool> {
+    CheckTaskRunningInteractor::new(store.clone()).check_running(name)
 }
 
 fn complete(store: &Sqlite, name: &str, force: bool) {
@@ -61,7 +62,7 @@ fn usage(store: &Sqlite, resource: &str) -> u64 {
         .clone()
         .transaction(|records| {
             records.tasks().count_tasks(&TaskFilter {
-                topic: resource.into(),
+                topic: Some(resource.into()),
                 state: TaskState::Running,
                 before_sequence: None,
             })
@@ -75,11 +76,12 @@ fn canonical_names_survive_reopening_without_parsing_backticks_twice() {
     topic(&store, "``resource``", 1);
     RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            start: anyq_queue_api::StartPreference::Default,
             name: "``job``".into(),
             topics: vec!["``resource``".into()],
         })
         .unwrap();
-    start(&store, "``job``").unwrap();
+    check(&store, "``job``").unwrap();
 
     drop(store);
     let store = Sqlite::open(&dir.path().join("queue.db")).unwrap();
@@ -119,6 +121,7 @@ fn topic_storage_validates_capacity_and_preserves_canonical_keyword_names() {
         records.topics().put_topic(&Topic {
             name: "cpu".into(),
             capacity: 0,
+            autostart: None,
         })
     });
 
@@ -144,7 +147,7 @@ fn topic_storage_validates_capacity_and_preserves_canonical_keyword_names() {
         .connection
         .borrow()
         .execute_batch(
-            "PRAGMA ignore_check_constraints=ON; INSERT INTO topics VALUES ('invalid', 0)",
+            "PRAGMA ignore_check_constraints=ON; INSERT INTO topics(name,capacity) VALUES ('invalid', 0)",
         )
         .unwrap();
 
@@ -158,7 +161,7 @@ fn topic_queue_reads_exact_filters_and_registration_order_without_releasing_slot
     topic(&store, "other", 1);
     register(&store, "z-running");
     add(&store, "z-running", "cpu");
-    start(&store, "z-running").unwrap();
+    check(&store, "z-running").unwrap();
     register(&store, "a-queued");
     add(&store, "a-queued", "cpu");
     register(&store, "completed");
@@ -176,7 +179,7 @@ fn topic_queue_reads_exact_filters_and_registration_order_without_releasing_slot
         .clone()
         .transaction(|records| {
             records.tasks().tasks(&TaskFilter {
-                topic: "cpu".into(),
+                topic: Some("cpu".into()),
                 state: TaskState::Queued,
                 before_sequence: Some(before),
             })
@@ -206,6 +209,7 @@ fn failed_initial_membership_rolls_back_registration_and_all_links() {
         )
         .unwrap();
     let request = RegisterTaskRequest {
+        start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["cpu".into(), "repo".into()],
     };
@@ -235,11 +239,11 @@ fn failed_initial_membership_rolls_back_registration_and_all_links() {
         .register(request)
         .unwrap();
 
-    assert_eq!(created.state(), TaskState::Queued);
+    assert_eq!(created.state(), TaskState::Running);
     assert_eq!(created.topics(), &["cpu", "repo"]);
-    assert_eq!(usage(&store, "cpu"), 0);
-    assert_eq!(usage(&store, "repo"), 0);
-    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Started);
+    assert_eq!(usage(&store, "cpu"), 1);
+    assert_eq!(usage(&store, "repo"), 1);
+    assert!(check(&store, "build").unwrap());
 }
 
 #[test]
@@ -248,16 +252,20 @@ fn every_lifecycle_state_and_global_order_survive_reopening() {
     topic(&store, "cpu", 1);
     topic(&store, "repo", 1);
     register(&store, "done");
-    add(&store, "done", "cpu");
-    add(&store, "done", "repo");
-    start(&store, "done").unwrap();
+    AddTaskToTopicsInteractor::new(store.clone())
+        .add(AddTaskToTopicsRequest {
+            task: "done".into(),
+            topics: vec!["cpu".into(), "repo".into()],
+        })
+        .unwrap();
+    check(&store, "done").unwrap();
     complete(&store, "done", false);
     register(&store, "registered");
-    register(&store, "queued");
-    add(&store, "queued", "repo");
     register(&store, "running");
     add(&store, "running", "cpu");
-    start(&store, "running").unwrap();
+    register(&store, "queued");
+    add(&store, "queued", "cpu");
+    check(&store, "running").unwrap();
     let before: Vec<_> = ["done", "registered", "queued", "running"]
         .map(|name| task(&store, name))
         .into();
@@ -283,6 +291,7 @@ fn every_lifecycle_state_and_global_order_survive_reopening() {
     assert!(
         RegisterTaskInteractor::new(reopened.clone())
             .register(RegisterTaskRequest {
+                start: anyq_queue_api::StartPreference::Default,
                 name: "done".into(),
                 topics: Vec::new()
             })
@@ -295,26 +304,32 @@ fn sqlite_counts_all_memberships_and_obeys_global_order() {
     let (_dir, store) = fixture();
     topic(&store, "cpu", 1);
     topic(&store, "repo", 1);
+    register(&store, "owner");
+    add(&store, "owner", "cpu");
     register(&store, "a");
     register(&store, "b");
     add(&store, "a", "cpu");
+    add(&store, "b", "cpu");
     add(&store, "b", "repo");
     add(&store, "a", "repo");
-    add(&store, "b", "cpu");
     add(&store, "a", "cpu");
 
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
-    assert_eq!(usage(&store, "cpu"), 0);
+    assert!(!check(&store, "b").unwrap());
     assert_eq!(usage(&store, "repo"), 0);
-    assert_eq!(start(&store, "a").unwrap(), StartOutcome::Started);
+
+    complete(&store, "owner", false);
+
+    assert_eq!(task(&store, "a").state(), TaskState::Running);
+    assert_eq!(task(&store, "b").state(), TaskState::Queued);
     assert_eq!(usage(&store, "cpu"), 1);
     assert_eq!(usage(&store, "repo"), 1);
 
     complete(&store, "a", false);
 
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
+    assert_eq!(task(&store, "b").state(), TaskState::Running);
     assert_eq!(task(&store, "b").topics(), &["cpu", "repo"]);
-    assert!(start(&store, "b").is_err());
+    assert!(check(&store, "b").unwrap());
+    assert!(check(&store, "b").unwrap());
 }
 
 #[test]
@@ -326,7 +341,7 @@ fn capacity_reduction_and_partial_admission_are_rejected() {
     for name in ["a", "b"] {
         register(&store, name);
         add(&store, name, "cpu");
-        start(&store, name).unwrap();
+        check(&store, name).unwrap();
     }
 
     assert!(
@@ -346,13 +361,13 @@ fn capacity_reduction_and_partial_admission_are_rejected() {
     add(&store, "c", "cpu");
     add(&store, "c", "repo");
 
-    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Busy);
+    assert!(!check(&store, "c").unwrap());
     assert_eq!(usage(&store, "repo"), 0);
     assert_eq!(task(&store, "c").state(), TaskState::Queued);
 
     complete(&store, "a", false);
 
-    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Started);
+    assert!(check(&store, "c").unwrap());
     assert_eq!(usage(&store, "cpu"), 2);
     assert_eq!(usage(&store, "repo"), 1);
 }
@@ -361,6 +376,8 @@ fn capacity_reduction_and_partial_admission_are_rejected() {
 fn transaction_failure_rolls_back_prior_writes_and_ownership() {
     let (_dir, store) = fixture();
     topic(&store, "cpu", 1);
+    register(&store, "owner");
+    add(&store, "owner", "cpu");
     register(&store, "a");
     add(&store, "a", "cpu");
     store
@@ -392,14 +409,15 @@ fn transaction_failure_rolls_back_prior_writes_and_ownership() {
             .is_err()
     );
     assert_eq!(task(&store, "a").state(), TaskState::Queued);
-    assert_eq!(usage(&store, "cpu"), 0);
+    assert_eq!(usage(&store, "cpu"), 1);
 
     store
         .connection
         .borrow()
         .execute_batch("DROP TRIGGER fail_start")
         .unwrap();
-    start(&store, "a").unwrap();
+    complete(&store, "owner", false);
+    assert_eq!(task(&store, "a").state(), TaskState::Running);
     store
         .connection
         .borrow()
@@ -420,7 +438,7 @@ fn transaction_failure_rolls_back_prior_writes_and_ownership() {
 
 #[test]
 fn incompatible_databases_are_rejected_without_changing_their_bytes() {
-    for version in [0, 1, 3] {
+    for version in [0, 1, 4] {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("incompatible.db");
         let connection = Connection::open(&path).unwrap();
@@ -460,8 +478,8 @@ fn autocreate_rolls_back_new_entities_after_domain_and_actual_sql_errors() {
     };
 
     assert!(
-        TryStartTaskInteractor::with_policy(store.clone(), policy)
-            .try_start("missing")
+        CheckTaskRunningInteractor::with_policy(store.clone(), policy)
+            .check_running("missing")
             .is_err()
     );
     assert!(
@@ -512,9 +530,9 @@ fn autocreate_rolls_back_new_entities_after_domain_and_actual_sql_errors() {
         .add("job", "cpu")
         .unwrap();
 
-    assert_eq!(task(&store, "job").state(), TaskState::Queued);
-    assert_eq!(usage(&store, "cpu"), 0);
-    assert_eq!(start(&store, "job").unwrap(), StartOutcome::Started);
+    assert_eq!(task(&store, "job").state(), TaskState::Running);
+    assert_eq!(usage(&store, "cpu"), 1);
+    assert!(check(&store, "job").unwrap());
     assert!(
         AddTaskToTopicInteractor::with_policy(store.clone(), policy)
             .add("job", "new")
@@ -549,7 +567,6 @@ fn independent_connections_autocreate_one_identity_and_one_membership() {
                     },
                 )
                 .add("`job`", "`cpu`")
-                .unwrap()
             })
         })
         .collect();
@@ -559,7 +576,13 @@ fn independent_connections_autocreate_one_identity_and_one_membership() {
         .map(|child| child.join().unwrap())
         .collect();
 
-    assert!(tasks.iter().all(|item| item == &tasks[0]));
+    assert_eq!(tasks.iter().filter(|item| item.is_ok()).count(), 1);
+    assert!(
+        tasks
+            .iter()
+            .filter_map(|item| item.as_ref().err())
+            .all(|error| error.to_string().contains("already running"))
+    );
     assert_eq!(
         ListTasksInteractor::new(store.clone()).list().unwrap(),
         ["job"]
@@ -572,11 +595,11 @@ fn independent_connections_autocreate_one_identity_and_one_membership() {
         1
     );
     assert_eq!(task(&store, "job").topics(), &["cpu"]);
-    assert_eq!(start(&store, "job").unwrap(), StartOutcome::Started);
+    assert!(check(&store, "job").unwrap());
     assert_eq!(usage(&store, "cpu"), 1);
 }
 
-fn race(path: &Path, operations: &[&str]) -> Vec<Result<StartOutcome>> {
+fn race(path: &Path, operations: &[&str]) -> Vec<Result<bool>> {
     let barrier = Arc::new(Barrier::new(operations.len()));
     let children: Vec<_> = operations
         .iter()
@@ -588,7 +611,7 @@ fn race(path: &Path, operations: &[&str]) -> Vec<Result<StartOutcome>> {
             thread::spawn(move || {
                 let store = Sqlite::open(&path).unwrap();
                 barrier.wait();
-                start(&store, &name)
+                check(&store, &name)
             })
         })
         .collect();
@@ -614,7 +637,7 @@ fn independent_connections_admit_only_one_task_and_one_waiter() {
     assert_eq!(
         results
             .iter()
-            .filter(|result| matches!(result, Ok(StartOutcome::Started)))
+            .filter(|result| matches!(result, Ok(true)))
             .count(),
         1
     );
@@ -626,11 +649,11 @@ fn independent_connections_admit_only_one_task_and_one_waiter() {
     assert_eq!(
         same_name
             .iter()
-            .filter(|result| matches!(result, Ok(StartOutcome::Started)))
+            .filter(|result| matches!(result, Ok(true)))
             .count(),
-        1
+        2
     );
-    assert_eq!(same_name.iter().filter(|result| result.is_err()).count(), 1);
+    assert_eq!(same_name.iter().filter(|result| result.is_err()).count(), 0);
     assert_eq!(usage(&store, "cpu"), 1);
 }
 
@@ -651,10 +674,10 @@ fn membership_racing_admission_is_included_or_rejected() {
         AddTaskToTopicInteractor::new(other).add("a", "repo")
     });
     barrier.wait();
-    let outcome = start(&store, "a").unwrap();
+    let outcome = check(&store, "a").unwrap();
     let added = addition.join().unwrap();
 
-    assert_eq!(outcome, StartOutcome::Started);
+    assert!(outcome);
     assert_eq!(usage(&store, "cpu"), 1);
     assert_eq!(usage(&store, "repo"), u64::from(added.is_ok()));
     assert_eq!(
@@ -679,13 +702,13 @@ fn force_racing_admission_leaves_a_terminal_task_without_slots() {
         CompleteTaskInteractor::new(other).complete("a", true)
     });
     barrier.wait();
-    let outcome = start(&store, "a");
+    let outcome = check(&store, "a");
     force.join().unwrap().unwrap();
 
-    assert!(outcome.is_err() || outcome == Ok(StartOutcome::Started));
+    assert!(outcome.is_err() || outcome == Ok(true));
     assert_eq!(task(&store, "a").state(), TaskState::Completed);
     assert_eq!(usage(&store, "cpu"), 0);
-    assert!(start(&store, "a").is_err());
+    assert!(check(&store, "a").is_err());
 }
 
 #[test]
@@ -721,4 +744,58 @@ fn independent_openers_can_initialize_a_fresh_database() {
             );
         }
     }
+}
+
+#[test]
+fn schema_v2_upgrade_preserves_states_order_memberships_and_ownership() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v2.db");
+    let connection = Connection::open(&path).unwrap();
+    connection
+        .execute_batch(include_str!("schema_v2.sql"))
+        .unwrap();
+    drop(connection);
+
+    let store = Sqlite::open(&path).unwrap();
+
+    assert_eq!(task(&store, "owner").state(), TaskState::Running);
+    let next = task(&store, "next");
+    assert_eq!(next.state(), TaskState::Queued);
+    assert_eq!(next.sequence(), 2);
+    assert_eq!(next.topics(), &["cpu", "repo"]);
+    assert!(next.autostart_default());
+    assert!(!next.stopped());
+    assert_eq!(task(&store, "done").state(), TaskState::Completed);
+    assert_eq!(usage(&store, "cpu"), 1);
+    assert_eq!(usage(&store, "repo"), 0);
+    assert_eq!(
+        GetTopicInteractor::new(store.clone())
+            .get("cpu")
+            .unwrap()
+            .autostart,
+        None
+    );
+    let version: i64 = store
+        .connection
+        .borrow()
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 3);
+
+    complete(&store, "owner", false);
+
+    assert_eq!(task(&store, "next").state(), TaskState::Running);
+    assert_eq!(usage(&store, "repo"), 1);
+}
+
+#[test]
+fn read_only_running_check_never_admits_a_legacy_queued_task_on_a_free_resource() {
+    let (_dir, store) = fixture();
+    topic(&store, "cpu", 1);
+    store.connection.borrow().execute_batch("INSERT INTO tasks(name,state) VALUES ('legacy','queued'); INSERT INTO task_topics VALUES (1,'cpu');").unwrap();
+
+    assert!(!check(&store, "legacy").unwrap());
+    assert!(!check(&store, "legacy").unwrap());
+    assert_eq!(task(&store, "legacy").state(), TaskState::Queued);
+    assert_eq!(usage(&store, "cpu"), 0);
 }

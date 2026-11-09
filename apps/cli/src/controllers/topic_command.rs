@@ -18,10 +18,18 @@ pub enum TopicCommand {
         #[arg(value_name = "N")]
         capacity: Option<u32>,
     },
-    #[command(about = "Link an existing task to a topic")]
+    #[command(about = "Set topic autostart (overrides task.autostart)")]
+    Autostart {
+        #[arg(value_name = "TOPIC")]
+        name: String,
+        #[arg(value_name = "on/off", value_parser = ["on", "off"], default_value = "on")]
+        value: String,
+    },
+    #[command(about = "Atomically link one or more tasks to a topic")]
     Link {
         topic: String,
-        name: String,
+        #[arg(required = true, num_args = 1.., value_name = "NAME")]
+        names: Vec<String>,
         #[arg(short = 'w', long)]
         wait: bool,
         #[arg(short = 'c', long, requires = "wait")]

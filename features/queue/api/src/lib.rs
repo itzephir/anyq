@@ -59,11 +59,38 @@ pub use register_task_request::RegisterTaskRequest;
 mod add_task_to_topic;
 pub use add_task_to_topic::AddTaskToTopic;
 
-mod try_start_task;
-pub use try_start_task::TryStartTask;
+mod check_task_running;
+pub use check_task_running::CheckTaskRunning;
 
 mod complete_task;
 pub use complete_task::CompleteTask;
 
 #[cfg(test)]
 mod tests;
+
+mod add_task_to_topics;
+pub use add_task_to_topics::AddTaskToTopics;
+
+mod add_task_to_topics_request;
+pub use add_task_to_topics_request::AddTaskToTopicsRequest;
+
+mod add_tasks_to_topic;
+pub use add_tasks_to_topic::AddTasksToTopic;
+
+mod add_tasks_to_topic_request;
+pub use add_tasks_to_topic_request::AddTasksToTopicRequest;
+
+mod queue_policy;
+pub use queue_policy::QueuePolicy;
+
+mod start_preference;
+pub use start_preference::StartPreference;
+
+mod start_task_outcome;
+pub use start_task_outcome::StartTaskOutcome;
+
+mod start_task;
+pub use start_task::StartTask;
+
+mod set_topic_autostart;
+pub use set_topic_autostart::SetTopicAutostart;

@@ -62,7 +62,7 @@ fn valid_empty_config_sections_keep_defaults_and_accept_later_updates() {
 
         assert_eq!(
             queue.call(&["config", "list"]),
-            "task.autocreate=false\ntopic.autocreate=false"
+            "task.autocreate=false\ntask.autostart=true\ntopic.autocreate=false"
         );
         assert_eq!(fs::read_to_string(&path).unwrap(), valid);
 

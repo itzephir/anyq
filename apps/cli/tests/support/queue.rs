@@ -52,11 +52,13 @@ impl Queue {
     }
 
     pub fn task(&self, name: &str, topics: &[&str]) {
-        self.call(&["task", "create", name]);
+        let mut arguments = vec!["task", "create", name];
 
         for topic in topics {
-            self.call(&["topic", "link", topic, name]);
+            arguments.extend(["-t", topic]);
         }
+
+        self.call(&arguments);
     }
 
     pub fn state(&self, name: &str) -> String {

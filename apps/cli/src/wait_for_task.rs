@@ -1,11 +1,11 @@
 use crate::{checkpoint::checkpoint, error::Result};
 use crate::{output, presenters};
-use anyq_queue_api::{StartOutcome, TryStartTask, parse_name};
+use anyq_queue_api::{CheckTaskRunning, parse_name};
 use std::{sync::atomic::AtomicBool, thread, time::Duration};
 
 pub fn wait_for_task(
     name: &str,
-    start: &mut dyn TryStartTask,
+    status: &mut dyn CheckTaskRunning,
     cancelled: &AtomicBool,
 ) -> Result<String> {
     let display_name = parse_name(name)?;
@@ -13,12 +13,12 @@ pub fn wait_for_task(
 
     loop {
         checkpoint("cli.before-admission", cancelled)?;
-        match start.try_start(name)? {
-            StartOutcome::Started => {
+        match status.check_running(name)? {
+            true => {
                 checkpoint("cli.after-admission", cancelled)?;
                 return Ok(presenters::started(&display_name));
             }
-            StartOutcome::Busy => {
+            false => {
                 if !announced {
                     output::emit_error(&presenters::waiting(&display_name), cancelled)?;
                     announced = true;

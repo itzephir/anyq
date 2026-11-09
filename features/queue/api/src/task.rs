@@ -1,6 +1,6 @@
 use crate::{
-    Error, ResourceAvailability, Result, StartOutcome, TaskState, Topic, parse_name,
-    parse_topic_name,
+    Error, ResourceAvailability, Result, StartOutcome, StartPreference, TaskState, Topic,
+    parse_name, parse_topic_name,
 };
 use std::collections::BTreeSet;
 
@@ -10,6 +10,8 @@ pub struct Task {
     name: String,
     state: TaskState,
     topics: Vec<String>,
+    autostart_default: bool,
+    stopped: bool,
 }
 
 impl Task {
@@ -52,6 +54,8 @@ impl Task {
             name,
             state,
             topics,
+            autostart_default: true,
+            stopped: false,
         })
     }
 
@@ -69,6 +73,66 @@ impl Task {
 
     pub fn topics(&self) -> &[String] {
         &self.topics
+    }
+
+    pub fn autostart_default(&self) -> bool {
+        self.autostart_default
+    }
+
+    pub fn stopped(&self) -> bool {
+        self.stopped
+    }
+
+    pub fn with_start_policy(mut self, default: bool, stopped: bool) -> Self {
+        self.autostart_default = default;
+        self.stopped = stopped;
+
+        self
+    }
+
+    pub fn permits_autostart(&self, topics: &[Topic]) -> bool {
+        !self.stopped
+            && !self.topics.is_empty()
+            && topics.len() == self.topics.len()
+            && self
+                .topics
+                .iter()
+                .all(|name| topics.iter().any(|topic| &topic.name == name))
+            && self.autostart_setting(topics)
+    }
+
+    fn autostart_setting(&self, topics: &[Topic]) -> bool {
+        if topics.is_empty() {
+            return self.autostart_default;
+        }
+
+        topics
+            .iter()
+            .all(|topic| topic.autostart.unwrap_or(self.autostart_default))
+    }
+
+    /// Apply a creation preference; true requests an immediate explicit start.
+    pub fn configure_start(
+        &mut self,
+        preference: StartPreference,
+        topics: &[Topic],
+    ) -> Result<bool> {
+        let automatic = self.autostart_setting(topics);
+        let stopped = match preference {
+            StartPreference::Stop => true,
+            StartPreference::Toggle => automatic,
+            StartPreference::Default | StartPreference::Start => false,
+        };
+        let explicit =
+            matches!(preference, StartPreference::Start | StartPreference::Toggle) && !automatic;
+
+        if explicit {
+            self.require_queued()?;
+        }
+
+        self.stopped = stopped;
+
+        Ok(explicit)
     }
 
     pub fn add_topic(&mut self, topic: &str) -> Result<()> {
@@ -96,6 +160,16 @@ impl Task {
         self.state = TaskState::Queued;
 
         Ok(())
+    }
+
+    pub fn check_running(&self) -> Result<bool> {
+        if self.state == TaskState::Running {
+            return Ok(true);
+        }
+
+        self.require_queued()?;
+
+        Ok(false)
     }
 
     pub fn require_queued(&self) -> Result<()> {
@@ -133,6 +207,7 @@ impl Task {
         }
 
         self.state = TaskState::Running;
+        self.stopped = false;
 
         Ok(StartOutcome::Started)
     }

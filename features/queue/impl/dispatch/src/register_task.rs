@@ -1,10 +1,14 @@
+use crate::{admit_queued_tasks::admit_queued_tasks, resource_availability::resource_availability};
 use crate::{lookup_topic::lookup_topic, ports::Store};
 use anyq_queue_api::AutoCreatePolicy;
-use anyq_queue_api::{Error, RegisterTask, RegisterTaskRequest, Result, Task, parse_name};
+use anyq_queue_api::QueuePolicy;
+use anyq_queue_api::{
+    Error, RegisterTask, RegisterTaskRequest, Result, StartOutcome, Task, parse_name,
+};
 
 pub struct RegisterTaskInteractor<S> {
     store: S,
-    policy: AutoCreatePolicy,
+    policy: QueuePolicy,
 }
 
 impl<S> RegisterTaskInteractor<S> {
@@ -13,6 +17,16 @@ impl<S> RegisterTaskInteractor<S> {
     }
 
     pub fn with_policy(store: S, policy: AutoCreatePolicy) -> Self {
+        Self::with_options(
+            store,
+            QueuePolicy {
+                autocreate: policy,
+                ..QueuePolicy::default()
+            },
+        )
+    }
+
+    pub fn with_options(store: S, policy: QueuePolicy) -> Self {
         Self { store, policy }
     }
 }
@@ -32,20 +46,39 @@ impl<S: Store> RegisterTask for RegisterTaskInteractor<S> {
             let topics = request
                 .topics
                 .iter()
-                .map(|topic| lookup_topic(records, topic, self.policy))
+                .map(|topic| lookup_topic(records, topic, self.policy.autocreate))
                 .collect::<Result<Vec<_>>>()?;
 
-            let mut task = records.tasks().insert_task(&name)?;
+            let mut task = records
+                .tasks()
+                .insert_task(&name)?
+                .with_start_policy(self.policy.task_autostart, false);
 
             for topic in &topics {
                 task.link_topic(topic)?;
             }
 
-            if !request.topics.is_empty() {
+            let explicit = task.configure_start(request.start, &topics)?;
+            records.tasks().save_task(&task)?;
+
+            if explicit {
+                let resources = resource_availability(records, &task)?;
+
+                if task.try_start(&resources)? == StartOutcome::Busy {
+                    return Err(Error::Conflict(format!(
+                        "'{}' cannot start: resources or queue position are unavailable",
+                        task.name()
+                    )));
+                }
+
                 records.tasks().save_task(&task)?;
             }
 
-            Ok(task)
+            admit_queued_tasks(records)?;
+
+            records.tasks().task(task.name())?.ok_or_else(|| {
+                Error::Storage("registered task disappeared inside a transaction".into())
+            })
         })
     }
 }

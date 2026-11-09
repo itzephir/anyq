@@ -10,7 +10,11 @@ pub struct QueueModule {
     pub get_task: Box<dyn GetTask>,
     pub get_topic_queue: Box<dyn GetTopicQueue>,
     pub register_task: Box<dyn RegisterTask>,
+    pub add_task_to_topics: Box<dyn AddTaskToTopics>,
+    pub add_tasks_to_topic: Box<dyn AddTasksToTopic>,
     pub add_task_to_topic: Box<dyn AddTaskToTopic>,
-    pub try_start_task: Box<dyn TryStartTask>,
+    pub check_task_running: Box<dyn CheckTaskRunning>,
+    pub start_task: Box<dyn StartTask>,
+    pub set_topic_autostart: Box<dyn SetTopicAutostart>,
     pub complete_task: Box<dyn CompleteTask>,
 }

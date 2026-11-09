@@ -1,10 +1,11 @@
 use crate::{lookup_task::lookup_task, ports::Store};
 use anyq_queue_api::AutoCreatePolicy;
+use anyq_queue_api::QueuePolicy;
 use anyq_queue_api::{GetTask, Result, Task};
 
 pub struct GetTaskInteractor<S> {
     store: S,
-    policy: AutoCreatePolicy,
+    policy: QueuePolicy,
 }
 
 impl<S> GetTaskInteractor<S> {
@@ -13,6 +14,16 @@ impl<S> GetTaskInteractor<S> {
     }
 
     pub fn with_policy(store: S, policy: AutoCreatePolicy) -> Self {
+        Self::with_options(
+            store,
+            QueuePolicy {
+                autocreate: policy,
+                ..QueuePolicy::default()
+            },
+        )
+    }
+
+    pub fn with_options(store: S, policy: QueuePolicy) -> Self {
         Self { store, policy }
     }
 }

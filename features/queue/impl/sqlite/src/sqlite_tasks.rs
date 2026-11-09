@@ -5,8 +5,10 @@ use anyq_queue_dispatch::ports::{TaskFilter, TaskRecords};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::atomic::AtomicBool;
 
-const MATCHING_TASKS: &str = "FROM tasks t JOIN task_topics m ON m.task_id=t.id
-    WHERE m.topic_name=?1 AND t.state=?2 AND (?3 IS NULL OR t.id<?3)";
+const MATCHING_TASKS: &str = "FROM tasks t
+    WHERE (?1 IS NULL OR EXISTS (SELECT 1 FROM task_topics m
+        WHERE m.task_id=t.id AND m.topic_name=?1))
+    AND t.state=?2 AND (?3 IS NULL OR t.id<?3)";
 
 pub(crate) struct SqliteTasks<'a> {
     pub connection: &'a Connection,
@@ -59,17 +61,25 @@ impl TaskRecords for SqliteTasks<'_> {
     }
 
     fn task(&mut self, name: &str) -> Result<Option<Task>> {
-        let row: Option<(i64, String, String)> = self
+        let row: Option<(i64, String, String, bool, bool)> = self
             .connection
             .query_row(
-                "SELECT id,name,state FROM tasks WHERE name=?1",
+                "SELECT id,name,state,autostart_default,stopped FROM tasks WHERE name=?1",
                 [name],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
             )
             .optional()
             .map_err(storage)?;
 
-        let Some((sequence, name, raw_state)) = row else {
+        let Some((sequence, name, raw_state, autostart_default, stopped)) = row else {
             return Ok(None);
         };
 
@@ -84,7 +94,7 @@ impl TaskRecords for SqliteTasks<'_> {
             .map_err(storage)?;
 
         Task::restore(sequence, name, state(&raw_state)?, topics)
-            .map(Some)
+            .map(|task| Some(task.with_start_policy(autostart_default, stopped)))
             .map_err(|error| Error::Storage(error.to_string()))
     }
 
@@ -110,8 +120,14 @@ impl TaskRecords for SqliteTasks<'_> {
         let changed = self
             .connection
             .execute(
-                "UPDATE tasks SET state=?1 WHERE id=?2 AND name=?3",
-                params![task.state().as_str(), task.sequence(), task.name()],
+                "UPDATE tasks SET state=?1,autostart_default=?4,stopped=?5 WHERE id=?2 AND name=?3",
+                params![
+                    task.state().as_str(),
+                    task.sequence(),
+                    task.name(),
+                    task.autostart_default(),
+                    task.stopped()
+                ],
             )
             .map_err(storage)?;
 

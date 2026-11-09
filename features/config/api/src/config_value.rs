@@ -10,14 +10,16 @@ pub enum ConfigValue {
 impl ConfigValue {
     pub fn parse(key: ConfigKey, input: &str) -> Result<Self> {
         match key {
-            ConfigKey::TaskAutocreate | ConfigKey::TopicAutocreate => match input {
-                "true" => Ok(Self::Boolean(true)),
-                "false" => Ok(Self::Boolean(false)),
-                _ => Err(Error::Invalid(format!(
-                    "{} requires true or false",
-                    key.as_str()
-                ))),
-            },
+            ConfigKey::TaskAutocreate | ConfigKey::TaskAutostart | ConfigKey::TopicAutocreate => {
+                match input {
+                    "true" => Ok(Self::Boolean(true)),
+                    "false" => Ok(Self::Boolean(false)),
+                    _ => Err(Error::Invalid(format!(
+                        "{} requires true or false",
+                        key.as_str()
+                    ))),
+                }
+            }
             ConfigKey::DbPath => Ok(Self::Text(input.into())),
         }
     }

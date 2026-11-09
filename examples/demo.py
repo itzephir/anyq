@@ -42,11 +42,7 @@ def main():
         ]:
             queue("task", "create", name)
 
-            for index, topic in enumerate(topics):
-                if index == 0:
-                    queue("topic", "link", topic, name)
-                else:
-                    queue("task", "link", name, topic)
+            queue("task", "link", name, *topics)
 
             queue("task", name)
             queue("topic", topics[0])

@@ -6,6 +6,7 @@ pub struct Memory {
     pub topics: Vec<Topic>,
     pub tasks: Vec<Task>,
     pub fail_save: bool,
+    pub fail_task: Option<String>,
 }
 
 impl TopicRecords for Memory {
@@ -75,7 +76,7 @@ impl TaskRecords for Memory {
         *target = task.clone();
 
         // Fail after the mutation so the Store test exercises actual rollback.
-        if self.fail_save {
+        if self.fail_save || self.fail_task.as_deref() == Some(task.name()) {
             return Err(Error::Storage("injected save failure".into()));
         }
 
@@ -93,7 +94,10 @@ impl TaskRecords for Memory {
 
 fn matches_filter(task: &Task, filter: &TaskFilter) -> bool {
     task.state() == filter.state
-        && task.topics().contains(&filter.topic)
+        && filter
+            .topic
+            .as_ref()
+            .is_none_or(|topic| task.topics().contains(topic))
         && filter
             .before_sequence
             .is_none_or(|sequence| task.sequence() < sequence)

@@ -28,7 +28,7 @@ impl<S: Store> GetTopicQueue for GetTopicQueueInteractor<S> {
 
             for state in TopicQueue::STATES {
                 tasks.extend(records.tasks().tasks(&TaskFilter {
-                    topic: topic.name.clone(),
+                    topic: Some(topic.name.clone()),
                     state,
                     before_sequence: None,
                 })?);
