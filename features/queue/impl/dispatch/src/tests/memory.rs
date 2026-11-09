@@ -55,7 +55,12 @@ impl TaskRecords for Memory {
             return Err(Error::Conflict("duplicate task".into()));
         }
 
-        let task = Task::new(self.tasks.len() as i64 + 1, name.into())?;
+        let task = Task::restore(
+            self.tasks.len() as i64 + 1,
+            name.into(),
+            TaskState::Registered,
+            Vec::new(),
+        )?;
         self.tasks.push(task.clone());
 
         Ok(task)

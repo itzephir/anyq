@@ -1,13 +1,16 @@
+use crate::checkpoint::checkpoint;
 use crate::storage_error::storage;
 use anyq_queue_api::{Error, Result, Task, TaskState};
 use anyq_queue_dispatch::ports::{TaskFilter, TaskRecords};
 use rusqlite::{Connection, OptionalExtension, params};
+use std::sync::atomic::AtomicBool;
 
 const MATCHING_TASKS: &str = "FROM tasks t JOIN task_topics m ON m.task_id=t.id
     WHERE m.topic_name=?1 AND t.state=?2 AND (?3 IS NULL OR t.id<?3)";
 
 pub(crate) struct SqliteTasks<'a> {
     pub connection: &'a Connection,
+    pub cancelled: &'a AtomicBool,
 }
 
 fn state(value: &str) -> Result<TaskState> {
@@ -93,7 +96,14 @@ impl TaskRecords for SqliteTasks<'_> {
             )
             .map_err(storage)?;
 
-        Task::new(self.connection.last_insert_rowid(), name.into())
+        checkpoint("sqlite.after-task-insert", self.cancelled)?;
+
+        Task::restore(
+            self.connection.last_insert_rowid(),
+            name.into(),
+            TaskState::Registered,
+            Vec::new(),
+        )
     }
 
     fn save_task(&mut self, task: &Task) -> Result<()> {
@@ -109,6 +119,8 @@ impl TaskRecords for SqliteTasks<'_> {
             return Err(Error::Storage("cannot save a missing task".into()));
         }
 
+        checkpoint("sqlite.after-task-update", self.cancelled)?;
+
         self.connection
             .execute(
                 "DELETE FROM task_topics WHERE task_id=?1",
@@ -123,6 +135,7 @@ impl TaskRecords for SqliteTasks<'_> {
                     params![task.sequence(), topic],
                 )
                 .map_err(storage)?;
+            checkpoint("sqlite.after-membership-write", self.cancelled)?;
         }
 
         Ok(())

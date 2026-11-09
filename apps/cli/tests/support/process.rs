@@ -6,7 +6,7 @@ use std::{
 
 /// Keep test failures from leaking waiting CLI or external-caller processes.
 pub struct TestProcess {
-    child: Option<Child>,
+    pub child: Option<Child>,
 }
 
 impl TestProcess {

@@ -1,24 +1,29 @@
-use anyq_queue_api::{Task, TopicQueue};
+use anyq_queue_api::{Task, TopicQueue, format_name};
 
 pub fn registered(name: &str) -> String {
-    format!("successfully registered task '{name}'")
+    format!("successfully registered task '{}'", format_name(name))
 }
 
 pub fn added(name: &str, topic: &str) -> String {
-    format!("successfully added '{name}' to topic '{topic}'")
+    format!(
+        "successfully added '{}' to topic '{}'",
+        format_name(name),
+        format_name(topic)
+    )
 }
 
 pub fn waiting(name: &str) -> String {
-    format!("waiting for '{name}' to start")
+    format!("waiting for '{}' to start", format_name(name))
 }
 
 pub fn started(name: &str) -> String {
-    format!("'{name}' started")
+    format!("'{}' started", format_name(name))
 }
 
 pub fn completed(name: &str) -> String {
-    format!("'{name}' successfully completed")
+    format!("'{}' successfully completed", format_name(name))
 }
+
 pub fn task(task: &Task) -> String {
     let topics = if task.topics().is_empty() {
         "topics: (none)".into()
@@ -27,7 +32,7 @@ pub fn task(task: &Task) -> String {
             "topics:\n{}",
             task.topics()
                 .iter()
-                .map(|topic| format!("- {topic}"))
+                .map(|topic| format!("- {}", format_name(topic)))
                 .collect::<Vec<_>>()
                 .join("\n")
         )
@@ -35,7 +40,7 @@ pub fn task(task: &Task) -> String {
 
     format!(
         "task: {}\nstatus: {}\n{topics}",
-        task.name(),
+        format_name(task.name()),
         task.state().as_str()
     )
 }
@@ -49,7 +54,7 @@ pub fn topic_queue(queue: &TopicQueue) -> String {
             queue
                 .tasks
                 .iter()
-                .map(|task| format!("- {} [{}]", task.name(), task.state().as_str()))
+                .map(|task| format!("- {} [{}]", format_name(task.name()), task.state().as_str()))
                 .collect::<Vec<_>>()
                 .join("\n")
         )
@@ -57,6 +62,7 @@ pub fn topic_queue(queue: &TopicQueue) -> String {
 
     format!(
         "topic: {}\ncapacity: {}\n{tasks}",
-        queue.topic.name, queue.topic.capacity
+        format_name(&queue.topic.name),
+        queue.topic.capacity
     )
 }

@@ -17,7 +17,12 @@ def main():
     )
 
     with tempfile.TemporaryDirectory(prefix="anyq-demo-") as directory:
-        environment = {**os.environ, "ANYQ_DB": str(Path(directory) / "tasks.db")}
+        environment = {
+            **os.environ,
+            "ANYQ_DB": str(Path(directory) / "tasks.db"),
+            "HOME": directory,
+            "USERPROFILE": directory,
+        }
 
         def queue(*args):
             subprocess.run([str(binary), *args], env=environment, check=True)
@@ -35,7 +40,7 @@ def main():
                 "Test",
             ),
         ]:
-            queue("task", "add", name)
+            queue("task", "create", name)
 
             for index, topic in enumerate(topics):
                 if index == 0:
@@ -61,7 +66,7 @@ def main():
             finally:
                 queue("task", "complete", name)
 
-        queue("task", "add", "probe-001", "-twc", "large-builds")
+        queue("task", "create", "probe-001", "-twc", "large-builds")
         queue("task", "-l")
         queue("topic", "capacity", "large-builds")
 

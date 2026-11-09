@@ -1,0 +1,12 @@
+[package]
+name = "anyq-config-dispatch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-config-api = { path = "../../api" }
+
+[lints]
+workspace = true

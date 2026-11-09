@@ -1,17 +1,21 @@
 mod cli;
+mod config_args;
+mod config_command;
+mod normalize_arguments;
 pub use cli::Cli;
+pub use config_command::ConfigCommand;
+pub use normalize_arguments::normalize_arguments;
 
 mod commands;
 pub use commands::Commands;
 
-mod expand_task_add_flags;
+mod expand_task_create_flags;
 mod request;
 mod task_args;
 mod task_command;
 mod topic_args;
 mod topic_command;
 
-pub use expand_task_add_flags::expand_task_add_flags;
 pub use request::Request;
 pub use task_command::TaskCommand;
 pub use topic_command::TopicCommand;

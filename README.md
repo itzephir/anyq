@@ -1,156 +1,159 @@
 # anyq
 
-Локальная очередь допуска к ресурсам для именованных задач: сборок, агентов, людей и эмуляторов. Реализация на Rust, без сервера. Все участники используют один SQLite-файл на локальном диске.
+Локальная очередь допуска к ресурсам для именованных задач: сборок, агентов, людей и эмуляторов. Rust, без сервера; все участники используют один SQLite-файл на локальном диске.
 
-Задача может требовать несколько топиков одновременно. Успешный wait атомарно занимает по одному слоту каждого топика. После этого вызывающая сторона выполняет свою работу и завершает задачу через complete.
+Задача требует несколько топиков одновременно. Успешный wait атомарно занимает по одному слоту каждого топика. Вызывающая сторона выполняет работу и освобождает владение через complete.
 
 ## Установка
 
-Нужны Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются Linux, macOS и Windows MSVC с Visual Studio Build Tools C++.
+Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются Linux, macOS и Windows MSVC с Visual Studio Build Tools C++.
 
 ```bash
 cargo install --path apps/cli --locked
 anyq --help
 ```
 
-База по умолчанию: $XDG_DATA_HOME/anyq/queue.db или ~/.local/share/anyq/queue.db на Unix; %LOCALAPPDATA%\anyq\queue.db на Windows. ANYQ_DB и --db переопределяют путь.
+Приоритет базы: --db PATH > ANYQ_DB > db.path в config > системный default. Default: $XDG_DATA_HOME/anyq/queue.db или ~/.local/share/anyq/queue.db на Unix; %LOCALAPPDATA%\anyq\queue.db на Windows.
 
-**Версия 0.2 использует схему 2.** База прежних сообщений схемы 1 отклоняется без преобразования и удаления данных. Выберите отдельный файл через --db или ANYQ_DB; старый бинарник и старую базу можно сохранить для просмотра истории.
+**Версия 0.2 использует схему 2.** База прежних сообщений схемы 1 отклоняется без изменения или удаления. Выберите отдельный файл через --db; старый бинарник и базу можно сохранить для истории.
 
 ## Команды
 
 | Команда | Действие |
 | --- | --- |
-| `anyq topic --list` / `anyq topic -l` | Список топиков |
-| `anyq topic create TOPIC [-c N]` | Создать топик; `-c` = `--capacity`, по умолчанию 1 |
-| `anyq topic TOPIC` | Показать текущие running/queued в порядке регистрации |
-| `anyq topic capacity TOPIC [N]` | Прочитать вместимость или изменить её на N |
-| `anyq topic link TOPIC NAME` | Связать задачу с топиком |
-| `anyq task --list` / `anyq task -l` | Все имена задач по алфавиту, включая completed |
-| `anyq task NAME` | Показать состояние и топики задачи |
-| `anyq task add NAME [-t TOPIC] [-w] [-c]` | Зарегистрировать задачу с необязательными связями и следующими шагами |
-| `anyq task link NAME TOPIC` | Та же операция, что topic link |
-| `anyq task wait NAME` | Получить допуск во всех связанных топиках |
-| `anyq task complete NAME [-f]` | Завершить задачу; `-f` = `--force` |
+| `anyq topic list` / `topic --list` / `topic -l` | Список топиков |
+| `anyq topic create TOPIC [-c N]` | Создать топик; -c = --capacity, default 1 |
+| `anyq topic TOPIC` | Текущие running/queued по регистрации и capacity |
+| `anyq topic capacity TOPIC [N]` | Прочитать вместимость или изменить на N |
+| `anyq topic link TOPIC NAME [-w] [-c]` | Связать, затем опционально ждать/завершить |
+| `anyq task list` / `task --list` / `task -l` | Все имена по алфавиту, включая completed |
+| `anyq task NAME` | Состояние и сохранённые топики |
+| `anyq task create NAME [-t TOPIC] [-w] [-c]` | Зарегистрировать с начальными связями и следующими шагами |
+| `anyq task link NAME TOPIC [-w] [-c]` | Та же связь, что topic link |
+| `anyq task wait NAME [-c]` | Получить полный допуск; -c сразу завершает |
+| `anyq task complete NAME [-f]` | Завершить; -f = --force |
+| `anyq config KEY [VALUE]` | Прочитать или записать настройку |
+| `anyq config --get KEY` / `--unset KEY` | Прочитать или сбросить настройку |
+| `anyq config --list` / `-l` | Действующие настройки |
+| `anyq help [command]` | Справка, например help task link |
 
-`-v` = `--version`, `-h` = `--help`. Параметр `--db PATH` доступен во всех командах. Для имени задачи, совпадающего с подкомандой, используйте разделитель: `anyq task -- add`.
+-v = --version, -h = --help, -w = --wait, -c = --complete у задач. --db PATH доступен на любом уровне. Task add заменён на task create; старый add не является командой.
 
-Имена топиков `create`, `capacity`, `link`, `help` зарезервированы. Имя топика не может начинаться с `-`, в том числе с `--`. Это доменные правила: разделитель CLI, прямой вызов сценария или восстановление из хранилища не обходят проверку.
+Для всех действий есть name-first форма: topic link cpu job = topic cpu link job; task link job cpu = task job link cpu; topic cpu capacity [N]; topic cpu create [-c N]; task job create/wait/complete. Имена и глобальные параметры сохраняются при нормализации.
 
-Просмотр не изменяет состояния и владение. Завершённые задачи сохраняют связи для истории, но не входят в текущую очередь топика. Неизвестное имя даёт ошибку.
-
-У `task add` флаг `--topic/-t` можно повторять; все связи создаются вместе с задачей в одной транзакции. Неизвестный топик или ошибка сохранения откатывает всю регистрацию. `--wait/-w` требует хотя бы один топик, `--complete/-c` требует wait. Последующие шаги можно опустить:
+Create принимает повторяемый --topic/-t. Все начальные связи и задача сохраняются одной транзакцией. Wait требует хотя бы один topic; complete требует wait. У link complete тоже требует wait. Ошибки сочетаний отклоняются до открытия базы.
 
 ```bash
-anyq task add build-002 -t itzdesign-commands -t itzdesign-repo-lock
+anyq task create build-001 -t itzdesign-commands -t itzdesign-repo-lock
 # queued, без владения
-anyq task complete build-002 -f
+anyq task complete build-001 -f
 
-anyq task add build-003 -tw itzdesign-commands -t itzdesign-repo-lock
-# ждёт оба ресурса, затем остаётся running до отдельного complete
+anyq task create build-002 -tw itzdesign-commands -t itzdesign-repo-lock
+# running после допуска, до явного complete
 npm run build
-anyq task complete build-003
+anyq task complete build-002
 
-anyq task add probe-001 -twc pixel-10-emulator
-# регистрация → допуск → немедленное завершение
+anyq task create probe-001 -twc pixel-10-emulator
+# queued → running → completed
 ```
 
-Форма `-twc TOPIC` равнозначна `--topic TOPIC --wait --complete`. Ошибка ожидания прерывает цепочку. Флаг complete не выполняет внешнюю команду между допуском и завершением; внешняя работа остаётся у вызывающей стороны.
+-twc TOPIC = --topic TOPIC --wait --complete. Шаги цепочки имеют отдельные commits. Ошибка прекращает последующие шаги. Complete не запускает внешнюю команду между допуском и завершением.
+
+## Имена
+
+У задач и топиков общая доменная схема. Bare-имя начинается с латинской a-z/A-Z; остальные символы произвольны, включая пробелы, Unicode и обратные слеши. Bare-слова list/create/capacity/link/add/wait/complete/config/help зарезервированы. Начальный дефис без обёртки запрещён.
+
+Одна буквальная внешняя пара обратных кавычек разрешает любое содержимое: пустое, Unicode, слова команд, начальные дефисы и вложенные кавычки. Она снимается ровно один раз: build и `build` — одна сущность. Внутренние escapes не интерпретируются. Вывод даёт обратимое написание канонического имени.
+
+Shell должен передать обратные кавычки как текст. Примеры bash/zsh:
+
+```bash
+anyq topic create '`list`'
+anyq task create '`--задача`' -twc '`list`'
+anyq task create build\ with\ spaces -t '`list`'
+```
+
+В PowerShell буквальную обёртку тоже можно передать в одинарных кавычках. Shell-кавычки и буквальные обратные кавычки — разные уровни. Разделитель -- сам по себе не обходит доменные ограничения.
+
+## Настройки
+
+Файл ~/.anyq/config.toml. На Unix home — $HOME, на Windows — %USERPROFILE%. Без файла оба autocreate выключены; чтение defaults не создаёт файл.
+
+```bash
+anyq config task.autocreate true
+anyq config topic.autocreate true
+anyq config db.path '~/queues/tasks.db'
+anyq config --list
+anyq config --get task.autocreate
+anyq config --unset db.path
+```
+
+task.autocreate и topic.autocreate принимают true/false, default false. db.path — непустая строка; ~/ раскрывается относительно home, относительный путь — относительно рабочего каталога. Unset возвращает default. Неизвестные ключи и неверные значения дают ошибку. Старые autoadd-ключи не поддерживаются.
+
+Autocreate создаёт отсутствующий именованный объект внутри транзакции основной операции; новый топик capacity 1. Link может создать обе сущности и связь вместе. Успешный просмотр тоже может создать отсутствующую сущность. Ошибка откатывает автоматические создания: обычный task complete missing даёт was not run и не оставляет missing; --force может успешно создать и завершить его. Существующие состояния и правила имён сохраняются.
+
+Запись config атомарна и защищена системным файловым lock. Конкурентные изменения перечитывают актуальные значения. Config/help/version не открывают базу; help/version работают при повреждённом config. Чтение отсутствующего db.path возвращает 1 без сообщения; остальные ошибки — 2.
 
 ## Регистрация и допуск
 
-Для новой базы в текущем терминале:
-
 ```bash
 export ANYQ_DB="$HOME/.local/share/anyq/tasks-v2.db"
-
 anyq topic create itzdesign-commands
 anyq topic create itzdesign-repo-lock
 anyq topic create pixel-10-emulator
-anyq topic --list
-anyq topic capacity itzdesign-commands
+anyq topic list
 
-anyq task add build-revision-001
+anyq task create build-revision-001
 anyq topic link itzdesign-commands build-revision-001
 anyq task link build-revision-001 itzdesign-repo-lock
 anyq task wait build-revision-001
-```
-
-После успешного wait выполняется ваша команда в вашем окружении:
-
-```bash
 npm run build
 anyq task complete build-revision-001
 anyq task build-revision-001
-anyq task -l
 ```
 
-На Windows путь можно задать в PowerShell:
+В PowerShell путь задаётся через $env:ANYQ_DB. Код 0 у wait означает, что running уже сохранён. Waiting появляется при занятых ресурсах. Вызывающая сторона решает, как обработать результат внешней команды и когда завершать владение.
 
-```powershell
-$env:ANYQ_DB = "$env:LOCALAPPDATA\anyq\tasks-v2.db"
-anyq topic create itzdesign-commands
-anyq task add windows-build-001
-anyq task link windows-build-001 itzdesign-commands
-anyq task wait windows-build-001
-```
-
-Код 0 у wait означает, что допуск уже сохранён. Сообщение waiting появляется, если задача ещё ждёт. Вызывающая сторона сама решает, как обрабатывать exit code внешней команды и когда безопасно вызвать complete: anyq не запускает её, не определяет её результат и не останавливает её процессы.
-
-## Состояния и ошибки
+## Состояния, порядок и ошибки
 
 | Состояние | Значение |
 | --- | --- |
-| registered | Имя зарегистрировано, топиков пока нет |
-| queued | Есть топики, допуск ещё не получен |
-| running | Занято по одному слоту всех топиков |
-| completed | Владение завершено, запись остаётся в истории |
+| registered | Имя есть, топиков нет |
+| queued | Есть топики без допуска |
+| running | По одному слоту всех топиков |
+| completed | Владение завершено, история сохраняется |
 
-Имя уникально в пределах базы и не переиспользуется после завершения. Новое выполнение регистрируется с новым именем. Повторное добавление той же связи queued-задачи идемпотентно. Running- и completed-задачи нельзя добавлять в другие топики.
+Имя уникально и не переиспользуется после complete. Повтор queued-связи идемпотентен. Running/completed не меняют членство. Обычный complete допустим только для running; force также завершает registered/queued. Повторный wait для running/completed и повторное завершение дают ошибку. Два wait одного имени не получают два допуска.
 
 ```bash
-anyq task add unfinished
+anyq task create unfinished
 anyq task wait unfinished
 # error: 'unfinished' is not registered in any topic
-
 anyq task complete unfinished
 # error: 'unfinished' was not run
-
 anyq task complete --force unfinished
 # 'unfinished' successfully completed
 ```
 
-Обычный complete разрешён только для running. Force также завершает registered/queued без выполнения работы, снимая задачу с очередей. Отсутствующее имя и повторное завершение дают ошибку. Wait для уже running/completed тоже даёт ошибку; два одновременных wait одного имени не получают два допуска.
+Capacity положительна, default 1; уменьшение ниже текущего использования отклоняется. Во всех топиках один номер регистрации задачи. Допуск возможен, когда она входит в первые queued-задачи по числу свободных слотов каждого топика. Частичного захвата нет. Queued без активного wait сохраняет место; ненужную задачу снимают через complete --force.
 
-Успех CLI возвращает код 0, ошибки входа и состояния — 2 с сообщением в stderr. Операции регистрации и завершения печатают понятные текстовые ответы.
+Просмотр не меняет существующее владение; completed сохраняет связи, но не входит в текущую очередь. Неизвестное имя даёт ошибку, если соответствующий autocreate выключен.
 
-## Вместимость и порядок
+Успех CLI — 0, ошибки входа/состояния — 2 в stderr, первый Ctrl+C — 130. После commit состояние сохраняется даже при прерывании до успешного сообщения.
 
-```bash
-anyq topic create parallel-builds --capacity 2
-anyq topic capacity parallel-builds 3
-```
+## Постоянное владение и прерывания
 
-По умолчанию топик имеет один слот. Running-задача занимает один слот каждого своего топика. Уменьшение capacity ниже текущего использования отклоняется.
+Выход wait, падение вызывающего процесса и время не освобождают слоты. Нет heartbeat и таймаута владения. После аварии проверьте внешнюю работу, затем явно завершите известную задачу.
 
-Во всех топиках используется единый номер регистрации задачи. Задача допускается, когда в каждом топике она входит в первые queued-задачи по числу свободных слотов. Порядок добавления связей не создаёт противоположных очередей одной пары задач.
+Ctrl+C до commit откатывает текущую транзакцию; после commit сохраняет результат. В цепочке -twc это может быть queued/running/completed. При коде 130 проверьте task NAME: сохранённое running требует complete. Таблица исходов и native integration suite — [INTERRUPTIONS.md](docs/INTERRUPTIONS.md).
 
-Queued-задача сохраняет место даже без запущенного wait. Она может задерживать более поздние задачи, пока ждёт другой ресурс. Ненужную задачу можно снять через complete --force. Частично захваченных ресурсов у queued-задачи нет.
+История не очищается автоматически. База — на локальном диске; SQLite использует WAL, synchronous FULL, короткие IMMEDIATE-транзакции. Резервную копию активной базы создавайте SQLite backup.
 
-## Постоянное владение
-
-Выход wait, закрытие терминала, падение вызывающего процесса и прошедшее время не освобождают слоты. Владение сохраняется до явного complete. Heartbeat и автоматического таймаута нет.
-
-Если внешняя работа аварийно завершилась, сначала проверьте оставшиеся процессы и ресурс, затем завершите известное имя задачи. Complete фиксирует окончание владения, а не проверяет фактическое состояние эмулятора или файловой системы. Это кооперативная координация локальных процессов.
-
-История сохраняется без автоматической очистки. База предназначена для локального диска. SQLite использует WAL, synchronous FULL и короткие IMMEDIATE-транзакции; резервную копию создавайте SQLite backup, а не копированием одного файла при активном WAL.
-
-## Проверки и разработка
+## Проверки
 
 ```bash
 cargo build --locked -p anyq
 python examples/demo.py
-
 npm ci --ignore-scripts
 npm run spec:check
 python -m pip install -r tooling/requirements-dev.txt
@@ -159,10 +162,11 @@ python -m ruff format --check .
 python tooling/check_architecture.py
 cargo run --locked -p anyq-architecture-lint
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --locked
+cargo test --locked -p anyq --test interruptions --features integration-test-hooks
 ```
 
-Python нужен для tooling и демонстрации внешнего клиента, Node — для закреплённого OpenSpec CLI. Сам runtime anyq их не требует.
+Python нужен для tooling/демонстрации, Node — для закреплённого OpenSpec. Runtime anyq их не требует.
 
-Правила кода — [docs/CODE-RULES.md](docs/CODE-RULES.md), устройство модулей — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), CI и защита main — [docs/CI.md](docs/CI.md). Базовые требования находятся в [OpenSpec specs](openspec/specs/), текущий переход — в [coordinate-named-tasks](openspec/changes/coordinate-named-tasks/), история — в [архиве](openspec/changes/archive/).
+[Правила кода](docs/CODE-RULES.md), [архитектура](docs/ARCHITECTURE.md), [CI и защита main](docs/CI.md). [Базовые specs](openspec/specs/), [текущий change](openspec/changes/coordinate-named-tasks/), [архив](openspec/changes/archive/).

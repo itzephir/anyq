@@ -5,9 +5,13 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+integration-test-hooks = ["dep:anyq-integration-test-hooks"]
+
 [dependencies]
 anyq-queue-api = { path = "../../api" }
 anyq-queue-dispatch = { path = "../dispatch" }
+anyq-integration-test-hooks = { path = "../../../../tooling/integration-test-hooks", optional = true }
 rusqlite = { version = "0.38", features = ["bundled"] }
 
 [dev-dependencies]

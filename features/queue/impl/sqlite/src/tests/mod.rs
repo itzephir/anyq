@@ -70,30 +70,82 @@ fn usage(store: &Sqlite, resource: &str) -> u64 {
 }
 
 #[test]
-fn topic_storage_uses_domain_validation_for_writes_and_reconstruction() {
+fn canonical_names_survive_reopening_without_parsing_backticks_twice() {
+    let (dir, store) = fixture();
+    topic(&store, "``resource``", 1);
+    RegisterTaskInteractor::new(store.clone())
+        .register(RegisterTaskRequest {
+            name: "``job``".into(),
+            topics: vec!["``resource``".into()],
+        })
+        .unwrap();
+    start(&store, "``job``").unwrap();
+
+    drop(store);
+    let store = Sqlite::open(&dir.path().join("queue.db")).unwrap();
+    let queued = GetTopicQueueInteractor::new(store.clone())
+        .get("``resource``")
+        .unwrap();
+    let restored = GetTaskInteractor::new(store.clone())
+        .get("``job``")
+        .unwrap();
+
+    assert_eq!(queued.topic.name, "`resource`");
+    assert_eq!(queued.tasks.as_slice(), std::slice::from_ref(&restored));
+    assert_eq!(restored.name(), "`job`");
+    assert_eq!(restored.topics(), &["`resource`"]);
+    assert_eq!(restored.state(), TaskState::Running);
+
+    SetTopicCapacityInteractor::new(store.clone())
+        .set_capacity(Topic::new("``resource``".into(), 2).unwrap())
+        .unwrap();
+    complete(&store, "``job``", false);
+
+    assert_eq!(
+        GetTopicInteractor::new(store.clone())
+            .get("``resource``")
+            .unwrap()
+            .capacity,
+        2
+    );
+    assert_eq!(usage(&store, "`resource`"), 0);
+}
+
+#[test]
+fn topic_storage_validates_capacity_and_preserves_canonical_keyword_names() {
     let (_dir, store) = fixture();
 
-    for name in ["create", "capacity", "link", "help", "-cpu", "--list"] {
-        let result = store.clone().transaction(|records| {
-            records.topics().put_topic(&Topic {
-                name: name.into(),
-                capacity: 1,
-            })
-        });
+    let result = store.clone().transaction(|records| {
+        records.topics().put_topic(&Topic {
+            name: "cpu".into(),
+            capacity: 0,
+        })
+    });
 
-        assert!(result.is_err(), "{name}");
-        assert!(
-            ListTopicsInteractor::new(store.clone())
-                .list()
-                .unwrap()
-                .is_empty()
-        );
-    }
+    assert!(result.is_err());
+    assert!(
+        ListTopicsInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .is_empty()
+    );
+
+    store
+        .clone()
+        .transaction(|records| records.topics().put_topic(&Topic::new("`list`".into(), 1)?))
+        .unwrap();
+
+    assert_eq!(
+        ListTopicsInteractor::new(store.clone()).list().unwrap()[0].name,
+        "list"
+    );
 
     store
         .connection
         .borrow()
-        .execute("INSERT INTO topics VALUES ('--invalid', 1)", [])
+        .execute_batch(
+            "PRAGMA ignore_check_constraints=ON; INSERT INTO topics VALUES ('invalid', 0)",
+        )
         .unwrap();
 
     assert!(ListTopicsInteractor::new(store.clone()).list().is_err());
@@ -397,6 +449,131 @@ fn incompatible_databases_are_rejected_without_changing_their_bytes() {
             assert!(error.contains("unsupported database schema"));
         }
     }
+}
+
+#[test]
+fn autocreate_rolls_back_new_entities_after_domain_and_actual_sql_errors() {
+    let (_dir, store) = fixture();
+    let policy = AutoCreatePolicy {
+        tasks: true,
+        topics: true,
+    };
+
+    assert!(
+        TryStartTaskInteractor::with_policy(store.clone(), policy)
+            .try_start("missing")
+            .is_err()
+    );
+    assert!(
+        CompleteTaskInteractor::with_policy(store.clone(), policy)
+            .complete("missing", false)
+            .is_err()
+    );
+    assert!(
+        ListTasksInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .is_empty()
+    );
+
+    store
+        .connection
+        .borrow()
+        .execute_batch(
+            "CREATE TRIGGER fail_link BEFORE INSERT ON task_topics
+         BEGIN SELECT RAISE(ABORT,'injected'); END;",
+        )
+        .unwrap();
+
+    assert!(
+        AddTaskToTopicInteractor::with_policy(store.clone(), policy)
+            .add("job", "cpu")
+            .is_err()
+    );
+    assert!(
+        ListTasksInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        ListTopicsInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .is_empty()
+    );
+
+    store
+        .connection
+        .borrow()
+        .execute_batch("DROP TRIGGER fail_link")
+        .unwrap();
+    AddTaskToTopicInteractor::with_policy(store.clone(), policy)
+        .add("job", "cpu")
+        .unwrap();
+
+    assert_eq!(task(&store, "job").state(), TaskState::Queued);
+    assert_eq!(usage(&store, "cpu"), 0);
+    assert_eq!(start(&store, "job").unwrap(), StartOutcome::Started);
+    assert!(
+        AddTaskToTopicInteractor::with_policy(store.clone(), policy)
+            .add("job", "new")
+            .is_err()
+    );
+    assert_eq!(
+        ListTopicsInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn independent_connections_autocreate_one_identity_and_one_membership() {
+    let (dir, store) = fixture();
+    let barrier = Arc::new(Barrier::new(4));
+    let children: Vec<_> = (0..4)
+        .map(|_| {
+            let path = dir.path().join("queue.db");
+            let barrier = barrier.clone();
+
+            thread::spawn(move || {
+                let other = Sqlite::open(&path).unwrap();
+                barrier.wait();
+                AddTaskToTopicInteractor::with_policy(
+                    other,
+                    AutoCreatePolicy {
+                        tasks: true,
+                        topics: true,
+                    },
+                )
+                .add("`job`", "`cpu`")
+                .unwrap()
+            })
+        })
+        .collect();
+
+    let tasks: Vec<_> = children
+        .into_iter()
+        .map(|child| child.join().unwrap())
+        .collect();
+
+    assert!(tasks.iter().all(|item| item == &tasks[0]));
+    assert_eq!(
+        ListTasksInteractor::new(store.clone()).list().unwrap(),
+        ["job"]
+    );
+    assert_eq!(
+        ListTopicsInteractor::new(store.clone())
+            .list()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(task(&store, "job").topics(), &["cpu"]);
+    assert_eq!(start(&store, "job").unwrap(), StartOutcome::Started);
+    assert_eq!(usage(&store, "cpu"), 1);
 }
 
 fn race(path: &Path, operations: &[&str]) -> Vec<Result<StartOutcome>> {

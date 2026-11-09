@@ -1,14 +1,17 @@
+use crate::checkpoint::checkpoint;
 use crate::storage_error::storage;
 use anyq_queue_api::{Error, Result, Topic};
 use anyq_queue_dispatch::ports::TopicRecords;
 use rusqlite::{Connection, OptionalExtension, params};
+use std::sync::atomic::AtomicBool;
 
 pub(crate) struct SqliteTopics<'a> {
     pub connection: &'a Connection,
+    pub cancelled: &'a AtomicBool,
 }
 
 fn restore_topic((name, capacity): (String, u32)) -> Result<Topic> {
-    Topic::new(name, capacity).map_err(|error| Error::Storage(error.to_string()))
+    Topic::restore(name, capacity).map_err(|error| Error::Storage(error.to_string()))
 }
 
 impl TopicRecords for SqliteTopics<'_> {
@@ -40,7 +43,7 @@ impl TopicRecords for SqliteTopics<'_> {
     }
 
     fn put_topic(&mut self, t: &Topic) -> Result<()> {
-        let topic = Topic::new(t.name.clone(), t.capacity)?;
+        let topic = Topic::restore(t.name.clone(), t.capacity)?;
 
         self.connection
             .execute(
@@ -49,6 +52,8 @@ impl TopicRecords for SqliteTopics<'_> {
                 params![topic.name, topic.capacity],
             )
             .map_err(storage)?;
+
+        checkpoint("sqlite.after-topic-write", self.cancelled)?;
 
         Ok(())
     }

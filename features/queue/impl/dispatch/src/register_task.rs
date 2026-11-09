@@ -1,36 +1,44 @@
 use crate::{lookup_topic::lookup_topic, ports::Store};
-use anyq_queue_api::{Error, RegisterTask, RegisterTaskRequest, Result, Task, validate_name};
+use anyq_queue_api::AutoCreatePolicy;
+use anyq_queue_api::{Error, RegisterTask, RegisterTaskRequest, Result, Task, parse_name};
 
 pub struct RegisterTaskInteractor<S> {
     store: S,
+    policy: AutoCreatePolicy,
 }
 
 impl<S> RegisterTaskInteractor<S> {
     pub fn new(store: S) -> Self {
-        Self { store }
+        Self::with_policy(store, AutoCreatePolicy::default())
+    }
+
+    pub fn with_policy(store: S, policy: AutoCreatePolicy) -> Self {
+        Self { store, policy }
     }
 }
 
 impl<S: Store> RegisterTask for RegisterTaskInteractor<S> {
     fn register(&mut self, request: RegisterTaskRequest) -> Result<Task> {
-        validate_name(&request.name)?;
+        let name = parse_name(&request.name)?;
 
         self.store.transaction(|records| {
-            if records.tasks().task(&request.name)?.is_some() {
+            if records.tasks().task(&name)?.is_some() {
                 return Err(Error::Conflict(format!(
                     "task '{}' is already registered",
-                    request.name
+                    name
                 )));
             }
 
-            for topic in &request.topics {
-                lookup_topic(records, topic)?;
-            }
+            let topics = request
+                .topics
+                .iter()
+                .map(|topic| lookup_topic(records, topic, self.policy))
+                .collect::<Result<Vec<_>>>()?;
 
-            let mut task = records.tasks().insert_task(&request.name)?;
+            let mut task = records.tasks().insert_task(&name)?;
 
-            for topic in &request.topics {
-                task.add_topic(topic)?;
+            for topic in &topics {
+                task.link_topic(topic)?;
             }
 
             if !request.topics.is_empty() {

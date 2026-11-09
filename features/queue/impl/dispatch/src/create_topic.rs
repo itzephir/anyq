@@ -14,7 +14,7 @@ impl<S> CreateTopicInteractor<S> {
 impl<S: Store> CreateTopic for CreateTopicInteractor<S> {
     fn create(&mut self, topic: Topic) -> Result<Topic> {
         self.store.transaction(|records| {
-            let topic = Topic::new(topic.name, topic.capacity)?;
+            let topic = Topic::restore(topic.name, topic.capacity)?;
 
             if let Some(existing) = records.topics().topic(&topic.name)? {
                 if existing != topic {

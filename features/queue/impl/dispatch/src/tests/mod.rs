@@ -314,3 +314,50 @@ fn failed_saves_roll_back_admission_completion_and_membership() {
     );
     assert_eq!(*store.data.borrow(), running);
 }
+
+#[test]
+fn autocreate_changes_are_staged_with_the_primary_operation_and_rollback_on_save_failure() {
+    let store = MemoryStore::default();
+    let policy = AutoCreatePolicy {
+        tasks: true,
+        topics: true,
+    };
+
+    assert!(
+        TryStartTaskInteractor::with_policy(store.clone(), policy)
+            .try_start("missing")
+            .is_err()
+    );
+    assert!(
+        CompleteTaskInteractor::with_policy(store.clone(), policy)
+            .complete("missing", false)
+            .is_err()
+    );
+    assert!(store.data.borrow().tasks.is_empty());
+
+    store.data.borrow_mut().fail_save = true;
+    let before = store.data.borrow().clone();
+
+    assert!(
+        AddTaskToTopicInteractor::with_policy(store.clone(), policy)
+            .add("job", "cpu")
+            .is_err()
+    );
+    assert_eq!(*store.data.borrow(), before);
+
+    store.data.borrow_mut().fail_save = false;
+    let task = AddTaskToTopicInteractor::with_policy(store.clone(), policy)
+        .add("job", "cpu")
+        .unwrap();
+
+    assert_eq!(task.state(), TaskState::Queued);
+    assert_eq!(store.data.borrow().topics[0].capacity, 1);
+    assert_eq!(start(&store, "job").unwrap(), StartOutcome::Started);
+
+    assert!(
+        AddTaskToTopicInteractor::with_policy(store.clone(), policy)
+            .add("job", "new-topic")
+            .is_err()
+    );
+    assert_eq!(store.data.borrow().topics.len(), 1);
+}

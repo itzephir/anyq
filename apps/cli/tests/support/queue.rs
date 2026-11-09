@@ -23,7 +23,11 @@ impl Queue {
 
     pub fn cmd(&self, args: &[&str]) -> Command {
         let mut command = Command::new(env!("CARGO_BIN_EXE_anyq"));
-        command.env("ANYQ_DB", &self.db).args(args);
+        command
+            .env("ANYQ_DB", &self.db)
+            .env("HOME", self.dir.path())
+            .env("USERPROFILE", self.dir.path())
+            .args(args);
         command
     }
 
@@ -48,7 +52,7 @@ impl Queue {
     }
 
     pub fn task(&self, name: &str, topics: &[&str]) {
-        self.call(&["task", "add", name]);
+        self.call(&["task", "create", name]);
 
         for topic in topics {
             self.call(&["topic", "link", topic, name]);

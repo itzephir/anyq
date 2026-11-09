@@ -1,3 +1,5 @@
+use crate::begin_transaction::begin_transaction;
+use crate::checkpoint::checkpoint;
 use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
 use anyq_queue_api::{Error, Result};
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
@@ -6,6 +8,7 @@ use std::{
     cell::RefCell,
     path::Path,
     rc::Rc,
+    sync::{Arc, atomic::AtomicBool},
     thread,
     time::{Duration, Instant},
 };
@@ -15,6 +18,7 @@ const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Clone)]
 pub struct Sqlite {
     pub(crate) connection: Rc<RefCell<Connection>>,
+    cancelled: Arc<AtomicBool>,
 }
 
 fn compatible_version(connection: &Connection) -> Result<i64> {
@@ -50,10 +54,11 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
     Ok(version)
 }
 
-fn enable_wal(connection: &Connection) -> Result<()> {
+fn enable_wal(connection: &Connection, cancelled: &AtomicBool) -> Result<()> {
     let deadline = Instant::now() + LOCK_TIMEOUT;
 
     loop {
+        checkpoint("sqlite.before-wal", cancelled)?;
         match connection.pragma_update(None, "journal_mode", "WAL") {
             Ok(()) => return Ok(()),
             Err(error)
@@ -70,7 +75,13 @@ fn enable_wal(connection: &Connection) -> Result<()> {
 
 impl Sqlite {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_with_cancellation(path, Arc::new(AtomicBool::new(false)))
+    }
+
+    pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        checkpoint("sqlite.before-open", &cancelled)?;
         let mut connection = Connection::open(path).map_err(storage)?;
+        checkpoint("sqlite.after-open", &cancelled)?;
         connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
 
         // Check an existing database in one read snapshot before changing journal mode or schema.
@@ -83,13 +94,11 @@ impl Sqlite {
         connection
             .pragma_update(None, "foreign_keys", "ON")
             .map_err(storage)?;
-        enable_wal(&connection)?;
+        enable_wal(&connection, &cancelled)?;
         connection
             .pragma_update(None, "synchronous", "FULL")
             .map_err(storage)?;
-        let tx = connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
+        let tx = begin_transaction(&connection, &cancelled, LOCK_TIMEOUT)?;
 
         // Another opener may have initialized the database since the read-only check.
         if compatible_version(&tx)? == 0 {
@@ -98,10 +107,13 @@ impl Sqlite {
             tx.pragma_update(None, "user_version", 2).map_err(storage)?;
         }
 
+        checkpoint("sqlite.schema.before-commit", &cancelled)?;
         tx.commit().map_err(storage)?;
+        checkpoint("sqlite.schema.after-commit", &cancelled)?;
 
         Ok(Self {
             connection: Rc::new(RefCell::new(connection)),
+            cancelled,
         })
     }
 }
@@ -111,12 +123,13 @@ impl Store for Sqlite {
         &mut self,
         operation: impl FnOnce(&mut dyn UnitOfWork) -> Result<T>,
     ) -> Result<T> {
-        let mut connection = self.connection.borrow_mut();
-        let tx = connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(storage)?;
-        let result = operation(&mut SqliteUnitOfWork::new(&tx))?;
+        checkpoint("sqlite.before-transaction", &self.cancelled)?;
+        let connection = self.connection.borrow_mut();
+        let tx = begin_transaction(&connection, &self.cancelled, LOCK_TIMEOUT)?;
+        let result = operation(&mut SqliteUnitOfWork::new(&tx, &self.cancelled))?;
+        checkpoint("sqlite.before-commit", &self.cancelled)?;
         tx.commit().map_err(storage)?;
+        checkpoint("sqlite.after-commit", &self.cancelled)?;
 
         Ok(result)
     }

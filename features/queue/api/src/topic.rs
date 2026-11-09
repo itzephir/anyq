@@ -1,4 +1,4 @@
-use crate::{Error, Result, validate_topic_name};
+use crate::{Error, Result, parse_topic_name};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Topic {
@@ -7,9 +7,14 @@ pub struct Topic {
 }
 
 impl Topic {
-    pub fn new(name: String, capacity: u32) -> Result<Self> {
-        validate_topic_name(&name)?;
+    pub const DEFAULT_CAPACITY: u32 = 1;
 
+    pub fn new(name: String, capacity: u32) -> Result<Self> {
+        Self::restore(parse_topic_name(&name)?, capacity)
+    }
+
+    /// Reconstruct a canonical stored name without interpreting backticks again.
+    pub fn restore(name: String, capacity: u32) -> Result<Self> {
         if capacity == 0 {
             return Err(Error::Invalid("capacity must be positive".into()));
         }

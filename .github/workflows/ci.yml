@@ -34,7 +34,7 @@ jobs:
       - run: python tooling/check_architecture.py
       - run: cargo run --locked -p anyq-architecture-lint
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
   build-and-unit-tests:
     name: Build & unit tests (${{ matrix.os }})
     strategy:
@@ -48,7 +48,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --workspace --locked
-      - run: cargo test --workspace --lib --bins --exclude anyq-queue-sqlite --locked
+      - run: cargo test --workspace --lib --bins --exclude anyq-queue-sqlite --exclude anyq-config-file --locked
   integration-tests:
     name: Integration tests (${{ matrix.os }})
     strategy:
@@ -66,7 +66,11 @@ jobs:
           python-version: '3.12'
       - name: SQLite integration tests
         run: cargo test --locked -p anyq-queue-sqlite --lib
-      - run: cargo test --locked -p anyq --test workflow
+      - name: Configuration file integration tests
+        run: cargo test --locked -p anyq-config-file --lib
+      - run: cargo test --locked -p anyq --test workflow --features integration-test-hooks
+      - name: Native Ctrl+C integration tests
+        run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
   ci-passed:

@@ -1,11 +1,11 @@
 use std::ffi::OsString;
 
-/// Move the value-taking -t to the end of task-add clusters such as -twc TOPIC.
-pub fn expand_task_add_flags(arguments: impl IntoIterator<Item = OsString>) -> Vec<OsString> {
+/// Move the value-taking -t to the end of task-create clusters such as -twc TOPIC.
+pub fn expand_task_create_flags(arguments: impl IntoIterator<Item = OsString>) -> Vec<OsString> {
     enum Position {
         Root,
         Task,
-        Add,
+        Create,
         Other,
     }
 
@@ -31,12 +31,12 @@ pub fn expand_task_add_flags(arguments: impl IntoIterator<Item = OsString>) -> V
 
             position = match position {
                 Position::Root if text == "task" => Position::Task,
-                Position::Task if text == "add" => Position::Add,
+                Position::Task if text == "create" => Position::Create,
                 Position::Root | Position::Task if !text.starts_with('-') => Position::Other,
                 other => other,
             };
 
-            if matches!(position, Position::Add) {
+            if matches!(position, Position::Create) {
                 if let Some(flags) = topic_cluster(text) {
                     expanded.push(format!("-{flags}").into());
                     expanded.push("-t".into());

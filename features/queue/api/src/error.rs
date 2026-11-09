@@ -8,11 +8,13 @@ pub enum Error {
     NotFound(String),
     Conflict(String),
     Storage(String),
+    Interrupted,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Interrupted => f.write_str("interrupted"),
             Self::Invalid(s) | Self::NotFound(s) | Self::Conflict(s) | Self::Storage(s) => {
                 f.write_str(s)
             }

@@ -1,0 +1,17 @@
+[package]
+name = "anyq-config-impl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+integration-test-hooks = ["anyq-config-file/integration-test-hooks"]
+
+[dependencies]
+anyq-config-api = { path = "../../api" }
+anyq-config-dispatch = { path = "../dispatch" }
+anyq-config-file = { path = "../file" }
+
+[lints]
+workspace = true

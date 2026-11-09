@@ -1,6 +1,6 @@
 use crate::{
-    Error, ResourceAvailability, Result, StartOutcome, TaskState, validate_name,
-    validate_topic_name,
+    Error, ResourceAvailability, Result, StartOutcome, TaskState, Topic, parse_name,
+    parse_topic_name,
 };
 use std::collections::BTreeSet;
 
@@ -14,24 +14,23 @@ pub struct Task {
 
 impl Task {
     pub fn new(sequence: i64, name: String) -> Result<Self> {
-        Self::restore(sequence, name, TaskState::Registered, Vec::new())
+        Self::restore(
+            sequence,
+            parse_name(&name)?,
+            TaskState::Registered,
+            Vec::new(),
+        )
     }
 
-    /// Reconstruct a persisted aggregate without bypassing its invariants.
+    /// Reconstruct canonical stored names without interpreting backticks again.
     pub fn restore(
         sequence: i64,
         name: String,
         state: TaskState,
         mut topics: Vec<String>,
     ) -> Result<Self> {
-        validate_name(&name)?;
-
         if sequence <= 0 {
             return Err(Error::Invalid("task sequence must be positive".into()));
-        }
-
-        for topic in &topics {
-            validate_topic_name(topic)?;
         }
 
         topics.sort();
@@ -73,8 +72,14 @@ impl Task {
     }
 
     pub fn add_topic(&mut self, topic: &str) -> Result<()> {
-        validate_topic_name(topic)?;
+        self.attach_topic(parse_topic_name(topic)?)
+    }
 
+    pub fn link_topic(&mut self, topic: &Topic) -> Result<()> {
+        self.attach_topic(topic.name.clone())
+    }
+
+    fn attach_topic(&mut self, topic: String) -> Result<()> {
         if matches!(self.state, TaskState::Running | TaskState::Completed) {
             return Err(Error::Conflict(format!(
                 "'{}' is already {}",
@@ -83,8 +88,8 @@ impl Task {
             )));
         }
 
-        if !self.topics.iter().any(|name| name == topic) {
-            self.topics.push(topic.into());
+        if !self.topics.contains(&topic) {
+            self.topics.push(topic);
             self.topics.sort();
         }
 

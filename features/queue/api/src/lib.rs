@@ -2,11 +2,14 @@
 mod error;
 pub use error::{Error, Result};
 
-mod validate_name;
-pub use validate_name::validate_name;
+mod auto_create_policy;
+pub use auto_create_policy::AutoCreatePolicy;
 
-mod validate_topic_name;
-pub use validate_topic_name::validate_topic_name;
+mod parse_name;
+pub use parse_name::{parse_name, parse_name as parse_topic_name};
+
+mod format_name;
+pub use format_name::format_name;
 
 mod topic;
 pub use topic::Topic;

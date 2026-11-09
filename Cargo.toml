@@ -5,8 +5,13 @@ members = [
   "features/queue/impl/dispatch",
   "features/queue/impl/sqlite",
   "features/queue/impl/composition",
+  "features/config/api",
+  "features/config/impl/dispatch",
+  "features/config/impl/file",
+  "features/config/impl/composition",
   "apps/cli",
-  "tooling/architecture-lint"
+  "tooling/architecture-lint",
+  "tooling/integration-test-hooks"
 ]
 
 [workspace.package]

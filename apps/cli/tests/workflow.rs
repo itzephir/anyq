@@ -1,5 +1,8 @@
 mod support;
 
+#[path = "support/cli_extensions.rs"]
+mod cli_extensions;
+
 use rusqlite::Connection;
 use std::{
     fs,
@@ -11,6 +14,65 @@ use support::{
     process::TestProcess,
     queue::{Queue, wait_for_file},
 };
+
+#[test]
+fn bare_and_backtick_wrapped_names_share_registration_links_and_lookup() {
+    let q = Queue::new();
+    q.topic("`cpu`");
+    q.topic("cpu");
+    q.call(&["task", "create", "`build`", "-t", "`cpu`"]);
+
+    assert_eq!(q.call(&["topic", "-l"]), "- cpu");
+    assert_eq!(q.call(&["task", "-l"]), "- build");
+    assert_eq!(q.raw(&["task", "create", "build"]).status.code(), Some(2));
+    q.call(&["task", "link", "build", "cpu"]);
+    q.call(&["task", "wait", "`build`"]);
+
+    assert_eq!(
+        q.call(&["task", "build"]),
+        "task: build\nstatus: running\ntopics:\n- cpu"
+    );
+    assert!(q.call(&["topic", "`cpu`"]).contains("- build [running]"));
+    q.call(&["topic", "capacity", "`cpu`", "2"]);
+    assert_eq!(q.call(&["topic", "capacity", "cpu"]), "2");
+    q.call(&["task", "complete", "build"]);
+
+    assert_eq!(q.state("build"), "completed");
+    assert_eq!(q.usage("cpu"), 0);
+
+    for name in ["`create`", "`capacity`", "`link`", "`help`"] {
+        q.topic(name);
+    }
+}
+
+#[test]
+fn arbitrary_name_text_and_quoted_initials_work_through_chained_cli_and_storage() {
+    let q = Queue::new();
+
+    for (index, topic) in [
+        "a spaces/символы #$%@!^&*+~?><,.;:(){}[]\"'",
+        "`🔥 ресурс`",
+        "`--leading`",
+        "``literal``",
+        "``",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let name = format!("`задача {index}`");
+        q.topic(topic);
+        let trace = q.call(&["task", "create", &name, "-twc", topic]);
+
+        assert!(trace.contains(&format!("'{name}' started")));
+        assert!(trace.contains(&format!("'{name}' successfully completed")));
+        assert_eq!(q.state(&format!("задача {index}")), "completed");
+        assert_eq!(
+            q.call(&["task", &name]),
+            format!("task: {name}\nstatus: completed\ntopics:\n- {topic}")
+        );
+        assert!(q.call(&["topic", topic]).ends_with("queue: (empty)"));
+    }
+}
 
 #[test]
 fn topic_and_task_inspection_show_state_capacity_and_only_current_queue_entries() {
@@ -68,24 +130,24 @@ fn topic_and_task_inspection_show_state_capacity_and_only_current_queue_entries(
 fn task_names_can_be_inspected_with_a_separator_and_global_database_option() {
     let q = Queue::new();
     q.topic("cpu");
-    q.task("add", &["cpu"]);
-    q.call(&["task", "add", "--", "-twc"]);
+    q.task("`add`", &["cpu"]);
+    q.call(&["task", "create", "--", "`-twc`"]);
 
     assert_eq!(
-        q.call(&["task", "--", "-twc"]),
-        "task: -twc\nstatus: registered\ntopics: (none)"
+        q.call(&["task", "--", "`-twc`"]),
+        "task: `-twc`\nstatus: registered\ntopics: (none)"
     );
 
     assert_eq!(
-        q.call(&["task", "--", "add"]),
-        "task: add\nstatus: queued\ntopics:\n- cpu"
+        q.call(&["task", "--", "`add`"]),
+        "task: `add`\nstatus: queued\ntopics:\n- cpu"
     );
 
     let output = TestProcess::spawn(
         q.cmd(&["task", "--db"])
             .arg(&q.db)
             .arg("--")
-            .arg("add")
+            .arg("`add`")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()),
     )
@@ -154,7 +216,7 @@ fn short_options_and_initial_topics_preserve_capacity_and_manual_ownership() {
     for name in ["a", "b"] {
         assert_eq!(
             q.call(&[
-                "task", "add", name, "--topic", "cpu", "-t", "repo", "-t", "cpu"
+                "task", "create", name, "--topic", "cpu", "-t", "repo", "-t", "cpu"
             ]),
             format!("successfully registered task '{name}'")
         );
@@ -181,13 +243,13 @@ fn registration_with_unknown_initial_topic_is_atomic_and_can_be_retried() {
     q.topic("cpu");
     q.topic("repo");
 
-    let failed = q.raw(&["task", "add", "build", "-t", "cpu", "-t", "missing"]);
+    let failed = q.raw(&["task", "create", "build", "-t", "cpu", "-t", "missing"]);
 
     assert_eq!(failed.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&failed.stderr).contains("topic 'missing' does not exist"));
     assert_eq!(q.call(&["task", "--list"]), "");
 
-    q.call(&["task", "add", "build", "-t", "cpu", "--topic", "repo"]);
+    q.call(&["task", "create", "build", "-t", "cpu", "--topic", "repo"]);
     q.call(&["task", "wait", "build"]);
 
     assert_eq!(q.state("build"), "running");
@@ -205,10 +267,10 @@ fn flag_dependencies_and_replaced_syntax_fail_before_opening_a_database() {
         vec!["topic", "capacity", "cpu", "0"],
         vec!["topic", "--list", "create", "cpu"],
         vec!["task", "-l", "add", "build"],
-        vec!["task", "add", "build", "--wait"],
-        vec!["task", "add", "build", "--complete"],
-        vec!["task", "add", "build", "--topic", "cpu", "--complete"],
-        vec!["task", "add", "build", "-tc", "cpu"],
+        vec!["task", "create", "build", "--wait"],
+        vec!["task", "create", "build", "--complete"],
+        vec!["task", "create", "build", "--topic", "cpu", "--complete"],
+        vec!["task", "create", "build", "-tc", "cpu"],
     ] {
         let output = q.raw(&command);
 
@@ -223,7 +285,7 @@ fn help_and_version_shortcuts_are_equal_and_do_not_open_a_database() {
 
     assert_eq!(q.call(&["-v"]), q.call(&["--version"]));
     assert_eq!(q.call(&["-h"]), q.call(&["--help"]));
-    let help = q.call(&["task", "add", "--help"]);
+    let help = q.call(&["task", "create", "--help"]);
 
     for option in ["--topic", "--wait", "--complete"] {
         assert!(help.contains(option));
@@ -240,7 +302,7 @@ fn chained_registration_waits_before_completing_and_can_keep_ownership() {
     q.task("owner", &["cpu"]);
     q.call(&["task", "wait", "owner"]);
     let mut chained = TestProcess::spawn(
-        q.cmd(&["task", "add", "chained", "-twc", "cpu", "-t", "repo"])
+        q.cmd(&["task", "create", "chained", "-twc", "cpu", "-t", "repo"])
             .arg("--db")
             .arg(&q.db)
             .stdout(Stdio::piped())
@@ -265,7 +327,7 @@ fn chained_registration_waits_before_completing_and_can_keep_ownership() {
     assert_eq!(q.usage("cpu"), 0);
     assert_eq!(q.usage("repo"), 0);
 
-    q.call(&["task", "add", "held", "-tw", "cpu"]);
+    q.call(&["task", "create", "held", "-tw", "cpu"]);
 
     assert_eq!(q.state("held"), "running");
     assert_eq!(q.usage("cpu"), 1);
@@ -273,7 +335,7 @@ fn chained_registration_waits_before_completing_and_can_keep_ownership() {
     assert_eq!(
         q.call(&[
             "task",
-            "add",
+            "create",
             "long",
             "--topic",
             "cpu",
@@ -291,7 +353,7 @@ fn forcing_a_chained_wait_stops_before_start_or_automatic_completion() {
     q.task("owner", &["cpu"]);
     q.call(&["task", "wait", "owner"]);
     let chained = TestProcess::spawn(
-        q.cmd(&["task", "add", "pending", "-twc", "cpu"])
+        q.cmd(&["task", "create", "pending", "-twc", "cpu"])
             .stdout(Stdio::piped())
             .stderr(fs::File::create(q.log("pending-chain")).unwrap()),
     );
@@ -354,7 +416,7 @@ fn native_lifecycle_matches_the_user_protocol() {
         "- itzdesign-commands\n- itzdesign-repo-lock\n- pixel-10-emulator"
     );
     assert_eq!(
-        q.call(&["task", "add", "my-task"]),
+        q.call(&["task", "create", "my-task"]),
         "successfully registered task 'my-task'"
     );
     assert_eq!(q.state("my-task"), "registered");
@@ -399,7 +461,7 @@ fn native_lifecycle_matches_the_user_protocol() {
     assert_eq!(q.usage("itzdesign-commands"), 0);
     assert_eq!(q.usage("itzdesign-repo-lock"), 0);
     assert!(!q.raw(&["task", "complete", "my-task"]).status.success());
-    assert!(!q.raw(&["task", "add", "my-task"]).status.success());
+    assert!(!q.raw(&["task", "create", "my-task"]).status.success());
     assert!(
         !q.raw(&["task", "complete", "--force", "unknown"])
             .status
@@ -584,6 +646,8 @@ fn killing_external_caller_and_waiter_does_not_release_or_complete_tasks() {
             .env("ANYQ_TEST_CALLER", "1")
             .env("ANYQ_TEST_READY", &ready)
             .env("ANYQ_DB", &q.db)
+            .env("HOME", q.dir.path())
+            .env("USERPROFILE", q.dir.path())
             .stdout(Stdio::null())
             .stderr(Stdio::null()),
     );
@@ -673,17 +737,17 @@ fn topic_command_names_and_leading_dashes_cannot_bypass_domain_validation() {
         assert_eq!(output.status.code(), Some(2), "{name}");
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(
-            error.contains("reserved") || error.contains("must not start"),
+            error.contains("reserved") || error.contains("must start"),
             "{name}: {error}"
         );
         assert!(!q.db.exists(), "{name}");
     }
 
-    q.call(&["topic", "create", "add", "--capacity=2"]);
-    q.task("wait", &["add"]);
+    q.call(&["topic", "create", "`add`", "--capacity=2"]);
+    q.task("`wait`", &["`add`"]);
 
-    q.call(&["topic", "capacity", "add", "3"]);
-    q.call(&["task", "wait", "wait"]);
+    q.call(&["topic", "capacity", "`add`", "3"]);
+    q.call(&["task", "wait", "`wait`"]);
 
     assert_eq!(q.state("wait"), "running");
     assert_eq!(q.usage("add"), 1);
@@ -763,6 +827,8 @@ fn windows_default_uses_local_app_data_and_anyq_db_overrides_it() {
             .args(["topic", "--list"])
             .env_remove("ANYQ_DB")
             .env("LOCALAPPDATA", &local)
+            .env("HOME", q.dir.path())
+            .env("USERPROFILE", q.dir.path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()),
     )
@@ -791,6 +857,7 @@ fn unix_default_uses_xdg_then_home_without_touching_real_user_data() {
         Command::new(env!("CARGO_BIN_EXE_anyq"))
             .args(["topic", "--list"])
             .env_remove("ANYQ_DB")
+            .env("USERPROFILE", q.dir.path())
             .env("XDG_DATA_HOME", &xdg)
             .env("HOME", &home)
             .stdout(Stdio::piped())

@@ -1,24 +1,73 @@
 use crate::*;
 
 #[test]
-fn topic_names_reject_commands_and_leading_dashes_in_every_domain_path() {
+fn unquoted_commands_and_non_latin_initials_require_the_explicit_wrapper() {
     for name in [
-        "create", "capacity", "link", "help", "-", "--", "-cpu", "--list",
+        "list", "create", "capacity", "link", "add", "wait", "complete", "config", "help", "-",
+        "--", "-cpu", "--list", "9cpu", "🔥",
     ] {
         let mut task = Task::new(1, "build".into()).unwrap();
 
         assert!(Topic::new(name.into(), 1).is_err(), "{name}");
+        assert!(Task::new(1, name.into()).is_err(), "{name}");
         assert!(task.add_topic(name).is_err(), "{name}");
-        assert!(
-            Task::restore(1, "build".into(), TaskState::Queued, vec![name.into()]).is_err(),
-            "{name}"
-        );
+        assert_eq!(Topic::new(format!("`{name}`"), 1).unwrap().name, name);
+        assert_eq!(Task::new(1, format!("`{name}`")).unwrap().name(), name);
+        assert!(Topic::restore(name.into(), 1).is_ok());
         assert_eq!(task.state(), TaskState::Registered);
         assert!(task.topics().is_empty());
     }
 
-    for name in ["cpu", "large-builds", "add", "task", "topic", "Create"] {
+    for name in ["cpu", "large-builds", "task", "topic", "Create"] {
         assert!(Topic::new(name.into(), 1).is_ok(), "{name}");
+    }
+}
+
+#[test]
+fn rich_names_and_literal_backtick_wrappers_have_one_canonical_identity() {
+    for (input, value) in [
+        (
+            "a spaces/символы #$%@!^&*+~?><,.;:(){}[]\"'",
+            "a spaces/символы #$%@!^&*+~?><,.;:(){}[]\"'",
+        ),
+        ("`build`", "build"),
+        ("`🔥 сборка`", "🔥 сборка"),
+        ("`--cpu`", "--cpu"),
+        ("``literal``", "`literal`"),
+        ("``", ""),
+        ("`🔥\n\0`", "🔥\n\0"),
+    ] {
+        let mut task = Task::new(1, input.into()).unwrap();
+        let topic = Topic::new(input.into(), 1).unwrap();
+
+        task.add_topic(input).unwrap();
+        let restored =
+            Task::restore(1, task.name().into(), task.state(), task.topics().to_vec()).unwrap();
+
+        assert_eq!(task.name(), value);
+        assert_eq!(topic.name, value);
+        assert_eq!(task.topics(), &[value]);
+        assert_eq!(restored, task);
+        assert_eq!(parse_name(&format_name(value)).unwrap(), value);
+    }
+
+    assert!(Task::new(1, "a".repeat(1024)).is_ok());
+}
+
+#[test]
+fn bare_names_require_an_ascii_latin_initial_and_balanced_outer_backticks() {
+    for input in [
+        "",
+        "9task",
+        "-task",
+        "--topic",
+        "🔥",
+        "задача",
+        "`unclosed",
+        "'",
+    ] {
+        assert!(Task::new(1, input.into()).is_err(), "{input}");
+        assert!(Topic::new(input.into(), 1).is_err(), "{input}");
     }
 }
 
@@ -171,7 +220,7 @@ fn force_completes_registered_queued_and_running_tasks() {
 #[test]
 fn invalid_names_sequences_and_persisted_membership_are_rejected() {
     assert!(Task::new(0, "build".into()).is_err());
-    assert!(Task::new(1, "bad name".into()).is_err());
+    assert!(Task::new(1, "9bad name".into()).is_err());
     assert!(Topic::new("cpu".into(), 0).is_err());
     assert!(Task::restore(1, "build".into(), TaskState::Running, vec![]).is_err());
     assert!(Task::restore(1, "build".into(), TaskState::Registered, vec!["cpu".into()]).is_err());
@@ -187,7 +236,7 @@ fn invalid_names_sequences_and_persisted_membership_are_rejected() {
 
     let mut task = Task::new(1, "build".into()).unwrap();
 
-    assert!(task.add_topic("bad topic").is_err());
+    assert!(task.add_topic("9bad topic").is_err());
     assert_eq!(task.state(), TaskState::Registered);
     assert!(task.topics().is_empty());
 }
@@ -198,4 +247,19 @@ fn capacity_cannot_be_reduced_below_existing_ownership() {
 
     assert!(topic.require_capacity_for(2).is_ok());
     assert!(topic.require_capacity_for(3).is_err());
+}
+
+#[test]
+fn autocreate_defaults_and_independent_switches_have_one_domain_owner() {
+    let defaults = AutoCreatePolicy::default();
+
+    assert!(defaults.require_task_creation("job").is_err());
+    assert!(defaults.require_topic_creation("cpu").is_err());
+
+    for (tasks, topics) in [(false, true), (true, false), (true, true)] {
+        let policy = AutoCreatePolicy { tasks, topics };
+
+        assert_eq!(policy.require_task_creation("job").is_ok(), tasks);
+        assert_eq!(policy.require_topic_creation("cpu").is_ok(), topics);
+    }
 }

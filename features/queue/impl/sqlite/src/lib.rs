@@ -1,4 +1,6 @@
 //! SQLite adapter for the named-task transaction boundary.
+mod begin_transaction;
+mod checkpoint;
 mod sqlite;
 pub use sqlite::Sqlite;
 
