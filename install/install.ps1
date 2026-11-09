@@ -27,7 +27,7 @@ try {
         $finalUri = if ($PSVersionTable.PSVersion.Major -lt 6) { $response.BaseResponse.ResponseUri } else { $response.BaseResponse.RequestMessage.RequestUri }
         $Version = $finalUri.AbsolutePath.Split('/')[-1]
     }
-    if ($Version -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$') { throw 'Expected a release version such as v0.2.0' }
+    if ($Version -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$') { throw 'Expected a release version such as v0.1.0' }
 
     $asset = 'anyq-x86_64-pc-windows-msvc.zip'
     $tempDir = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString('N'))
