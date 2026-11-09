@@ -73,10 +73,20 @@ jobs:
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
+  distribution:
+    uses: ./.github/workflows/distribution.yml
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python tooling/build_website.py
+      - run: docker build -f website/Dockerfile -t anyq-site:test .
+      - run: bash tooling/test_website_container.sh
   ci-passed:
     name: CI passed
     if: ${{ always() }}
-    needs: [lint, build-and-unit-tests, integration-tests]
+    needs: [lint, build-and-unit-tests, integration-tests, distribution, website]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -85,7 +95,11 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs['build-and-unit-tests'].result }}
           INTEGRATION_RESULT: ${{ needs['integration-tests'].result }}
+          DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
+          WEBSITE_RESULT: ${{ needs.website.result }}
         run: |
           test "$LINT_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$INTEGRATION_RESULT" = success
+          test "$DISTRIBUTION_RESULT" = success
+          test "$WEBSITE_RESULT" = success

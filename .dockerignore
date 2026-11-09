@@ -1,0 +1,9 @@
+*
+!website/
+!website/**
+website/dist/
+website/screenshots/
+!install/
+!install/**
+!tooling/
+!tooling/build_website.py
