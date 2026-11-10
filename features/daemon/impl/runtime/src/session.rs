@@ -49,7 +49,10 @@ impl Session {
             &self.signals.closed,
             Duration::from_secs(5),
         )
-        .map_err(|error| Error::Storage(error.to_string()))
+        .map_err(|error| Error::Storage(error.to_string()))?;
+        self.signals.active.store(false, Ordering::SeqCst);
+
+        Ok(())
     }
 
     fn ready(&self) -> QueueResponse {
@@ -66,7 +69,11 @@ impl Session {
             }
 
             match receiver.recv_timeout(Duration::from_millis(10)) {
-                Ok(frame) if frame.version == PROTOCOL_VERSION => return Ok(frame),
+                Ok(frame) if frame.version == PROTOCOL_VERSION => {
+                    self.signals.active.store(true, Ordering::SeqCst);
+
+                    return Ok(frame);
+                }
                 Ok(_) => {
                     return Err(Error::Invalid(
                         "incompatible daemon protocol version".into(),
@@ -202,13 +209,17 @@ impl Session {
         let reader = thread::spawn(move || {
             let mut reader = FrameReader::default();
 
-            while let Ok(frame) =
-                reader.receive::<RequestFrame>(&stream, &signals.closed, Duration::from_secs(30))
-            {
+            while let Ok(frame) = reader.receive_request::<RequestFrame>(
+                &stream,
+                &signals.closed,
+                &signals.active,
+                Duration::from_secs(30),
+            ) {
                 if matches!(frame.request, QueueRequest::Cancel) {
                     break;
                 }
 
+                signals.active.store(true, Ordering::SeqCst);
                 if sender.try_send(frame).is_err() {
                     break;
                 }

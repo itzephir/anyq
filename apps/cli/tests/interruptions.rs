@@ -9,6 +9,34 @@ use std::fs;
 use support::queue::Queue;
 
 #[test]
+fn active_request_survives_the_incoming_frame_idle_timeout() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "slow", "-t", "cpu", "-wc"],
+        "sqlite.before-commit",
+        1,
+    );
+
+    std::thread::sleep(std::time::Duration::from_secs(31));
+    assert!(
+        queue
+            .call(&["daemon", "status"])
+            .starts_with("daemon is running")
+    );
+    let output = client.release();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(queue.state("slow"), "completed");
+    assert_eq!(queue.usage("cpu"), 0);
+}
+
+#[test]
 fn native_owner_ctrl_c_rolls_back_or_preserves_its_active_client_commit() {
     for (stage, committed) in [
         ("sqlite.before-commit", false),
