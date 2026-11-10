@@ -7,3 +7,5 @@ mod file_lock;
 
 #[cfg(test)]
 mod tests;
+
+pub mod paths;

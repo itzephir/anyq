@@ -260,3 +260,21 @@ staleness. No persisted queue revision or business-schema change is needed.
   support? Record dependency/version and packaging evidence in task 1.2 before
   feature implementation. These choices must preserve the Rust controller,
   daemon-only data access, and platform behaviors described above.
+
+
+## Selected adapters and implementation evidence
+
+Tauri 2.11.6/tauri-build 2.6.3, dialog 2.7.3 and CLI 2.12.4 implement the shared
+renderer/native shell. The optional native feature keeps CLI dependency builds
+independent. The app root injects a narrow observation callback and preference
+use cases; the external worker owns clocks, cancellation and native publication.
+Linux uses its native status menu because portable tray click-coordinate events
+are unavailable; no-host sessions retain an ordinary window.
+
+[Desktop documentation](../../../docs/DESKTOP.md) records package/runtime
+requirements, supported package targets, design export and native behavior.
+[Acceptance evidence](../../../docs/DESKTOP-VERIFICATION.md) distinguishes
+verified logic from pending real Windows/Linux desktop runs. The editable
+OpenDesign source is shared with the application. Implementation is stacked
+on observation PR #16, itself based on daemon PR #14; #14 supplies implemented
+private IPC, ownership, cancellation and recovery rather than planning alone.

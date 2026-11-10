@@ -1,3 +1,4 @@
+pub use anyq_config_file::paths;
 mod config_module;
 pub use config_module::ConfigModule;
 

@@ -1,0 +1,14 @@
+[package]
+name = "anyq-desktop-impl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-desktop-api = { path = "../../api" }
+anyq-desktop-dispatch = { path = "../dispatch" }
+anyq-desktop-file = { path = "../file" }
+
+[lints]
+workspace = true

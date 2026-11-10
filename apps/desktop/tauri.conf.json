@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "anyq",
+  "version": "0.1.1",
+  "identifier": "com.itzephir.anyq.panel",
+  "build": {
+    "frontendDist": "ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "anyq",
+        "width": 1000,
+        "height": 700,
+        "minWidth": 360,
+        "minHeight": 500
+      },
+      {
+        "label": "compact",
+        "title": "anyq",
+        "url": "index.html?surface=compact",
+        "width": 380,
+        "height": 355,
+        "visible": false,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "capabilities": [
+        {
+          "identifier": "panel",
+          "windows": ["main", "compact"],
+          "permissions": [
+            "core:event:allow-listen",
+            "core:event:allow-unlisten"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Read-only local queue viewer",
+    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"]
+  },
+  "mainBinaryName": "anyq-panel"
+}

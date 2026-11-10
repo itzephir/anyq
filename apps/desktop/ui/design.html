@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>anyq · Desktop panel</title>
+    <style>
+      @font-face {
+        font-family: Plex;
+        src: url("assets/ibm-plex-sans.ttf");
+      }
+      .board {
+        font-family: Plex, system-ui, sans-serif;
+        background: #eef1f4;
+        color: #252b32;
+        margin: 0;
+        padding: 52px;
+      }
+      header {
+        max-width: 1280px;
+        margin: auto auto 40px;
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+      }
+      h1 {
+        font-weight: 500;
+        font-size: 34px;
+        letter-spacing: -1px;
+        margin: 0 0 8px;
+      }
+      p {
+        color: #5e6b79;
+        font-size: 14px;
+        margin: 0;
+      }
+      h2 {
+        font-weight: 500;
+        font-size: 17px;
+        margin: 0 0 14px;
+      }
+      section {
+        max-width: 1280px;
+        margin: 0 auto 48px;
+      }
+      .screens {
+        display: flex;
+        gap: 28px;
+        align-items: start;
+        flex-wrap: wrap;
+      }
+      iframe {
+        border: 1px solid #c4cbd2;
+        border-radius: 13px;
+        box-shadow: 0 14px 42px #26333f16;
+        background: white;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+      .caption {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #5e6b79;
+      }
+      a {
+        color: #486987;
+      }
+      nav {
+        display: flex;
+        gap: 16px;
+        font-size: 13px;
+      }
+      .compact-item {
+        width: 382px;
+      }
+      .main {
+        width: min(100%, 1040px);
+        height: 680px;
+      }
+      .settings {
+        width: 480px;
+        height: 610px;
+      }
+      .compact {
+        width: 380px;
+        height: 355px;
+      }
+      @media (max-width: 700px) {
+        .board {
+          padding: 24px;
+        }
+        header {
+          display: block;
+        }
+        nav {
+          margin-top: 20px;
+        }
+        iframe {
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body class="board">
+    <header>
+      <div>
+        <h1>anyq · Desktop panel</h1>
+        <p>
+          Current queues, a glance away. Main window, quick view, and local
+          preferences.
+        </p>
+      </div>
+      <nav>
+        <a href="design.html#main">Window</a
+        ><a href="design.html#quick">Quick view</a
+        ><a href="design.html#settings">Settings</a
+        ><a href="design.html#states">States</a>
+      </nav>
+    </header>
+    <section id="main">
+      <h2>Main window</h2>
+      <div class="pair">
+        <div>
+          <iframe
+            class="main"
+            title="Main window in dark theme"
+            src="index.html?theme=dark"
+          ></iframe>
+          <p class="caption">Dark · Topics, current queue, and task details</p>
+        </div>
+        <div>
+          <iframe
+            class="main"
+            title="Main window in light theme"
+            src="index.html?theme=light"
+          ></iframe>
+          <p class="caption">Light · Same information and hierarchy</p>
+        </div>
+      </div>
+    </section>
+    <section id="quick">
+      <h2>Menu-bar / tray quick view</h2>
+      <div class="screens">
+        <div class="compact-item">
+          <iframe
+            class="compact"
+            title="Dark compact panel"
+            src="index.html?surface=compact&theme=dark"
+          ></iframe>
+          <p class="caption">Dark · One click from the system icon</p>
+        </div>
+        <div class="compact-item">
+          <iframe
+            class="compact"
+            title="Light compact panel"
+            src="index.html?surface=compact&theme=light"
+          ></iframe>
+          <p class="caption">Light · Open a topic in the main window</p>
+        </div>
+      </div>
+    </section>
+    <section id="settings">
+      <h2>Database and appearance settings</h2>
+      <div class="screens">
+        <div>
+          <iframe
+            class="settings"
+            title="Dark settings"
+            src="index.html?surface=settings&theme=dark"
+          ></iframe>
+          <p class="caption">
+            Panel override → ANYQ_DB → shared config → default
+          </p>
+        </div>
+        <div>
+          <iframe
+            class="settings"
+            title="Russian light settings"
+            src="index.html?surface=settings&theme=light&lang=ru"
+          ></iframe>
+          <p class="caption">Light · Russian localization</p>
+        </div>
+      </div>
+    </section>
+    <section id="states">
+      <h2>Empty and disconnected states</h2>
+      <div class="pair">
+        <iframe
+          class="main"
+          title="Stale data"
+          src="index.html?theme=dark&state=stale"
+        ></iframe
+        ><iframe
+          class="main"
+          title="Empty queue"
+          src="index.html?theme=light&state=empty"
+        ></iframe
+        ><iframe
+          class="main"
+          title="Connection error"
+          src="index.html?theme=dark&state=error"
+        ></iframe>
+      </div>
+    </section>
+  </body>
+</html>

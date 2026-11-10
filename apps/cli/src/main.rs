@@ -4,13 +4,13 @@ mod daemon_presenters;
 mod error;
 mod interrupt;
 mod output;
-mod paths;
 mod presenters;
 mod start_task;
 mod task_flow;
 mod wait_for_task;
 
 use anyq_config_api::ConfigKey;
+use anyq_config_impl::paths;
 use anyq_queue_api::{
     AddTaskToTopicsRequest, AddTasksToTopicRequest, AutoCreatePolicy, QueuePolicy, format_name,
     parse_topic_name,
@@ -88,13 +88,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     }
 
     let config = configuration.get_config.get()?;
-    let path = match cli.db {
-        Some(path) => path,
-        None => match config.db_path() {
-            Some(value) => paths::configured_db(value)?,
-            None => paths::default_db()?,
-        },
-    };
+    let path = paths::resolve_database(cli.db.as_deref(), config.db_path())?.path;
 
     let policy = QueuePolicy {
         autocreate: AutoCreatePolicy {

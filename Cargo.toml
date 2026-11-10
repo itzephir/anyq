@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
 members = [
+  "features/desktop/api",
+  "features/desktop/impl/dispatch",
+  "features/desktop/impl/file",
+  "features/desktop/impl/composition",
+  "apps/desktop",
   "features/queue/api",
   "features/queue/impl/dispatch",
   "features/queue/impl/sqlite",

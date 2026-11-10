@@ -35,6 +35,9 @@ jobs:
       - run: python tooling/check_architecture.py
       - run: cargo run --locked -p anyq-architecture-lint
       - run: cargo fmt --all --check
+      - name: Desktop build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev librsvg2-dev patchelf
+      - run: npx prettier --check 'apps/desktop/ui/**/*.{html,css,js,json}' apps/desktop/tauri.conf.json
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
   build-and-unit-tests:
     name: Build & unit tests (${{ matrix.os }})
@@ -74,6 +77,8 @@ jobs:
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
+  desktop:
+    uses: ./.github/workflows/desktop.yml
   distribution:
     uses: ./.github/workflows/distribution.yml
   website:
@@ -99,7 +104,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: ${{ always() }}
-    needs: [lint, build-and-unit-tests, integration-tests, distribution, website]
+    needs: [lint, build-and-unit-tests, integration-tests, distribution, website, desktop]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -110,12 +115,14 @@ jobs:
           INTEGRATION_RESULT: ${{ needs['integration-tests'].result }}
           DISTRIBUTION_RESULT: ${{ needs.distribution.result }}
           WEBSITE_RESULT: ${{ needs.website.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
         run: |
           test "$LINT_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$INTEGRATION_RESULT" = success
           test "$DISTRIBUTION_RESULT" = success
           test "$WEBSITE_RESULT" = success
+          test "$DESKTOP_RESULT" = success
   deploy-dev:
     needs: ci-passed
     if: >-

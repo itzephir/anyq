@@ -1,6 +1,6 @@
 # anyq architecture
 
-anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config and daemon features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
+anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config, daemon and desktop features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
 
 | Module | Responsibility |
 | --- | --- |
@@ -17,7 +17,12 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | daemon/impl/client | Separate remote adapter for each queue use-case contract |
 | daemon/impl/runtime | Concurrent cancellable sessions and outer transport routing through injected QueueFactory |
 | daemon/impl/composition | Explicit client assembly and server queue factory; only this root imports queue impl |
-| apps/cli | Syntax, text responses, path resolution, blocking CheckTaskRunning polling, and signals |
+| desktop/api | Panel preferences, language/theme, generation-aware accepted snapshot model; separate preference contracts |
+| desktop/impl/dispatch | Separate preference get/set interactors and consumer-owned PreferenceStore |
+| desktop/impl/file | Strict panel-local TOML, file locking, atomic replacement |
+| desktop/impl/composition | Explicit preference adapter assembly |
+| apps/desktop | Optional Tauri composition root, read-only observation controller, presentation and native shell adapters |
+| apps/cli | Syntax, text responses, shared config path resolution, blocking CheckTaskRunning polling, and signals |
 | tooling/architecture-lint | Rust structure checks |
 | tooling/integration-test-hooks | Optional external integration-test checkpoints only |
 
@@ -55,7 +60,7 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 16 crates, including two development tools. CLI no longer imports queue impl; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to the technical daemon boundary, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/desktop/impl/composition, apps/cli/src/main.rs, and apps/desktop/src/main.rs; only they assemble implementations. The workspace has 21 crates, including two development tools. CLI no longer imports queue impl; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to the technical daemon boundary, not queue/config domain APIs.
 
 One daemon holds the lifetime owner lock for each canonical database. CLI sessions
 send an Open frame with the canonical identity and validated policy snapshot;
@@ -85,3 +90,14 @@ SQLite stores topics/tasks/task_topics. Schema 3 adds task.autostart_default/sto
 One standalone type per file; see [CODE-RULES.md](CODE-RULES.md). The Rust AST linter checks structure and prohibits a generic business dispatcher. The Python checker verifies the Cargo graph, inward dependencies, CLI factories only in main, and no direct CLI queue implementation access. Wire routing is an external adapter and never replaces typed use cases.
 
 Domain/use-case tests verify rules without infrastructure. SQLite and file integration suites use real data, failures, and independent writers. CLI workflow and native Ctrl+C suites run real clients and owners on Linux/macOS/Windows. Test hooks are enabled by a separate feature in external adapters only; they are absent from the normal binary and production protocol. Daemon gates use thread-scoped session context and hit counts without changing global environment. Fixtures stop every isolated owner before removing its database directory.
+
+
+Desktop imports only the narrow ObserveQueue queue contract and separate
+preference contracts. Its main root injects daemon observation and shared config
+resolution; no desktop controller imports foreign implementation crates or queue
+mutation handles. DatabaseSource owns path precedence in config/api, while
+config/impl/file owns environment/platform/tilde expansion. A single external
+worker owns polling, deadlines and coalescing. PanelModel rejects old generations
+and distinguishes live/stale/error from empty snapshots. Both webviews receive
+the same projection. GUI dependencies are feature-gated; the reviewed desktop
+build script generates Tauri metadata only. See [DESKTOP.md](DESKTOP.md).

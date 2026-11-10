@@ -1,0 +1,11 @@
+{
+  "open": "Open window",
+  "refresh": "Refresh",
+  "settings": "Settings",
+  "quit": "Quit anyq",
+  "loading": "Connecting…",
+  "error": "Connection unavailable",
+  "stale": "Connection lost · previous state",
+  "running": "running",
+  "queued": "queued"
+}

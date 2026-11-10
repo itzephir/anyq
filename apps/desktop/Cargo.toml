@@ -1,0 +1,39 @@
+[package]
+name = "anyq-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "anyq-panel"
+path = "src/main.rs"
+required-features = ["native"]
+
+[features]
+default = []
+native = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-dialog", "dep:zbus"]
+custom-protocol = ["native", "tauri/custom-protocol"]
+
+[dependencies]
+anyq-desktop-api = { path = "../../features/desktop/api" }
+anyq-desktop-impl = { path = "../../features/desktop/impl/composition" }
+anyq-config-api = { path = "../../features/config/api" }
+anyq-config-impl = { path = "../../features/config/impl/composition" }
+anyq-daemon-api = { path = "../../features/daemon/api" }
+anyq-daemon-impl = { path = "../../features/daemon/impl/composition" }
+anyq-queue-api = { path = "../../features/queue/api" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ctrlc = { version = "3", features = ["termination"] }
+tauri = { version = "=2.11.6", features = ["tray-icon", "image-png"], optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", features = ["blocking-api"], optional = true }
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", optional = true , features = [] }
+
+[lints]
+workspace = true
