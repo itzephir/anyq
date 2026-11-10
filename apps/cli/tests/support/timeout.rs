@@ -186,14 +186,11 @@ fn confirmed_worker_cancellation_allows_expiry_but_uncertain_worker_keeps_every_
         wait(|| status(&queue)["active_timers"] == 1);
 
         clock(&queue, 11);
-        wait_for_file(
-            &log.with_extension("marker"),
-            Some(if mode == "managed" {
-                "stopped"
-            } else {
-                "uncertain"
-            }),
-        );
+        if mode == "managed" {
+            wait_for_file(&log.with_extension("stopped"), Some("owner"));
+        } else {
+            wait_for_file(&log.with_extension("marker"), Some("uncertain"));
+        }
 
         if mode == "managed" {
             wait(|| queue.state("owner") == "completed");
