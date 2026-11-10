@@ -145,15 +145,30 @@ impl Drop for Queue {
 
         let mut paths = Vec::new();
         databases(self.dir.path(), &mut paths);
+
         for path in paths {
-            let _ = self
+            let Ok(mut child) = self
                 .cmd(&["daemon", "stop"])
                 .arg("--db")
                 .arg(path)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
-                .status();
+                .spawn()
+            else {
+                continue;
+            };
+            let deadline = Instant::now() + Duration::from_secs(10);
+
+            while child.try_wait().is_ok_and(|status| status.is_none()) {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break;
+                }
+
+                thread::sleep(Duration::from_millis(10));
+            }
         }
     }
 }
