@@ -2,12 +2,12 @@
 
 ## 1. Workflow
 
-- [x] 1.1 Разделить lint, build-and-unit-tests и integration-tests, добавить итоговый gate с fail-closed проверкой результатов и описать категории; проверить успешный полный CI на трёх ОС.
+- [x] 1.1 Separate lint, build-and-unit-tests, and integration-tests; add a fail-closed aggregate gate and document categories; verify full successful CI on three operating systems.
 
-## 2. Защита ветки
+## 2. Branch protection
 
-- [x] 2.1 Сохранить и применить branch protection default branch через API, проверить required CI passed/source app, strict/admin/PR/force/delete/conversation settings фактическим GET и зафиксировать результат.
+- [x] 2.1 Store/apply default-branch protection through the API; verify required CI passed/source app, strict/admin/PR/force/delete/conversation settings with actual GET and record results.
 
 ## Workflow follow-up
 
-- PR не сливать без просьбы пользователя. После ревью архивировать завершённый change.
+- Do not merge without a user request. Archive the completed change after review.

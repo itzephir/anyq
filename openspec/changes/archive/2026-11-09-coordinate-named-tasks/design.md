@@ -2,77 +2,77 @@
 
 ## Context
 
-Пользовательский контракт — именованная задача, несколько ресурсных топиков и явные wait/complete. Сообщения, копии consumer groups, leases и worker заменяются целиком. Внешнюю команду выполняет вызывающая сторона. Поведение реализуется на Rust с одинаковым нативным CLI для Linux/macOS/Windows.
+The user contract is a named task, several resource topics, and explicit wait/complete. Messages, consumer-group copies, leases, and worker are replaced completely. The caller executes external commands. Behavior is implemented in Rust with the same native CLI on Linux/macOS/Windows.
 
 ## Goals / Non-Goals
 
-Цели: атомарный допуск ко всем топикам, один порядок регистрации, долговечное владение, точный CLI, типизированные настройки и проверка прерываний реальными процессами. Внешние команды, их результаты, heartbeat и автоматический повтор не входят в ответственность anyq.
+Goals: atomic admission across all topics, one registration order, durable ownership, exact CLI syntax, typed settings, and real-process interruption tests. External commands, outcomes, heartbeat, and automatic retries are outside anyq's responsibility.
 
 ## Decisions
 
-### Доменная модель и порядок
+### Domain model and order
 
-Task хранит каноническое уникальное имя, монотонный номер регистрации, состояние и набор топиков. Registered не имеет топиков; queued имеет связи без владения; running занимает по одному слоту всех топиков; completed сохраняет историю. Имя не переиспользуется. Членство running/completed не меняется, queued-связь идемпотентна.
+Task stores a canonical unique name, monotonic registration sequence, state, and topic set. Registered has no topics; queued has links without ownership; running holds one slot from each topic; completed retains history. Names are not reused. Running/completed membership is immutable; queued links are idempotent.
 
-Для каждого топика свободны capacity минус running слотов. Домен разрешает задачу, когда число queued-предшественников с меньшим номером регистрации меньше числа свободных слотов в каждом топике. Порядок один для всех общих ресурсов; queued без активного wait продолжает занимать место. Это допускает задержку более поздних задач из-за ожидания головной задачей другого ресурса.
+Each topic has capacity minus running free slots. The domain admits a task when the number of queued predecessors with smaller registration sequences is less than free slots in every topic. One order applies across all shared resources; queued tasks retain position without active wait. This permits later tasks to be delayed when the head task waits for another resource.
 
-### Имена и идентичность
+### Names and identity
 
-Общие правила tasks/topics находятся в queue/api. Bare начинается ASCII Latin, хвост произволен. Bare list/create/capacity/link/add/wait/complete/config/help зарезервированы. Одна буквальная внешняя пара обратных кавычек допускает любое содержимое, включая пустое и команды; она снимается один раз. build и `build` одинаковы. Экранирование внутри обёртки не интерпретируется.
+Shared task/topic rules live in queue/api. Bare names start with ASCII Latin and have an arbitrary tail. Bare list/create/capacity/link/add/wait/complete/config/help are reserved. One literal outer backtick pair permits any content, including empty strings and commands, and is stripped once. build and `build` are identical. Escapes inside the wrapper are not interpreted.
 
-Порты хранят канонические строки. Restore не повторяет лексический разбор; иначе вложенные кавычки изменяли бы идентичность при чтении. Форматирование доменом даёт обратимое CLI-представление. Shell-экранирование пробелов выполняется shell до получения argv.
+Ports store canonical strings. Restore does not parse them again; otherwise nested backticks would change identity on read. Domain formatting produces a reversible CLI representation. The shell escapes spaces before producing argv.
 
-### Узкие сценарии и транзакции
+### Narrow use cases and transactions
 
-Queue api/dispatch/sqlite/composition сохраняют направленные внутрь зависимости. RegisterTask, AddTaskToTopic, TryStartTask, CompleteTask, ListTasks, GetTask, GetTopicQueue и управление топиками имеют отдельные типизированные контракты. UnitOfWork/TaskRecords/TopicRecords принадлежат dispatch. SQL исполняет точный TaskFilter, домен решает о допуске.
+Queue api/dispatch/sqlite/composition retain inward dependencies. RegisterTask, AddTaskToTopic, TryStartTask, CompleteTask, ListTasks, GetTask, GetTopicQueue, and topic management have separate typed contracts. UnitOfWork/TaskRecords/TopicRecords belong to dispatch. SQL executes exact TaskFilter queries; the domain decides admission.
 
-RegisterTaskRequest объединяет имя и начальные топики: одна транзакция создаёт задачу и все связи. TryStartTask читает состояние, связи и использование всех топиков и сохраняет running атомарно. CompleteTask сохраняет completed. Использование выводится из running, отдельных счётчиков нет. Ошибка откатывает все изменения; capacity не снижается ниже использования.
+RegisterTaskRequest combines a name and initial topics: one transaction creates the task and all links. TryStartTask reads state, links, and usage across all topics and saves running atomically. CompleteTask saves completed. Usage is derived from running; no separate counters exist. Errors roll back all changes; capacity cannot fall below usage.
 
-### Config и autocreate
+### Config and autocreate
 
-Config — отдельная фича api/dispatch/file/composition без зависимости queue на её impl. Домен определяет task.autocreate/topic.autocreate bool defaults false и необязательный непустой db.path; отдельные сценарии читают/изменяют typed-значения. Git-style config хранит ~/.anyq/config.toml, на Windows home берётся из USERPROFILE.
+Config is a separate api/dispatch/file/composition feature; queue does not depend on its impl. The domain defines task.autocreate/topic.autocreate bool defaults false and optional nonempty db.path; separate use cases read/change typed values. Git-style config stores ~/.anyq/config.toml, using USERPROFILE as Windows home.
 
-TOML-адаптер под системным файловым lock перечитывает текущее состояние, применяет операцию, синхронизирует временный файл в том же каталоге и атомарно заменяет основной. Ошибка до замены сохраняет прежние байты. Конкурентные успешные изменения разных ключей не теряются.
+Under an OS file lock, the TOML adapter rereads current state, applies the operation, syncs a temporary file in the same directory, and atomically replaces the main file. Errors before replacement preserve old bytes. Concurrent successful changes to different keys are not lost.
 
-Допустимые разделы определяет ConfigKey из префиксов известных ключей. Адаптер проверяет table до рекурсии, в том числе пустую: неизвестный раздел или таблица вместо конечного значения дают ошибку. Пустые контейнеры task/topic/db используют defaults. Ошибки чтения не допускают set/unset и не меняют исходные байты.
+ConfigKey defines valid sections through known-key prefixes. The adapter checks tables before recursion, including empty ones: unknown sections or tables instead of terminal values fail. Empty task/topic/db containers use defaults. Read errors prevent set/unset and preserve original bytes.
 
-CLI выбирает --db > ANYQ_DB > db.path > системный default; ~/ в config раскрывается относительно home. Снимок config преобразуется в доменную queue AutoCreatePolicy и явно внедряется. Отсутствующие сущности создаются в основной транзакции, новый топик cap1. Ошибка wait без топиков или обычного complete откатывает новое имя. Успешный read с разрешённым autocreate создаёт сущность без владения. Существующие состояния не обходятся.
+CLI selects --db > ANYQ_DB > db.path > platform default; ~/ in config expands relative to home. A config snapshot becomes an explicitly injected queue-domain AutoCreatePolicy. Missing entities are created in the main transaction; new topics have cap1. Wait without topics or ordinary complete errors roll back new names. Successful reads with autocreate may create entities without ownership. Existing-state rules are not bypassed.
 
-### CLI и внешний исполнитель
+### CLI and external execution
 
-List/list flags, просмотр task/topic, capacity read/write, create/link/wait/complete, name-first и command-first формы описаны в README. Config list/--list/-l равнозначны; list является подкомандой и не проходит доменную проверку ConfigKey. CLI нормализует только синтаксис, не бизнес-правила. Task create заменяет прежнее add; оба config-параметра названы autocreate. Help и version не открывают config/DB, config не открывает DB.
+README describes list flags, task/topic lookups, capacity read/write, create/link/wait/complete, and name-first/command-first forms. Config list/--list/-l are equivalent; list is a subcommand and fails ConfigKey validation. CLI normalizes syntax only, not business rules. Task create replaces add; both config settings are named autocreate. Help/version do not open config/DB; config does not open DB.
 
-Task create -t -w -c и link -w -c вызывают отдельные сценарии последовательно, wait -c вызывает допуск и завершение. У create wait требует topic, complete требует wait; у link complete требует wait. Короткая форма -twc TOPIC переставляет value-taking -t при разборе. Неизвестные/неполные сочетания отклоняются до IO.
+Task create -t -w -c and link -w -c invoke separate use cases sequentially; wait -c invokes admission then completion. Create wait requires topic, complete requires wait; link complete requires wait. Parsing -twc TOPIC reorders value-taking -t. Unknown/incomplete combinations are rejected before IO.
 
-Busy приводит к короткой паузе CLI без удержания транзакции. Код 0 wait выдаётся после commit running. Выход wait, авария и время не освобождают владение. Два wait одного имени не получают два допуска; force ожидающей задачи приводит к ошибке следующего опроса.
+Busy causes a short CLI pause without holding a transaction. Wait returns 0 after running commit. Wait exit, crashes, and time do not release ownership. Two waits for one name do not acquire twice; forcing a waiting task makes its next poll fail.
 
-### Прерывание и проверяемые границы
+### Interruptions and verifiable boundaries
 
-Первый Ctrl+C устанавливает token во внешних адаптерах; IO/lock loops/commit boundaries проверяют его. До commit открытая транзакция откатывается; после commit сохранённое состояние не отменяется. CLI возвращает 130. У цепочек отдельные commits: queued, running, completed. Второй Ctrl+C завершает принудительно.
+The first Ctrl+C sets a token in external adapters; IO/lock loops/commit boundaries check it. Before commit the open transaction rolls back; afterward persisted state is retained. CLI returns 130. Chains have separate queued/running/completed commits. A second Ctrl+C terminates forcibly.
 
-Stdout/stderr и справка пишутся отдельным потоком без бизнес-состояния. Основной поток ждёт результат через канал с коротким timeout; первый Ctrl+C прекращает ожидание и позволяет освободить ресурсы без join writer. При успехе запись подтверждается до следующей стадии. Native tests заполняют реальные pipes, читают один байт для подтверждения начала вывода и ждут выхода после одного сигнала без чтения остатка.
+Stdout/stderr and help use a separate writer thread without business state. The main thread waits on a channel with a short timeout; the first Ctrl+C stops waiting and releases resources without joining the writer. Successful writes are confirmed before the next stage. Native tests fill real pipes, read one byte to confirm output began, and await exit after one signal without draining the rest.
 
-Только feature integration-test-hooks добавляет внешние контрольные точки. Integration tests запускают реальный CLI и отправляют SIGINT на Unix или CTRL_C_EVENT в отдельную Windows-консоль. Проверяются границы регистрации, link, допуска, complete, схемы, config replace, автосоздания, чтения и реального ожидания блокировок. В обычном бинарнике test IO отсутствует. Таблица исходов — docs/INTERRUPTIONS.md; suite обязателен во всех CI integration jobs.
+Only integration-test-hooks adds external checkpoints. Integration tests launch the real CLI and send SIGINT on Unix or CTRL_C_EVENT in a separate Windows console. They verify registration, link, admission, complete, schema, config replacement, autocreate, read, and real lock-wait boundaries. Normal binaries have no test IO. docs/INTERRUPTIONS.md has the outcome table; the suite is required in every CI integration job.
 
-### Хранилище и сборка
+### Storage and build
 
-SQLite schema2: topics/tasks/task_topics с уникальными именами, монотонным ключом порядка и FK. WAL, synchronous FULL, короткие IMMEDIATE-транзакции. Старый schema1 и неизвестные версии отклоняются до изменения, автоматической конвертации нет.
+SQLite schema2: topics/tasks/task_topics with unique names, monotonic ordering keys, and FKs. WAL, synchronous FULL, short IMMEDIATE transactions. Old schema1 and unknown versions are rejected before mutation without automatic conversion.
 
-Удалены четыре worker crates и старый CLI. Workspace: четыре queue, четыре config, CLI и два tooling crates. Один самостоятельный тип на файл; явные composition roots, без execute-dispatcher или service locator.
+Four worker crates and the old CLI are removed. Workspace: four queue crates, four config crates, CLI, and two tooling crates. One standalone type per file; explicit composition roots without execute-dispatchers or service locators.
 
 ## Risks / Trade-offs
 
-- Авария после допуска оставляет ресурсы занятыми: явный complete после проверки внешней работы.
-- Головная queued-задача может снижать использование ресурсов: выбранный единый FIFO без частичного захвата.
-- Опрос SQLite требует коротких транзакций и пауз, демон не добавляется.
-- API кооперативный: знание имени позволяет complete/force, это не граница системной авторизации.
-- Сигнал после commit может опередить успешное сообщение: состояние проверяется отдельным read.
-- Принудительное завершение вторым сигналом может оставить временный config-файл; основной файл остаётся целым.
+- Crashes after admission leave resources held: explicit complete follows inspection of external work.
+- A head queued task may reduce utilization: selected global FIFO without partial acquisition.
+- SQLite polling needs short transactions and pauses; no daemon is added.
+- The API is cooperative: knowing a name allows complete/force; this is not an OS authorization boundary.
+- A post-commit signal may precede the success message: inspect state through a separate read.
+- Forced termination by a second signal may leave a temporary config file; the main file stays intact.
 
 ## Migration Plan
 
-1. Реализовать домен, typed-сценарии, schema2, нативный CLI и config; удалить worker.
-2. Проверить unit и настоящие SQLite/file/CLI/Ctrl+C integration suites, оба архитектурных линтера и три ОС.
-3. Старые данные не импортировать: отдельный файл базы и сохранённый старый бинарник пилота.
-4. Испытать build/lint itzdesign на отдельной базе и передать нативный протокол в связанный чат.
-5. Дождаться зелёного CI и ревью PR. Merge только по просьбе пользователя, затем sync/archive OpenSpec. Удаление command-worker включает устаревший Purpose; другие базовые Purpose сохраняются.
+1. Implement domain, typed use cases, schema2, native CLI, and config; remove worker.
+2. Verify unit and real SQLite/file/CLI/Ctrl+C suites, both architecture linters, and three operating systems.
+3. Do not import old data: use a separate database and retain the pilot's old binary.
+4. Test itzdesign build/lint on a separate database and share the native protocol with the linked chat.
+5. Wait for green CI and PR review. Merge only on user request, then sync/archive OpenSpec. Removing command-worker includes its obsolete Purpose; preserve other baseline Purposes.

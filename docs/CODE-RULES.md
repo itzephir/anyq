@@ -1,49 +1,49 @@
-# Правила кода
+# Code rules
 
-Правила обязательны для реализации и ревью anyq. Автоматические проверки дополняют проверку фактических обязанностей и границ.
+These rules are mandatory for anyq implementation and review. Automated checks supplement review of actual responsibilities and boundaries.
 
-## Один тип на файл
+## One type per file
 
-Один самостоятельный struct, enum или trait — один файл. Правило включает entities, DTO, интерфейсы, интеракторы, адаптеры, CLI arguments и test doubles. Методы и связанные impl находятся с владельцем. Функционально локальные вложенные типы допустимы; namespace/inline module не делает самостоятельные типы вложенными. lib.rs/mod.rs задают явные модули и exports.
+One standalone struct, enum, or trait per file. This includes entities, DTOs, interfaces, interactors, adapters, CLI arguments, and test doubles. Methods and related impls stay with their owner. Function-local nested types are allowed; a namespace/inline module does not make independent types local. lib.rs/mod.rs define explicit modules and exports.
 
-## Читаемость
+## Readability
 
-Разделять одной пустой строкой объявления, impl-блоки, методы и смысловые этапы: проверку входа, чтение состояния, решение домена, сохранение и возврат. Связанные действия остаются одной группой. В тестах визуально отделять подготовку, действие и проверки. Rustfmt сохраняет формат, но не заменяет смысловую группировку.
+Use one blank line between declarations, impl blocks, methods, and logical phases: input validation, state reads, domain decisions, persistence, and return. Keep related actions together. In tests, visually separate arrange, act, and assert. Rustfmt maintains formatting but does not replace meaningful grouping.
 
-## SOLID и ответственность
+## SOLID and responsibility
 
-- SRP: RegisterTaskInteractor регистрирует имя, CheckTaskRunningInteractor наблюдает running; изменяющие очередь сценарии вызывают общий проход допуска, CompleteTaskInteractor завершает владение. Не объединять сценарии в manager или dispatcher.
-- OCP: новый сценарий получает собственный контракт и реализацию. Разбор синтаксиса CLI остаётся во внешнем адаптере.
-- LSP: адаптеры соблюдают весь контракт порта, включая ошибки и rollback. Fake и SQLite проверяются содержательными сценариями.
-- ISP: потребитель получает только нужный сценарий; блокирующий CLI wait зависит от CheckTaskRunning.
-- DIP: домен и сценарии зависят от своих контрактов. SQLite, CLI и IO остаются снаружи; реализации передаются явно.
+- SRP: RegisterTaskInteractor registers a name; CheckTaskRunningInteractor observes running; queue mutations invoke a shared admission pass; CompleteTaskInteractor releases ownership. Do not combine use cases into a manager or dispatcher.
+- OCP: a new use case gets its own contract and implementation. CLI syntax parsing stays in the external adapter.
+- LSP: adapters honor the full port contract, including errors and rollback. Verify fakes and SQLite with meaningful scenarios.
+- ISP: consumers receive only the use case they need; blocking CLI wait depends on CheckTaskRunning.
+- DIP: the domain and use cases depend on their own contracts. SQLite, CLI, and IO stay outside; implementations are injected explicitly.
 
-Запрещён универсальный бизнес-API execute(Command) -> Output. Сценарии возвращают конкретный результат: RegisterTask -> Task, CheckTaskRunning -> bool. Force — явный параметр завершения. Создание отсутствующей задачи отдельно разрешает доменная AutoCreatePolicy; force не обходит ошибки и остальные инварианты.
+A generic business API execute(Command) -> Output is forbidden. Use cases return concrete results: RegisterTask -> Task, CheckTaskRunning -> bool. Force is an explicit completion parameter. Domain-owned AutoCreatePolicy separately authorizes creation of a missing task; force does not bypass errors or other invariants.
 
-Task владеет переходами состояния и полнотой набора ресурсов. ResourceAvailability владеет проверкой свободных слотов и очереди предшественников. Эти правила не копируются в CLI и SQL.
+Task owns state transitions and completeness of the resource set. ResourceAvailability owns free-slot and predecessor-queue checks. CLI and SQL must not duplicate these rules.
 
-RegisterTaskRequest объединяет имя и начальные топики одного сценария регистрации; он не заменяет отдельные контракты связывания, допуска и завершения. Цепочки CLI только последовательно вызывают эти сценарии. ListTasks, GetTask и GetTopicQueue имеют собственные узкие интерфейсы; состояния текущей очереди и её порядок определяет TopicQueue.
+RegisterTaskRequest combines the name and initial topics for one registration use case; it does not replace separate linking, admission, and completion contracts. CLI chains only invoke these use cases sequentially. ListTasks, GetTask, and GetTopicQueue have their own narrow interfaces; TopicQueue defines current queue states and order.
 
-## DRY, KISS и атомарность
+## DRY, KISS, and atomicity
 
-У доменного правила один владелец. Нельзя отдельно хранить изменяемый счётчик слотов и независимо исправлять его при завершении: использование выводится из running-задач и связей.
+Every domain rule has one owner. Do not store a separate mutable slot counter and independently repair it on completion: derive usage from running tasks and links.
 
-UnitOfWork объединяет техническую границу транзакции и consumer-owned persistence-порты. Это не бизнес-маршрутизатор. QueueModule содержит явно созданные handles без поведения, string lookup и service locator.
+UnitOfWork combines a technical transaction boundary with consumer-owned persistence ports. It is not a business router. QueueModule contains explicitly constructed handles without behavior, string lookup, or a service locator.
 
-Не добавлять абстракцию без конкретного правила или потребителя. Выполнение внешней работы, обработка её результата и повтор принадлежат вызывающей стороне. Anyq сохраняет владение до явного завершения задачи.
+Do not add an abstraction without a concrete rule or consumer. The caller owns external work, result handling, and retries. Anyq preserves ownership until explicit task completion.
 
-## Границы
+## Boundaries
 
-Api и внутренние сценарии не импортируют impl, IO и инфраструктурные SDK. Реальные зависимости Cargo направлены внутрь. Контроллеры переводят вход, презентеры формируют ответы. Пауза блокирующего wait находится в CLI; ни транзакция, ни частичное владение во время неё не удерживаются.
+Api and inner use cases do not import impl, IO, or infrastructure SDKs. Actual Cargo dependencies point inward. Controllers translate input; presenters format responses. The blocking wait pause belongs to CLI; no transaction or partial ownership is held during it.
 
-Composition roots перечислены в [ARCHITECTURE.md](ARCHITECTURE.md): queue/impl/composition, config/impl/composition и apps/cli/src/main.rs. Только они собирают реализации.
+Composition roots are listed in [ARCHITECTURE.md](ARCHITECTURE.md): queue/impl/composition, config/impl/composition, and apps/cli/src/main.rs. Only they assemble implementations.
 
-Имена и их обратимое представление принадлежат queue domain; restore получает канонические строки без повторного лексического разбора. Config domain владеет ключами и defaults; файловый адаптер выполняет только TOML/IO. Autocreate входит в транзакцию основного сценария и откатывается при его ошибке.
+Names and their reversible representation belong to the queue domain; restore receives canonical strings without parsing them again. The config domain owns keys and defaults; the file adapter only handles TOML/IO. Autocreate belongs to the main use-case transaction and rolls back on its error.
 
-## Проверки
+## Checks
 
-Linux lint включает Rustfmt, Clippy с -D warnings, Rust AST-линтер, Cargo/API boundary checker, Ruff и строгую OpenSpec validation. Архитектурные проверки имеют отрицательные fixtures.
+Linux lint includes Rustfmt, Clippy with -D warnings, the Rust AST linter, the Cargo/API boundary checker, Ruff, and strict OpenSpec validation. Architecture checks have negative fixtures.
 
-Сборка и unit/integration tests запускаются отдельно на Linux, macOS и Windows. Проверяются атомарный допуск, rollback, реальная конкуренция, постоянное владение после аварии, все формы CLI, config и autocreate. Native Ctrl+C suite обязателен с integration-test-hooks на всех трёх ОС; сигналы отправляются настоящим процессам, без skip/ignore. Контрольные точки не входят в обычный бинарник и внутренние слои.
+Builds and unit/integration tests run separately on Linux, macOS, and Windows. They verify atomic admission, rollback, real concurrency, persistent ownership after crashes, all CLI forms, config, and autocreate. The native Ctrl+C suite with integration-test-hooks is required on all three operating systems; it sends signals to real processes without skip/ignore. Checkpoints are absent from the normal binary and inner layers.
 
-Не отключать проверку и не добавлять blanket allow ради зелёного CI. SRP, SOLID, DRY, KISS, владение доменными правилами и качество тестов дополнительно проверяются при ревью.
+Do not disable checks or add blanket allow directives to make CI pass. Review additionally checks SRP, SOLID, DRY, KISS, ownership of domain rules, and test quality.

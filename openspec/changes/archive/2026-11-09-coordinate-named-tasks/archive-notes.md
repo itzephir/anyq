@@ -1,27 +1,27 @@
-# Завершение перехода и очистка действующего контракта
+# Completing the transition and cleaning the active contract
 
-Переход на именованные задачи принят в PR #3. В PR #5 из README удалено предупреждение о версии 0.2 и базе сообщений. При завершении изменения его delta specs синхронизированы с базовыми спецификациями, capability `command-worker` удалена вместе с её Purpose, а исторические пояснения вынесены из действующих файлов в этот архив.
+The named-task transition was accepted in PR #3. PR #5 removed the version 0.2/message-database warning from README. On completion, delta specs were synced into baseline specs, the `command-worker` capability and its Purpose were removed, and historical explanations were moved from active files into this archive.
 
-## Сохранённая история
+## Preserved history
 
-- `superseded-specs/` содержит базовые спецификации до синхронизации: очередь сообщений, consumer groups, leases, исполнение команд и управление деревом процессов.
-- `examples/demo.sh` содержит прежнюю shell-демонстрацию с `group`, `publish`, `worker` и `jobs`. Это исторический пример; актуальная демонстрация находится в корневом `examples/demo.py` и использует именованные задачи.
-- Proposal, design, tasks и delta specs сохраняют принятые решения и план перехода, включая формат данных и пилот.
+- `superseded-specs/` contains baseline specs before synchronization: message queue, consumer groups, leases, command execution, and process-tree management.
+- `examples/demo.sh` contains the previous shell demo with `group`, `publish`, `worker`, and `jobs`. It is historical; the current root `examples/demo.py` uses named tasks.
+- Proposal, design, tasks, and delta specs preserve accepted decisions and the transition plan, including data format and pilot.
 
-## Убранные пояснения о переходе
+## Removed transition explanations
 
-README описывал замену `task add` на `task create`, отказ от `task.autoadd`/`topic.autoadd` в пользу `task.autocreate`/`topic.autocreate`, а также отдельный файл базы для схемы 2. Из AGENTS.md и текущих правил убраны сравнения с прежними сообщениями, consumer groups, worker и leases. Справка `--db` больше не содержит номера схемы.
+README described replacing `task add` with `task create`, replacing `task.autoadd`/`topic.autoadd` with `task.autocreate`/`topic.autocreate`, and selecting a separate schema 2 database file. AGENTS.md and current rules no longer compare against old messages, consumer groups, worker, or leases. `--db` help no longer mentions a schema version.
 
-SQLite ранее отдельно обрабатывал `user_version = 1` сообщением:
+SQLite previously handled `user_version = 1` separately with this message:
 
 ```text
 schema version 1 contains legacy messages; choose a separate database with --db; existing data was not migrated
 ```
 
-Специальная ветка заменена общей ошибкой несовместимой версии с предложением выбрать другой файл через `--db`. Проверка выполняется до изменения данных и режима журналирования. Базы с неподдерживаемой версией или непустые файлы без версии по-прежнему отклоняются без изменения их содержимого.
+The special branch was replaced by a generic incompatible-version error recommending another file through `--db`. Validation runs before changing data or journal mode. Unsupported versions and nonempty unversioned files remain rejected without changing their content.
 
-## Проверки после очистки
+## Checks after cleanup
 
-Проверка `the_legacy_cli_is_removed` и отдельные отрицательные примеры прежнего синтаксиса удалены. Проверки неизвестных config-ключей используют нейтральные `task.unknown` и `topic.unknown`. CLI- и SQLite-проверки несовместимых баз используют таблицу `unrelated`, проверяют код ошибки, сохранность байтов и отсутствие файлов журнала. Покрытие текущих команд, атомарности и прерываний сохраняется.
+The `the_legacy_cli_is_removed` check and separate negative old-syntax examples were removed. Unknown config-key checks use neutral `task.unknown` and `topic.unknown`. CLI/SQLite incompatible-database tests use an `unrelated` table, verifying the error code, unchanged bytes, and no journal files. Current command, atomicity, and interruption coverage remains.
 
-Историческое требование «Долговечность и переход со старой базы» в действующей спецификации сформулировано как долговечность задач и проверка совместимости произвольной базы. Текущие спецификации описывают только действующий контракт; причины удаления прежних требований остаются в архивных delta specs.
+The historical durability/old-database-transition requirement is now phrased as task durability and arbitrary-database compatibility checking in the active spec. Current specs describe only the active contract; archived deltas retain the reasons for removing previous requirements.

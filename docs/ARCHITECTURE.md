@@ -1,69 +1,69 @@
-# Архитектура anyq
+# anyq architecture
 
-anyq координирует именованные задачи и допуск к локальным ресурсам. Clean Architecture организована вокруг доменных фич queue и config, затем слоёв; api и impl имеют отдельные Cargo crates. Межфичевые связи возможны только через api; в текущем графе обе фичи независимы.
+anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by the queue and config domain features, then by layer; api and impl have separate Cargo crates. Cross-feature dependencies may target api only; both features are independent in the current graph.
 
-| Модуль | Ответственность |
+| Module | Responsibility |
 | --- | --- |
-| queue/api | Task, TaskState, Topic, TopicQueue, ResourceAvailability, AutoCreatePolicy, разбор и отображение имён; отдельные контракты сценариев |
-| queue/impl/dispatch | Регистрация, связи, допуск, завершение, чтение и управление топиками; consumer-owned persistence-порты |
-| queue/impl/sqlite | Схема, точные запросы, IMMEDIATE transaction boundary |
-| queue/impl/composition | Явная сборка отдельных queue-интеракторов |
-| config/api | Config, типизированные ключи/значения, defaults, отдельные контракты чтения/изменения |
-| config/impl/dispatch | GetConfig, GetConfigValue, SetConfigValue, UnsetConfigValue и consumer-owned Store |
-| config/impl/file | TOML, файловая блокировка, атомарная замена |
-| config/impl/composition | Явная сборка отдельных config-интеракторов |
-| apps/cli | Синтаксис, текстовые ответы, разрешение путей, блокирующий опрос CheckTaskRunning и сигналы |
-| tooling/architecture-lint | Проверка структуры Rust |
-| tooling/integration-test-hooks | Только опциональные внешние контрольные точки интеграционных тестов |
+| queue/api | Task, TaskState, Topic, TopicQueue, ResourceAvailability, AutoCreatePolicy, name parsing and formatting; separate use-case contracts |
+| queue/impl/dispatch | Registration, linking, admission, completion, reads, and topic management; consumer-owned persistence ports |
+| queue/impl/sqlite | Schema, exact queries, IMMEDIATE transaction boundary |
+| queue/impl/composition | Explicit assembly of individual queue interactors |
+| config/api | Config, typed keys/values, defaults, separate read/write contracts |
+| config/impl/dispatch | GetConfig, GetConfigValue, SetConfigValue, UnsetConfigValue, and consumer-owned Store |
+| config/impl/file | TOML, file locking, atomic replacement |
+| config/impl/composition | Explicit assembly of individual config interactors |
+| apps/cli | Syntax, text responses, path resolution, blocking CheckTaskRunning polling, and signals |
+| tooling/architecture-lint | Rust structure checks |
+| tooling/integration-test-hooks | Optional external integration-test checkpoints only |
 
-## Домен
+## Domain
 
-Task имеет уникальное имя, неизменный монотонный номер регистрации, состояние и набор топиков. Registered не имеет топиков; после добавления связи задача queued. Полный допуск переводит её в running; complete переводит в completed. Имя не переиспользуется после завершения.
+Task has a unique name, an immutable monotonic registration sequence, a state, and a set of topics. Registered has no topics; adding a link makes it queued. Full admission makes it running; complete makes it completed. A name cannot be reused after completion.
 
-Task владеет переходами, полнотой набора ресурсов и запретом менять членство running/completed. ResourceAvailability проверяет свободные слоты и queued-предшественников. Один порядок регистрации используется во всех топиках. Queued-задача сохраняет место даже без активного wait; ненужную задачу снимают через complete --force.
+Task owns transitions, resource-set completeness, and the prohibition on changing running/completed membership. ResourceAvailability checks free slots and queued predecessors. The same registration order applies across all topics. A queued task keeps its place without an active wait; remove an unwanted task with complete --force.
 
-parse_name и parse_topic_name задают общую схему: bare-имя начинается с ASCII Latin и не равно list/create/capacity/link/add/wait/complete/config/help, хвост произволен. Одна буквальная внешняя пара обратных кавычек допускает любое содержимое, включая пустое, зарезервированные слова, начальные дефисы и вложенные кавычки. Она снимается ровно один раз. build и `build` — одна идентичность.
+parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/wait/complete/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
 
-Хранилище и порты работают с каноническими строками. Task::restore и Topic::restore восстанавливают уже разобранное имя без повторного снятия кавычек и проверяют структурные инварианты агрегата. format_name создаёт обратимое представление канонического имени. CLI и SQL не копируют правила имён.
+Storage and ports use canonical strings. Task::restore and Topic::restore restore an already parsed name without stripping backticks again and validate the aggregate's structural invariants. format_name produces a reversible representation of a canonical name. CLI and SQL do not duplicate naming rules.
 
-Config владеет ключами task.autocreate/topic.autocreate (bool, default false), task.autostart (bool, default true) и db.path (непустая строка или отсутствие). AutoCreatePolicy принадлежит queue и отдельно разрешает создание каждого вида сущности. CLI передаёт значения снимка Config в QueuePolicy; queue не зависит от config impl. При создании задача сохраняет task.autostart как свой default. Topic.autostart — optional override; все топики задачи должны разрешать автоматический запуск. Явный --stop сохраняется отдельно и запрещает его до ручного start. StartPreference задаёт default/start/stop/toggle; домен вычисляет эффективное значение по полному набору топиков.
+Config owns task.autocreate/topic.autocreate (bool, default false), task.autostart (bool, default true), and db.path (a nonempty string or absent). AutoCreatePolicy belongs to queue and separately allows creation of each entity kind. CLI passes values from a Config snapshot into QueuePolicy; queue does not depend on config impl. On creation, a task stores task.autostart as its default. Topic.autostart is an optional override; every topic must allow automatic admission. Explicit --stop is stored separately and prevents it until manual start. StartPreference defines default/start/stop/toggle; the domain computes the effective value using the complete topic set.
 
-ConfigKey определяет также допустимые контейнеры как строгие префиксы известных ключей. TOML-адаптер проверяет контейнер до обхода таблицы: пустые task/topic/db допустимы, неизвестные разделы и таблицы на месте конечных значений отклоняются. Перечень бизнес-ключей не дублируется в адаптере.
+ConfigKey also defines valid containers as strict prefixes of known keys. The TOML adapter validates a container before traversing its table: empty task/topic/db are valid; unknown sections and tables in place of terminal values are rejected. The adapter does not duplicate the business-key list.
 
-## Сценарии и атомарность
+## Use cases and atomicity
 
-У каждого сценария свой контракт и interactor. Нет универсального execute(Command) -> Output. QueueModule и ConfigModule содержат явно созданные handles без бизнес-поведения, string lookup и service locator.
+Every use case has its own contract and interactor. There is no generic execute(Command) -> Output. QueueModule and ConfigModule contain explicitly constructed handles without business behavior, string lookup, or a service locator.
 
-RegisterTask принимает RegisterTaskRequest с именем и начальными топиками. Проверка топиков, регистрация и сохранение всех связей атомарны. AddTaskToTopic использует ту же границу для одной связи. Autocreate выполняется внутри основной транзакции: неуспешные wait/complete/link откатывают и новые сущности. Успешный просмотр может создать отсутствующую сущность, когда это явно разрешено настройкой.
+RegisterTask accepts RegisterTaskRequest with a name and initial topics. Topic validation, registration, and all links are saved atomically. AddTaskToTopic uses the same boundary for one link. Autocreate runs inside the main transaction: failed wait/complete/link operations also roll back new entities. A successful lookup may create a missing entity when a setting explicitly allows it.
 
-Регистрация, связывание, завершение, изменение capacity и autostart топика вызывают общий внутренний проход допуска queued-задач до commit. Проход получает все queued по точному фильтру без топика и обходит по sequence. Для каждой задачи он читает полный текущий снимок топиков, running и queued-предшественников; Task и ResourceAvailability решают, допустим ли полный переход. Кандидат допускается автоматически только при разрешении Task.permits_autostart; stopped-задача сохраняет очередь и не запускается. После сохранения running следующие кандидаты видят новое использование. Частичного захвата нет. Исходное изменение и все последующие допуски откатываются вместе при ошибке. Использование ресурсов выводится из running-задач и связей; изменяемых счётчиков слотов нет. Снижение capacity ниже использования отклоняется.
+Registration, linking, completion, and topic capacity/autostart changes invoke a shared internal admission pass over queued tasks before commit. The pass obtains all queued tasks using an exact filter without a topic and iterates by sequence. For each task it reads the complete current snapshot of topics, running tasks, and queued predecessors; Task and ResourceAvailability decide whether the full transition is valid. A candidate is admitted automatically only when Task.permits_autostart allows it; a stopped task keeps its queue position without starting. After running is saved, later candidates see the new usage. No partial acquisition occurs. Errors roll back both the original change and all subsequent admissions. Usage is derived from running tasks and links; there are no mutable slot counters. Capacity reductions below usage are rejected.
 
-AddTaskToTopics и AddTasksToTopic имеют отдельные типизированные входы: один task и несколько topics либо несколько tasks и один topic. Общий внутренний помощник сохраняет всю пачку перед проходом допуска. Дубликаты имён задач дедуплицируются, возвращаемые задачи упорядочены по регистрации. Старый одиночный AddTaskToTopic использует тот же помощник. Все результаты Task отражают состояние после автоматического допуска.
+AddTaskToTopics and AddTasksToTopic have separate typed inputs: one task and several topics, or several tasks and one topic. A shared internal helper saves the entire batch before the admission pass. Duplicate task names are deduplicated; returned tasks are ordered by registration. The older single AddTaskToTopic uses the same helper. All Task results reflect state after automatic admission.
 
-StartTask пробует полный немедленный допуск независимо от автозапуска; Busy не меняет очередь, а running возвращает AlreadyRunning. Обычный CLI start преобразует Busy в ошибку; start -w повторяет этот узкий сценарий, start -wc затем вызывает CompleteTask. --start при create требует немедленного допуска только при выключенном эффективном автозапуске и откатывает всю регистрацию при Busy.
+StartTask attempts immediate full admission regardless of autostart; Busy leaves the queue unchanged, while running returns AlreadyRunning. Ordinary CLI start turns Busy into an error; start -w retries this narrow use case, and start -wc then invokes CompleteTask. --start on create requires immediate admission only when effective autostart is off and rolls back the entire registration on Busy.
 
-CheckTaskRunning только проверяет доменное состояние: queued — false, running — true, registered/completed — ошибка. Проверка внутри транзакции сохраняет правило rollback для неуспешного autocreate; существующим задачам она не пишет состояние.
+CheckTaskRunning only checks domain state: queued is false, running is true, registered/completed are errors. Checking inside a transaction preserves rollback for failed autocreate; it does not write existing task states.
 
-ListTasks читает все имена, GetTask возвращает агрегат. GetTopicQueue запрашивает доменные TopicQueue.STATES и строит очередь по регистрации. Store/UnitOfWork, TopicRecords, TaskRecords и TaskFilter принадлежат dispatch. Интерактор задаёт точный фильтр; SQLite выполняет его без решения о допуске. Просмотр не меняет существующее владение.
+ListTasks reads all names; GetTask returns the aggregate. GetTopicQueue requests domain-owned TopicQueue.STATES and builds the queue in registration order. Store/UnitOfWork, TopicRecords, TaskRecords, and TaskFilter belong to dispatch. The interactor supplies the exact filter; SQLite executes it without deciding admission. Lookups do not change existing ownership.
 
-Config Store объединяет чтение/изменение одного Config. FileConfig под файловой блокировкой перечитывает актуальное состояние, применяет typed-сценарий, записывает и синхронизирует временный файл в том же каталоге, затем атомарно заменяет config.toml. Ошибка до замены сохраняет прежний файл. Блокировка освобождается при выходе; постоянный .lock-файл не означает удерживаемый lock.
+Config Store combines reading/changing one Config. Under a file lock, FileConfig rereads current state, applies the typed use case, writes and syncs a temporary file in the same directory, then atomically replaces config.toml. Errors before replacement preserve the old file. The lock is released on exit; a persistent .lock file does not indicate a held lock.
 
-## Внешние детали
+## External details
 
-Домен и сценарии не используют IO, SQL, часы, CLI или SDK. Composition roots: features/queue/impl/composition, features/config/impl/composition и apps/cli/src/main.rs; только они собирают реализации. Workspace содержит 11 crates, включая два инструмента разработки.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 11 crates, including two development tools.
 
-CLI нормализует command-first/name-first, link-направления и короткие флаги, сохраняя аргументы. Зависимости флагов проверяются до открытия базы. Цепочки create/link → wait → complete последовательно вызывают отдельные сценарии. Между стадиями есть отдельные commits; это не единая транзакция. Complete не исполняет внешнюю команду.
+CLI normalizes command-first/name-first forms, link directions, and short flags while preserving arguments. Flag dependencies are checked before opening the database. create/link → wait → complete chains invoke separate use cases sequentially. Stages have separate commits; they are not one transaction. Complete does not execute an external command.
 
-CLI повторяет CheckTaskRunning после false с короткой паузой без удержания транзакции. Код 0 выдаётся при наблюдении running, включая повторные и одновременные wait. При пакетном topic link -wc задачи ожидаются и завершаются по порядку регистрации. Внешнюю работу запускает вызывающая сторона. Выход CLI, авария и истечение времени не освобождают слоты.
+CLI retries CheckTaskRunning after false with a short pause without holding a transaction. It returns 0 when it observes running, including repeated and concurrent waits. For batch topic link -wc, tasks are awaited and completed in registration order. The caller launches external work. CLI exit, crashes, and elapsed time do not release slots.
 
-Первый Ctrl+C устанавливает внешний cancellation token. Адаптеры проверяют его на границах IO/commit и при ожидании блокировок; RAII откатывает открытую транзакцию и удаляет временный файл. После commit состояние сохраняется, даже если CLI вернул 130. Второй Ctrl+C принудительно завершает процесс. Семантика границ и проверки описаны в [INTERRUPTIONS.md](INTERRUPTIONS.md).
+The first Ctrl+C sets an external cancellation token. Adapters check it at IO/commit boundaries and while waiting for locks; RAII rolls back the open transaction and removes the temporary file. Committed state survives even if CLI returns 130. A second Ctrl+C forcibly terminates the process. Boundary semantics and checks are described in [INTERRUPTIONS.md](INTERRUPTIONS.md).
 
-Запись stdout/stderr, включая справку, выполняется отдельным потоком только с принадлежащим ему сообщением. Основной поток ждёт результата через канал с коротким timeout и проверяет cancellation token. При отмене он освобождает свои ресурсы и возвращает 130 без join заблокированного writer; writer завершается вместе с CLI. При обычном выполнении следующий шаг начинается только после результата записи. Используются стандартные потоки Rust с их платформенным поведением; бизнес-состояние в writer не передаётся.
+stdout/stderr writes, including help, run in a separate thread owning only its message. The main thread waits for the result through a channel with a short timeout and checks the cancellation token. On cancellation it releases its resources and returns 130 without joining a blocked writer; the writer terminates with CLI. During normal execution, the next step begins only after the write result. Standard Rust streams retain their platform behavior; no business state is passed to the writer.
 
-SQLite хранит topics/tasks/task_topics. Схема 3 добавляет task.autostart_default/stopped и nullable topic.autostart; схема 2 обновляется одной IMMEDIATE-транзакцией с сохранением всех состояний и владения. Версия 1 остаётся несовместимой. Открытие базы не выполняет доменный допуск. Совместимость существующей базы проверяется до изменения её данных или режима журналирования. Несовместимый файл отклоняется без изменения и удаления данных.
+SQLite stores topics/tasks/task_topics. Schema 3 adds task.autostart_default/stopped and nullable topic.autostart; schema 2 upgrades in one IMMEDIATE transaction, preserving all states and ownership. Version 1 remains incompatible. Opening a database does not perform domain admission. Existing database compatibility is checked before modifying its data or journal mode. An incompatible file is rejected without changing or deleting data.
 
-## Проверки
+## Checks
 
-Один самостоятельный тип — один файл; правила в [CODE-RULES.md](CODE-RULES.md). Rust AST-линтер проверяет структуру и запрет универсального dispatcher. Python checker проверяет Cargo graph, inward dependencies и фабрики только в main.
+One standalone type per file; see [CODE-RULES.md](CODE-RULES.md). The Rust AST linter checks structure and prohibits a generic dispatcher. The Python checker verifies the Cargo graph, inward dependencies, and factories only in main.
 
-Domain/use-case tests проверяют правила без инфраструктуры. SQLite и file integration suites используют настоящие данные, сбои и независимых писателей. CLI workflow и native Ctrl+C suites запускают реальные процессы на Linux/macOS/Windows. Test hooks включаются отдельной feature только во внешних адаптерах; в обычном бинарнике их нет.
+Domain/use-case tests verify rules without infrastructure. SQLite and file integration suites use real data, failures, and independent writers. CLI workflow and native Ctrl+C suites run real processes on Linux/macOS/Windows. Test hooks are enabled by a separate feature in external adapters only; they are absent from the normal binary.

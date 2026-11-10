@@ -2,25 +2,25 @@
 
 ## Why
 
-Текущий Queue::execute(Command) -> Output объединяет несвязанные сценарии, требует runtime-разбора результата и заставляет worker зависеть от всего API очереди. Несколько типов в одном файле и общий Dispatch нарушают ожидаемые пользователем SRP, ISP и правило одного самостоятельного типа на файл.
+The current Queue::execute(Command) -> Output combines unrelated use cases, requires runtime result matching, and makes worker depend on the entire queue API. Multiple types per file and a shared Dispatch violate the user's expected SRP, ISP, and one-standalone-type-per-file rule.
 
 ## What Changes
 
-- Удалить универсальные Queue/Command/Output и монолитный Dispatch.
-- Выделить минимальные типизированные контракты и интеракторы каждого сценария; worker получает только используемые порты.
-- Разделить модели, порты, SQL-адаптеры, CLI-аргументы и test doubles по ответственности и файлам.
-- Закрепить правила в AGENTS.md и архитектурных проверках с отрицательными fixtures.
+- Remove generic Queue/Command/Output and monolithic Dispatch.
+- Extract minimal typed contracts and interactors per use case; worker receives only required ports.
+- Split models, ports, SQL adapters, CLI arguments, and test doubles by responsibility and file.
+- Enforce rules in AGENTS.md and architecture checks with negative fixtures.
 
 ## Capabilities
 
 ### New Capabilities
 
-Нет: рефакторинг внутреннего Rust API без изменения CLI и семантики очереди.
+None: internal Rust API refactoring without CLI or queue-semantics changes.
 
 ### Modified Capabilities
 
-Нет: наблюдаемое поведение сохраняется. Change объявляет skip_specs, поскольку меняет организацию реализации, а не требования продукта.
+None: observable behavior is preserved. The change declares skip_specs because it changes implementation organization rather than product requirements.
 
 ## Impact
 
-BREAKING для внутреннего Rust API версии 0.1; CLI-команды, SQLite-схема и данные сохраняются. Текущий change support-windows-ci продолжается на новой структуре.
+BREAKING for internal Rust API 0.1; CLI commands, SQLite schema, and data are preserved. The existing support-windows-ci change continues on the new structure.

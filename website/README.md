@@ -1,29 +1,48 @@
-# anyq website and stands
+# anyq website and environments
 
-Лендинг, установщики и доставка принадлежат репозиторию anyq. Общий шлюз itzephir
-выбирает проект anyq; контейнер anyq-gateway выбирает стенд по публичному Host:
+The landing page, installers, and delivery belong to the anyq repository. The shared itzephir gateway
+selects the anyq project; the anyq-gateway container selects an environment by public Host:
 
-| Адрес | Стенд | Публикация |
+| Address | Environment | Publication |
 | --- | --- | --- |
-| https://dev.anyq.itzephir.com/ | dev | После успешного CI PR из этого репозитория |
-| https://anyq.itzephir.com/ | prod | После успешного CI push в main |
+| https://dev.anyq.itzephir.com/ | dev | After successful CI for a same-repository PR |
+| https://anyq.itzephir.com/ | prod | After successful CI for a push to main |
 
-Fork/Dependabot PR не получают ключей. Один dev-стенд общий для PR: последняя
-завершённая выкладка обновляет его. Выкладки одного стенда сериализованы;
-текущая версия доступна в /revision.txt. Main не обновляет dev автоматически.
-До первого merge production-контейнер подготовлен, но без опубликованного сайта:
-его запросы возвращают 503. Разные ключи dev/prod не могут выбрать другой стенд.
+Fork/Dependabot PRs receive no keys. PRs share one dev environment: the latest
+completed deployment updates it. Deployments to the same environment are serialized;
+the current version is available at /revision.txt. Main does not update dev automatically.
+Before the first merge, the production container is prepared but has no published site:
+requests return 503. Separate dev/prod keys cannot select another environment.
 
-## Локальная проверка и OpenDesign
+## Local verification and OpenDesign
 
 ```sh
 python3 tooling/build_website.py
 python3 -m http.server 4192 --directory website/dist --bind 127.0.0.1
 ```
 
-Проверять ?theme=dark/light, 320/390/1440 px, клавиатуру и содержимое без JS.
-Дизайн описан в [DESIGN.md](DESIGN.md). В OpenDesign проект anyq связан с
-user:itzephir; переносить только website/dist. Пути удалённого CLI — серверные.
+Check ?theme=dark/light, 320/390/1440 px, keyboard navigation, and content without JS.
+The design is described in [DESIGN.md](DESIGN.md). In OpenDesign, the anyq project is linked to
+user:itzephir; transfer only website/dist. Remote CLI paths are server paths.
+
+The interface supports English and Russian. Language selection uses `?lang=en`
+or `?lang=ru`, then a saved `anyq-language` preference, then the first supported
+browser language (including regional tags such as `ru-RU`), then English.
+Unsupported values and unavailable storage fall through to the next source.
+The EN/RU button saves the choice and updates the URL without navigation,
+preserving the current theme, anchor, other query parameters, and installer state.
+Without JavaScript, the page remains usable in English.
+
+Layout and accessibility share `document.documentElement.lang`; CSS can use
+`:lang(en)` and `:lang(ru)`. The document emits `anyq:languagechange` with
+`event.detail.language` after initial rendering and every language change.
+All website translations, including metadata and dynamic feedback, live in
+`site.js`; English HTML provides the fallback. New interface text needs both
+languages. Repository documentation and comments are written in English.
+
+```sh
+node --test tooling/website.test.cjs
+```
 
 ```sh
 python3 -m unittest discover -s tooling -p receiver_website_test.py
@@ -32,58 +51,58 @@ python3 tooling/hosting_website_test.py
 python3 tooling/package_website.py
 ```
 
-Последняя команда создаёт website/site.zip только из публичных файлов. CI
-проверяет образ, ZIP boundary, откат и реальный ingress, затем сохраняет ZIP
-как anyq-website. Тот же проверенный артефакт отправляется на выбранный стенд.
+The last command creates website/site.zip from public files only. CI
+checks the image, ZIP boundary, rollback, and actual ingress, then saves the ZIP
+as anyq-website. The same verified artifact is sent to the selected environment.
 
-## Однократная операторская подготовка
+## One-time operator setup
 
-На существующей ВМ из проверенного checkout anyq:
+On the existing VM, from a verified anyq checkout:
 
 ```sh
 bash tooling/setup_website_host.sh COMMIT_SHA
 ```
 
-Сценарий запускают с операторскими правами. Он готовит anyq-web, anyq-gateway
-и anyq-site-dev/prod. Ingress подключён к itzephir-projects-prod, backend-контейнеры
-находятся только в приватной сети anyq-web. Host ports не открываются.
-Публичные файлы стендов хранятся в /srv/anyq/dev и /srv/anyq/prod; mounts read-only.
-Receiver устанавливается в root-owned /usr/local/libexec/anyq/receive-website.py.
-Повторная подготовка сохраняет существующие управляемые контейнеры и версии;
-изменение их образов/конфигурации требует отдельной операторской выкладки.
+Run the script with operator permissions. It prepares anyq-web, anyq-gateway,
+and anyq-site-dev/prod. Ingress joins itzephir-projects-prod; backend containers
+use only the private anyq-web network. No host ports are exposed.
+Public environment files live in /srv/anyq/dev and /srv/anyq/prod with read-only mounts.
+The receiver is installed at root-owned /usr/local/libexec/anyq/receive-website.py.
+Repeated setup preserves existing managed containers and versions;
+changing their images/configuration requires a separate operator deployment.
 
-В production locator настроить slug anyq, Docker target anyq-gateway:8080,
-approved/development. Владелец itzephir включает namespace anyq и DNS/TLS
-для anyq.itzephir.com и *.anyq.itzephir.com существующим инфраструктурным процессом.
-Проектная регистрация не выполняет сборку и не создаёт стенды.
+In the production locator, configure slug anyq, Docker target anyq-gateway:8080,
+and approved/development. The itzephir owner enables namespace anyq and DNS/TLS
+for anyq.itzephir.com and *.anyq.itzephir.com through the existing infrastructure process.
+Project registration does not build the site or create environments.
 
-## Доступ GitHub Actions
+## GitHub Actions access
 
-GitHub environments development и production содержат отдельные:
-ANYQ_DEPLOY_HOST, ANYQ_DEPLOY_KEY и ANYQ_DEPLOY_KNOWN_HOSTS. Production environment
-допускает только branch main. Приватные адреса и значения секретов не публикуются.
+GitHub environments development and production contain separate
+ANYQ_DEPLOY_HOST, ANYQ_DEPLOY_KEY, and ANYQ_DEPLOY_KNOWN_HOSTS. The production environment
+allows only branch main. Private addresses and secret values are not published.
 
-У каждого ключа в authorized_keys включены restrict и отдельный forced command:
+Each key in authorized_keys has restrict and a separate forced command:
 
 ```text
 /usr/bin/python3 -I /usr/local/libexec/anyq/receive-website.py dev
 /usr/bin/python3 -I /usr/local/libexec/anyq/receive-website.py prod
 ```
 
-Ключи предназначены только для этого проекта; существующий операторский SSH-ключ
-не копируется в CI. Receiver принимает единственную команду deploy COMMIT_SHA и ZIP
-через stdin. Произвольный shell, Docker-образ, Dockerfile, скрипт установки хоста
-или выбор другого стенда не принимаются. Пути, типы и размеры файлов проверяются
-до записи. Ревизия не может быть повторно опубликована с другим содержимым.
+Keys are dedicated to this project; the existing operator SSH key
+is not copied into CI. The receiver accepts only deploy COMMIT_SHA and a ZIP
+through stdin. Arbitrary shells, Docker images, Dockerfiles, host setup scripts,
+and other environment selections are rejected. File paths, types, and sizes are validated
+before writing. A revision cannot be republished with different content.
 
-## Обновление и откат
+## Updates and rollback
 
-Receiver сохраняет полный release, атомарно переключает current и проверяет HTTP
-revision в соответствующем nginx. Ошибка возвращает прежний current. После этого
-CI отдельно проверяет публичный HTTPS и совпадение revision с проверенным commit.
-Оператор может вернуть любой сохранённый release через повторную публикацию его
-ZIP с прежним SHA. Файлы CLI, настройки и очереди пользователей не затрагиваются.
+The receiver saves a complete release, switches current atomically, and checks the HTTP
+revision in the corresponding nginx. Failure restores the previous current. Afterward,
+CI separately checks public HTTPS and that the revision matches the verified commit.
+An operator can restore any saved release by republishing its
+ZIP with the original SHA. CLI files, user settings, and queues are unaffected.
 
-Первый GitHub Release бинарников выпускается отдельно. До него установщик
-сообщает об отсутствии версии и сохраняет прежнюю установку. Пользователь убрал
-служебные предупреждения из самого лендинга; статус выпуска остаётся в документации.
+The first binary GitHub Release is published separately. Until then, the installer
+reports the missing version and preserves the previous installation. The user removed
+operational notices from the landing page; release status remains in documentation.

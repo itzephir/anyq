@@ -2,77 +2,77 @@
 
 ## Purpose
 
-Дать пользователю локальные типизированные настройки anyq с долговечным TOML-хранилищем, явным выбором базы и управляемым автоматическим созданием задач и топиков.
+Provide local typed anyq settings with durable TOML storage, explicit database selection, and controlled automatic creation of tasks and topics.
 
 ## ADDED Requirements
 
-### Requirement: Типизированные ключи конфигурации
-Конфигурация SHALL поддерживать task.autocreate и topic.autocreate со значениями true/false и default false, а также необязательный db.path. Неизвестные ключи, неверные типы и пустой путь SHALL давать ошибку без изменения настроек. Проверки и defaults SHALL принадлежать domain.
+### Requirement: Typed configuration keys
+Configuration SHALL support task.autocreate/topic.autocreate true/false, default false, and optional db.path. Unknown keys, invalid types, and empty paths SHALL fail without changing settings. Validation/defaults SHALL belong to the domain.
 
-#### Scenario: Конфигурации ещё нет
-- **WHEN** файл настроек отсутствует
-- **THEN** оба autocreate выключены и используется системный путь базы
+#### Scenario: No config yet
+- **WHEN** the settings file is absent
+- **THEN** both autocreate settings are off and the platform database path is used
 
-#### Scenario: Ошибка значения
-- **WHEN** для task.autocreate передано не булево значение
-- **THEN** операция возвращает ошибку и сохраняет прежние настройки
+#### Scenario: Invalid value
+- **WHEN** a non-boolean value is supplied for task.autocreate
+- **THEN** the operation fails and preserves previous settings
 
-#### Scenario: Таблица вместо конечного значения
-- **WHEN** task.autocreate, topic.autocreate или db.path содержат таблицу, включая пустую
-- **THEN** чтение и изменение возвращают ошибку без перезаписи исходного файла
+#### Scenario: Table instead of terminal value
+- **WHEN** task.autocreate, topic.autocreate, or db.path contains a table, including empty
+- **THEN** reads and mutations fail without rewriting the original file
 
-#### Scenario: Неизвестный пустой раздел
-- **WHEN** файл содержит неизвестный раздел, включая list = {} или [list]
-- **THEN** доменная схема отклоняет раздел, настройки и база не изменяются
+#### Scenario: Unknown empty section
+- **WHEN** the file contains an unknown section, including list = {} or [list]
+- **THEN** the domain schema rejects it without changing settings or the database
 
-#### Scenario: Допустимый пустой раздел
-- **WHEN** файл содержит пустой контейнер task, topic или db без конечных значений
-- **THEN** чтение использует defaults без изменения файла
+#### Scenario: Valid empty section
+- **WHEN** the file contains an empty task, topic, or db container without terminal values
+- **THEN** reads use defaults without changing the file
 
 ### Requirement: Git-style config CLI
-Команда config SHALL поддерживать KEY для чтения, KEY VALUE для записи, --get KEY, --unset KEY и равнозначные list/--list/-l. List SHALL быть подкомандой, не допустимым ключом. Настройки SHALL храниться в ~/.anyq/config.toml на Unix и Windows. Config и help SHALL не открывать базу очереди.
+The config command SHALL support KEY for reading, KEY VALUE for writing, --get KEY, --unset KEY, and equivalent list/--list/-l. List SHALL be a subcommand, not a valid key. Settings SHALL be stored in ~/.anyq/config.toml on Unix and Windows. Config and help SHALL NOT open the queue database.
 
-#### Scenario: Запись и чтение
-- **WHEN** после config task.autocreate true запускается новый процесс config task.autocreate
-- **THEN** он показывает true без открытия базы
+#### Scenario: Write and read
+- **WHEN** a new config task.autocreate process runs after config task.autocreate true
+- **THEN** it shows true without opening the database
 
-#### Scenario: Сброс
-- **WHEN** установленный ключ сброшен через --unset
-- **THEN** используется default или отсутствующее переопределение пути
+#### Scenario: Reset
+- **WHEN** a configured key is reset through --unset
+- **THEN** the default or absent path override is used
 
-#### Scenario: Равнозначные списки
-- **WHEN** вызываются config list, config --list и config -l
-- **THEN** вывод совпадает, настройки и база не изменяются
+#### Scenario: Equivalent lists
+- **WHEN** config list, config --list, and config -l are called
+- **THEN** output matches and settings and database remain unchanged
 
-#### Scenario: List не является ключом
-- **WHEN** переданы config list VALUE, config --get list или config --unset list
-- **THEN** команда возвращает ошибку и сохраняет прежние настройки
+#### Scenario: List is not a key
+- **WHEN** config list VALUE, config --get list, or config --unset list is supplied
+- **THEN** the command fails and preserves previous settings
 
-### Requirement: Приоритет пути базы
-Путь базы SHALL выбираться в порядке --db, ANYQ_DB, db.path, системный default. Переданный путь SHALL не теряться при нормализации command-first/name-first форм.
+### Requirement: Database path precedence
+The database path SHALL be selected in the order --db, ANYQ_DB, db.path, platform default. The supplied path SHALL survive command-first/name-first normalization.
 
-#### Scenario: Явный путь
-- **WHEN** присутствуют все четыре источника пути
-- **THEN** используется только значение --db
+#### Scenario: Explicit path
+- **WHEN** all four path sources are present
+- **THEN** only the --db value is used
 
-### Requirement: Атомарное сохранение конфигурации
-Запись SHALL атомарно заменять файл целиком и координировать конкурентные изменения. Ошибка или Ctrl+C до замены SHALL сохранять прежний файл; после замены SHALL оставлять полный новый файл. Прерывание SHALL не оставлять удерживаемой блокировки.
+### Requirement: Atomic configuration persistence
+Writes SHALL atomically replace the entire file and coordinate concurrent changes. Errors or Ctrl+C before replacement SHALL preserve the previous file; afterward they SHALL leave the complete new file. Interruption SHALL NOT leave a held lock.
 
-#### Scenario: Два процесса
-- **WHEN** два процесса изменяют разные ключи одновременно
-- **THEN** оба успешных изменения сохраняются без потери одного из них
+#### Scenario: Two processes
+- **WHEN** two processes change different keys concurrently
+- **THEN** both successful changes are retained without a lost update
 
-#### Scenario: Прерывание записи
-- **WHEN** процесс получает настоящий Ctrl+C до или после атомарной замены
-- **THEN** новый процесс читает целую старую или целую новую конфигурацию и может снова записать настройки
+#### Scenario: Interrupted write
+- **WHEN** a process receives real Ctrl+C before or after atomic replacement
+- **THEN** a new process reads the complete old or complete new configuration and can write settings again
 
-### Requirement: Транзакционный autocreate
-При включённом task.autocreate/topic.autocreate отсутствующие именованные сущности SHALL создаваться внутри основной операции; новый топик SHALL иметь вместимость 1. Ошибка операции SHALL откатывать её автоматические создания. Autocreate SHALL не обходить допустимые переходы, очередь и ограничения имён.
+### Requirement: Transactional autocreate
+With task.autocreate/topic.autocreate enabled, missing named entities SHALL be created inside the main operation; a new topic SHALL have capacity 1. Operation errors SHALL roll back its automatic creations. Autocreate SHALL NOT bypass valid transitions, ordering, or naming restrictions.
 
-#### Scenario: Связывание отсутствующих объектов
-- **WHEN** оба autocreate включены и link ссылается на отсутствующие задачу и топик
-- **THEN** они создаются вместе со связью, задача queued и слоты не заняты
+#### Scenario: Linking missing objects
+- **WHEN** both autocreate settings are on and link references a missing task and topic
+- **THEN** both are created with the link, the task is queued, and no slots are acquired
 
-#### Scenario: Завершение незапущенной задачи
-- **WHEN** task.autocreate включён и complete без force ссылается на отсутствующее имя
-- **THEN** команда даёт ошибку was not run и не оставляет новую задачу
+#### Scenario: Completing an unstarted task
+- **WHEN** task.autocreate is on and complete without force references a missing name
+- **THEN** the command reports was not run and leaves no new task

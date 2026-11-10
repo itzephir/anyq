@@ -2,30 +2,30 @@
 
 ## Context
 
-См. proposal.md. Runtime уже нативный и SQLite включён в бинарник. Портфолио имеет project registry и общий Docker gateway. OpenDesign доступен через локальный CLI с существующим SSH-доступом.
+See proposal.md. Runtime is already native and SQLite is bundled in the binary. The portfolio has a project registry and shared Docker gateway. OpenDesign is available through a local CLI with existing SSH access.
 
 ## Goals / Non-Goals
 
-**Goals:** исходники страницы, установщиков и доставки принадлежат anyq; проверка архивов и платформ выполняется до публикации; макет использует ту же страницу.
+**Goals:** anyq owns page, installer, and delivery sources; archives and platforms are verified before publication; the layout uses the same page.
 
-**Non-Goals:** изменение очереди, добавление GUI для задач, перенос portfolio shell или автоматическое слияние PR.
+**Non-Goals:** queue changes, a task GUI, copying the portfolio shell, or automatic PR merging.
 
 ## Decisions
 
-- Статический HTML/CSS/JS с локальными IBM Plex и семантическими токенами itzephir. Страница объясняет atomic admission и explicit complete. Небольшой JS сохраняет тему и копирует команды; основное содержание работает без JS.
-- Shell для Unix и PowerShell 5.1+ для Windows. Архивы имеют фиксированные имена по Rust target, SHA256SUMS скачивается из той же версии. latest определяется редиректом GitHub; pin версии доступен аргументом. По умолчанию Unix устанавливает в /usr/local/bin, Windows — Program Files/anyq с системным PATH. --user и -Scope User выбирают ~/.local/bin и LOCALAPPDATA/Programs/anyq без повышения прав. Пользовательский каталог можно указать явно.
-- Скачивание, SHA-256 и запуск --version выполняются до запроса дополнительных прав. При необходимости sudo/UAC запускает только размещение проверенного бинарника и системный PATH. Временный файл создаётся рядом с назначением, его hash повторно проверяется перед атомарной заменой; отказ в правах сохраняет старую версию. Windows откатывает замену при ошибке записи PATH. Аргументы UAC передаются как JSON внутри EncodedCommand без подстановки путей в код. Нативные CI runners проверяют настоящий системный каталог и восстанавливают PATH после теста.
-- Linux musl для переносимости, нативные macOS targets и MSVC Windows x64. Сначала CI тестирует установку локальных артефактов через HTTP fixtures, затем релиз собирает тот же формат. Release публикуется только после получения всех артефактов и проверки соответствия тега версии Cargo.
-- Проектный nginx ingress в существующей сети gateway выбирает dev/prod по Host. Два статических контейнера читают собственный current из read-only mounts в приватной сети anyq. CI передаёт ZIP проверенного сайта по SSH; ограниченный receiver принимает только публичные файлы, атомарно переключает current и проверяет HTTP. Ошибка возвращает прежнюю ссылку. SSH-ключи dev/prod разделены, forced command не даёт произвольного shell. Production environment ограничен main. Адреса и credentials хранятся только в секретах GitHub/операторской конфигурации.
-- В OpenDesign создаётся отдельный проект anyq с designSystemId user:itzephir. Загружается allowlist собранного сайта, а не checkout. Проверяется совпадение файлов.
+- Static HTML/CSS/JS with self-hosted IBM Plex and itzephir semantic tokens. The page explains atomic admission and explicit complete. Small JS persists themes and copies commands; primary content works without JS.
+- Shell for Unix and PowerShell 5.1+ for Windows. Archives have fixed Rust-target names; SHA256SUMS comes from the same version. GitHub redirects resolve latest; a version argument supports pinning. Unix defaults to /usr/local/bin and Windows to Program Files/anyq with system PATH. --user and -Scope User select ~/.local/bin and LOCALAPPDATA/Programs/anyq without elevation. A user directory may be specified explicitly.
+- Download, SHA-256, and --version run before requesting elevated permissions. When needed, sudo/UAC only places the verified binary and updates system PATH. A temporary file is created beside the destination and its hash checked again before atomic replacement; permission refusal preserves the old version. Windows rolls back replacement on PATH-write failure. UAC arguments use JSON inside EncodedCommand without interpolating paths into code. Native CI runners test actual system directories and restore PATH afterward.
+- Linux musl for portability, native macOS targets, and Windows x64 MSVC. CI first tests local artifact installation through HTTP fixtures; releases build the same format. A release is published only after collecting every artifact and checking the tag against the Cargo version.
+- Project nginx ingress in the existing gateway network selects dev/prod by Host. Two static containers read their own current from read-only mounts in the private anyq network. CI sends the verified site ZIP over SSH; a restricted receiver accepts only public files, atomically switches current, and checks HTTP. Failure restores the old symlink. Separate dev/prod SSH keys use forced commands without arbitrary shell access. Production environment is restricted to main. Addresses and credentials live only in GitHub secrets/operator configuration.
+- OpenDesign gets a separate anyq project with designSystemId user:itzephir. Upload the allowlisted build rather than the checkout. Verify matching files.
 
 ## Risks / Trade-offs
 
-- Первый релиз отсутствует → установщик сообщает об ошибке GitHub; документация явно отделяет готовый код от опубликованной версии.
-- Checksum из того же HTTPS источника не является независимой подписью → SHA-256 защищает целостность загрузки; GitHub Release остаётся доверенным источником.
-- macOS бинарники без notarization → CLI распространяется архивом через HTTPS, без обещания Apple signing.
-- Linux ARM сборка → отдельный нативный ARM runner и musl toolchain.
+- No first release yet → installer reports a GitHub error; documentation distinguishes implemented code from a published version.
+- Checksums from the same HTTPS source are not an independent signature → SHA-256 protects download integrity; GitHub Releases remain the trusted source.
+- macOS binaries lack notarization → distribute CLI archives over HTTPS without claiming Apple signing.
+- Linux ARM builds → use a separate native ARM runner and musl toolchain.
 
 ## Migration Plan
 
-PR проверяет обязательный CI, installer fixtures и контейнеры; после успеха публикует ZIP на dev.anyq.itzephir.com. Main после merge публикует production. Оператор один раз устанавливает проектные контейнеры и receiver и регистрирует anyq-gateway:8080 в существующем locator; DNS/TLS namespace включает владелец itzephir. Отдельный version tag выпускает бинарники. Откат сайта — предыдущий current; установщик позволяет pin прежней версии. Данные CLI не мигрируются.
+PRs run required CI, installer fixtures, and container checks; success publishes the ZIP to dev.anyq.itzephir.com. Main publishes production after merge. An operator sets up project containers/receiver once and registers anyq-gateway:8080 in the existing locator; the itzephir owner enables the DNS/TLS namespace. A separate version tag releases binaries. Website rollback restores previous current; installers can pin older versions. CLI data is not migrated.

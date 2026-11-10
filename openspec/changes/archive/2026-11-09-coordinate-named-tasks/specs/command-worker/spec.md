@@ -2,14 +2,14 @@
 
 ## REMOVED Requirements
 
-### Requirement: Явная команда и payload
-**Reason**: anyq выдаёт допуск именованной задаче; внешнюю команду выполняет вызывающая сторона.
-**Migration**: После успешного task wait выполнить свою команду напрямую, затем вызвать task complete. Передавать argv или команды в payload anyq больше не требуется.
+### Requirement: Explicit command and payload
+**Reason**: anyq admits named tasks; the caller executes external commands.
+**Migration**: After successful task wait, run your command directly, then task complete. Passing argv/commands in an anyq payload is no longer required.
 
-### Requirement: Выполнение и продление владения
-**Reason**: Постоянное владение слотами до complete заменяет управление процессом и lease с heartbeat.
-**Migration**: Явно завершать задачу после внешней работы. При аварии проверить состояние внешней работы и завершить задачу вручную.
+### Requirement: Execution and ownership renewal
+**Reason**: Persistent slot ownership until complete replaces process management and heartbeat leases.
+**Migration**: Complete explicitly after external work. After a crash, inspect that work and complete manually.
 
-### Requirement: Следующий этап worker
-**Reason**: anyq больше не определяет результат команды и не публикует следующий этап автоматически.
-**Migration**: Вызывающая сторона сама регистрирует и координирует задачу следующего этапа.
+### Requirement: Worker follow-up stage
+**Reason**: anyq no longer decides command outcomes or automatically publishes follow-up stages.
+**Migration**: The caller registers and coordinates follow-up tasks itself.

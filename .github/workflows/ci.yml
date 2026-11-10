@@ -81,7 +81,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - run: python tooling/build_website.py
+      - run: node --test tooling/website.test.cjs
       - run: python -m unittest discover -s tooling -p 'receiver_website_test.py'
       - run: docker build -f website/Dockerfile -t anyq-site:test .
       - run: bash tooling/test_website_container.sh

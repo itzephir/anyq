@@ -1,35 +1,35 @@
 ## MODIFIED Requirements
 
-### Requirement: Типизированные ключи конфигурации
-Конфигурация SHALL поддерживать task.autocreate и topic.autocreate со значениями true/false и default false, task.autostart со значениями true/false и default true, а также необязательный db.path. Неизвестные ключи, неверные типы и пустой путь SHALL давать ошибку без изменения настроек. Проверки и defaults SHALL принадлежать domain.
+### Requirement: Typed configuration keys
+Configuration SHALL support task.autocreate and topic.autocreate with true/false and default false, task.autostart with true/false and default true, and optional db.path. Unknown keys, invalid types, and empty paths SHALL fail without changing settings. Validation and defaults SHALL belong to the domain.
 
-#### Scenario: Конфигурации ещё нет
-- **WHEN** файл настроек отсутствует
-- **THEN** оба autocreate выключены, task.autostart включён и используется системный путь базы
+#### Scenario: No config yet
+- **WHEN** the settings file is absent
+- **THEN** both autocreate settings are off, task.autostart is on, and the platform default database path is used
 
-#### Scenario: Ошибка значения
-- **WHEN** для task.autocreate передано не булево значение
-- **THEN** операция возвращает ошибку и сохраняет прежние настройки
+#### Scenario: Invalid value
+- **WHEN** a non-boolean value is supplied for task.autocreate
+- **THEN** the operation fails and preserves previous settings
 
-#### Scenario: Таблица вместо конечного значения
-- **WHEN** task.autocreate, task.autostart, topic.autocreate или db.path содержат таблицу, включая пустую
-- **THEN** чтение и изменение возвращают ошибку без перезаписи исходного файла
+#### Scenario: Table instead of terminal value
+- **WHEN** task.autocreate, task.autostart, topic.autocreate, or db.path contains a table, including an empty one
+- **THEN** reads and mutations fail without rewriting the original file
 
-#### Scenario: Неизвестный пустой раздел
-- **WHEN** файл содержит неизвестный раздел, включая list = {} или [list]
-- **THEN** доменная схема отклоняет раздел, настройки и база не изменяются
+#### Scenario: Unknown empty section
+- **WHEN** the file contains an unknown section, including list = {} or [list]
+- **THEN** the domain schema rejects it without changing settings or the database
 
-#### Scenario: Допустимый пустой раздел
-- **WHEN** файл содержит пустой контейнер task, topic или db без конечных значений
-- **THEN** чтение использует defaults без изменения файла
+#### Scenario: Valid empty section
+- **WHEN** the file contains an empty task, topic, or db container without terminal values
+- **THEN** reads use defaults without changing the file
 
-### Requirement: Транзакционный autocreate
-При включённом task.autocreate/topic.autocreate отсутствующие именованные сущности SHALL создаваться внутри основной операции; новый топик SHALL иметь вместимость 1. Ошибка операции SHALL откатывать её автоматические создания. Autocreate SHALL не обходить допустимые переходы, очередь и ограничения имён.
+### Requirement: Transactional autocreate
+With task.autocreate/topic.autocreate enabled, missing named entities SHALL be created inside the main operation; a new topic SHALL have capacity 1. Operation errors SHALL roll back its automatic creations. Autocreate SHALL NOT bypass valid transitions, ordering, or naming restrictions.
 
-#### Scenario: Связывание отсутствующих объектов
-- **WHEN** оба autocreate включены и link ссылается на отсутствующие задачу и топик
-- **THEN** они создаются вместе со связью, задача автоматически допускается при разрешённом автозапуске и доступных ресурсах, иначе остаётся queued
+#### Scenario: Linking missing objects
+- **WHEN** both autocreate settings are on and link references a missing task and topic
+- **THEN** they are created with their link; the task is automatically admitted when autostart and resources allow, otherwise stays queued
 
-#### Scenario: Завершение незапущенной задачи
-- **WHEN** task.autocreate включён и complete без force ссылается на отсутствующее имя
-- **THEN** команда даёт ошибку was not run и не оставляет новую задачу
+#### Scenario: Completing an unstarted task
+- **WHEN** task.autocreate is on and complete without force references a missing name
+- **THEN** the command reports was not run and leaves no new task

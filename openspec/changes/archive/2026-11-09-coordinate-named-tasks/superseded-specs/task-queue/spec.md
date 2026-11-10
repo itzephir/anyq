@@ -2,56 +2,56 @@
 
 ## Purpose
 
-Долговечная локальная очередь координирует людей, агентов и процессы, разделяющие ресурсы машины через именованные топики и явное владение заданиями.
+A durable local queue coordinates people, agents, and processes sharing machine resources through named topics and explicit job ownership.
 
 ## Requirements
 
-### Requirement: Темы и долговечные задания
-Система SHALL создавать именованные топики с положительным лимитом параллелизма, публиковать JSON-задания и сохранять их после перезапуска. Повторный idempotency key в одном топике SHALL возвращать исходное задание без повторной публикации.
+### Requirement: Topics and durable jobs
+The system SHALL create named topics with positive concurrency limits, publish JSON jobs, and persist them across restarts. A repeated idempotency key within a topic SHALL return the original job without republishing.
 
-#### Scenario: Перезапуск и дедупликация
-- **WHEN** producer повторяет публикацию с тем же ключом после открытия базы новым процессом
-- **THEN** существует одно задание с исходным payload и идентичностью
+#### Scenario: Restart and deduplication
+- **WHEN** a producer repeats publication with the same key after a new process opens the database
+- **THEN** one job exists with the original payload and identity
 
-### Requirement: Независимые consumer groups
-Каждая consumer group SHALL получать отдельное задание для каждого сообщения топика. Подтверждение и попытки одной группы SHALL не изменять другую. Новая группа SHALL получать весь сохранённый поток с начала.
+### Requirement: Independent consumer groups
+Each consumer group SHALL receive a separate delivery for every topic message. One group's acknowledgments/attempts SHALL NOT change another. A new group SHALL receive the complete retained stream from the beginning.
 
-#### Scenario: Две группы
-- **WHEN** одно сообщение читают группы build и audit
-- **THEN** обе группы могут независимо подтвердить свою обработку
+#### Scenario: Two groups
+- **WHEN** build and audit groups read one message
+- **THEN** both groups can acknowledge processing independently
 
-#### Scenario: Поздняя подписка
-- **WHEN** группа создаётся после публикации и обработки сообщения другой группой
-- **THEN** новая группа получает это сообщение со статусом pending
+#### Scenario: Late subscription
+- **WHEN** a group is created after another group published and processed a message
+- **THEN** the new group receives that message as pending
 
-### Requirement: Конкурирующие consumers и порядок
-Система SHALL выдавать готовые задания одной группы в порядке публикации одному consumer с учётом общего лимита топика. Отложенные задания SHALL не блокировать готовые. Разные топики SHALL иметь независимые лимиты.
+### Requirement: Competing consumers and ordering
+The system SHALL issue ready jobs within a group in publication order to one consumer, respecting the topic-wide limit. Delayed jobs SHALL NOT block ready jobs. Different topics SHALL have independent limits.
 
-#### Scenario: Общий ресурс
-- **WHEN** два процесса одновременно запрашивают единственный слот занятого топика
-- **THEN** дополнительное задание не выдаётся до освобождения слота
+#### Scenario: Shared resource
+- **WHEN** two processes concurrently request the only slot of a busy topic
+- **THEN** no additional job is issued until the slot is released
 
-### Requirement: Lease и fencing
-Выдача SHALL создавать уникальный lease token и срок владения для пары сообщение/группа. Только действующий token SHALL позволять продление, подтверждение или возврат задания. Истёкшее владение SHALL возвращать задание группы в очередь либо завершать его ошибкой при исчерпании попыток.
+### Requirement: Lease and fencing
+Claiming SHALL create a unique lease token and expiry for a message/group pair. Only a valid token SHALL allow renewal, acknowledgment, or rejection. Expired ownership SHALL requeue the group delivery or mark it failed when attempts are exhausted.
 
-#### Scenario: Устаревший consumer
-- **WHEN** после истечения lease задание получает новый consumer, а старый подтверждает результат
-- **THEN** старое подтверждение отклоняется и новое владение сохраняется
+#### Scenario: Stale consumer
+- **WHEN** a new consumer claims a job after lease expiry and the old consumer acknowledges its result
+- **THEN** the old acknowledgment is rejected and new ownership is retained
 
-### Requirement: Повторы и наблюдаемость
-Система SHALL поддерживать ограниченное число попыток, явный возврат с задержкой, конечное состояние failed и ручной повтор failed-задания. CLI SHALL выдавать JSON со статусом, попытками, consumer, lease, результатом или последней ошибкой.
+### Requirement: Retries and observability
+The system SHALL support bounded attempts, explicit delayed rejection, terminal failed state, and manual retry of failed jobs. CLI SHALL return JSON with status, attempts, consumer, lease, result, or last error.
 
-#### Scenario: Исчерпание попыток
-- **WHEN** consumer возвращает неуспешное задание на последней попытке
-- **THEN** задание получает статус failed и не выдаётся автоматически
+#### Scenario: Attempts exhausted
+- **WHEN** a consumer rejects a failed job on its final attempt
+- **THEN** the job becomes failed and is not issued automatically
 
-### Requirement: Атомарный следующий этап
-Consumer SHALL подтверждать задание вместе с необязательной публикацией следующего JSON-задания в один топик атомарно. При ошибке следующего этапа исходное задание SHALL оставаться неподтверждённым.
+### Requirement: Atomic follow-up stage
+A consumer SHALL atomically acknowledge a job with optional publication of the next JSON job to one topic. On follow-up errors, the original job SHALL remain unacknowledged.
 
-#### Scenario: Билд и эмулятор
-- **WHEN** consumer подтверждает large-builds с существующим emulator-use как следующим этапом
-- **THEN** завершённый билд и одно задание эмулятора сохраняются вместе
+#### Scenario: Build and emulator
+- **WHEN** a consumer acknowledges large-builds with existing emulator-use as the next stage
+- **THEN** the completed build and one emulator job are saved together
 
-#### Scenario: Несуществующий следующий топик
-- **WHEN** следующий этап ссылается на отсутствующий топик
-- **THEN** подтверждение отклоняется и текущий lease остаётся действующим
+#### Scenario: Missing follow-up topic
+- **WHEN** the next stage references a missing topic
+- **THEN** acknowledgment is rejected and the current lease remains valid

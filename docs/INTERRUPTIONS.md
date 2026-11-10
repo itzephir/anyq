@@ -1,51 +1,51 @@
-# Ctrl+C и границы сохранения
+# Ctrl+C and persistence boundaries
 
-Первый Ctrl+C запрашивает остановку; CLI завершает текущую безопасную границу и возвращает 130. Уже сохранённая стадия не отменяется. Открытая транзакция откатывается целиком. Внешняя работа не принадлежит anyq и сигнал CLI не доказывает её остановку.
+The first Ctrl+C requests cancellation; CLI reaches the current safe boundary and returns 130. A committed stage is not undone. An open transaction rolls back completely. External work is outside anyq's ownership; a CLI signal does not prove that work has stopped.
 
-| Момент прерывания | Сохранённый результат |
+| Interruption point | Persisted result |
 | --- | --- |
-| До разбора аргументов | База и настройки не создаются |
-| Открытие базы / до commit схемы | База отсутствует либо переоткрывается и инициализируется заново |
-| После commit схемы | Пустая пригодная база задач и топиков |
-| Регистрация / до commit, включая часть связей | Новой задачи и частичных связей нет |
-| После commit регистрации | registered без топиков либо queued/running со всеми начальными топиками и сохранённым режимом запуска |
-| Link / до commit | Предыдущее членство целиком |
-| После commit link | Полное новое членство и все автоматические допуски этой операции |
-| Ожидание занятого ресурса | Задача queued, свободные ресурсы не удерживаются |
-| Допуск / до commit running | Задача queued без владения |
-| После commit running | По одному слоту каждого топика до явного complete |
-| Complete / до commit | Прежнее состояние и всё прежнее владение |
-| После commit completed | Прежнее владение освобождено, следующие доступные задачи уже running; история и связи сохранены |
-| Force для registered/queued | До commit прежнее состояние; после completed, без запуска снятой задачи; доступные последователи допущены |
-| Создание топика / изменение capacity | До commit прежнее состояние; после полный новый топик/capacity и все автоматические допуски |
-| Autocreate | Новые сущности входят в commit основного сценария; до него откат целиком |
-| Просмотр | Существующие состояния и владение сохраняются; autocreate-побочный эффект подчиняется commit |
-| Config read | Файл не меняется |
-| Config set/unset до замены | Прежний полный файл; временный файл удалён |
-| Config после замены | Новый полный файл |
-| Ожидание config/SQLite lock | Чужая операция не меняется; новая операция не оставляет изменений |
-| Полный stdout/stderr pipe без чтения потребителем | Первый сигнал завершает CLI с 130; сохранённое владение и config не меняются, вывод может быть неполным |
+| Before argument parsing | Neither database nor config is created |
+| Database open / before schema commit | Database is absent or can be reopened and initialized again |
+| After schema commit | Empty usable task/topic database |
+| Registration / before commit, including partial links | No new task or partial links |
+| After registration commit | registered without topics, or queued/running with all initial topics and the stored start mode |
+| Link / before commit | Complete previous membership |
+| After link commit | Complete new membership and every automatic admission caused by this operation |
+| Waiting for a busy resource | Task is queued; free resources are not held |
+| Admission / before running commit | Task is queued without ownership |
+| After running commit | One slot from every topic until explicit complete |
+| Complete / before commit | Previous state and all previous ownership |
+| After completed commit | Previous ownership released, eligible successors already running; history and links retained |
+| Force for registered/queued | Previous state before commit; completed afterward without running the removed task; eligible successors admitted |
+| Topic creation / capacity change | Previous state before commit; complete new topic/capacity and all automatic admissions afterward |
+| Autocreate | New entities are part of the main use-case commit; full rollback before it |
+| Lookup | Existing states and ownership retained; autocreate side effects follow commit |
+| Config read | File unchanged |
+| Config set/unset before replacement | Complete previous file; temporary file removed |
+| Config after replacement | Complete new file |
+| Waiting for config/SQLite lock | Other operation unchanged; new operation leaves no changes |
+| Full stdout/stderr pipe without a reading consumer | First signal exits CLI with 130; persisted ownership and config unchanged, output may be incomplete |
 
-Create -twc сохраняет регистрацию со всеми связями и автоматическим допуском, wait только наблюдает состояние, затем complete одной транзакцией завершает задачу и допускает доступных последователей. Create -tswc при включённом автозапуске сохраняет stopped/queued и ждёт отдельного start. Пакетный link сохраняет всю пачку до допуска; частичные связи и частичные продвижения не переживают прерывание до commit.
+Create -twc persists registration with all links and automatic admission; wait only observes state; complete then finishes the task and admits eligible successors in one transaction. With autostart on, create -tswc persists stopped/queued and waits for a separate start. Batch link saves the entire batch before admission; partial links and partial advances do not survive an interruption before commit.
 
-Task start без -w либо сохраняет running, либо возвращает ошибку без изменений. Start -w повторяет попытки, не удерживая свободные слоты; прерывание оставляет прежний stopped/queued до commit допуска и running после него. Start -wc выполняет отдельный complete после допуска. Read-only wait не пишет переходы, даже если прерван между своими границами транзакции.
+Task start without -w either persists running or returns an error without changes. Start -w retries without holding free slots; interruption leaves the previous stopped/queued state before admission commit and running afterward. Start -wc performs a separate complete after admission. Read-only wait writes no transitions, even when interrupted between its transaction boundaries.
 
-Изменение autostart топика сохраняется атомарно со всеми вызванными допусками; stopped и действующее running-владение сохраняются. Обновление схемы 2 → 3 откатывает новые столбцы и номер версии до commit и целиком сохраняет их после commit. Существующие задачи и владение не запускаются заново при открытии.
+A topic autostart change is committed atomically with every resulting admission; stopped tasks and existing running ownership are preserved. Schema upgrade 2 → 3 rolls back the new columns and version before commit and persists them completely afterward. Existing tasks and ownership are not restarted on open.
 
-После кода 130 нужно посмотреть task NAME: прерывание после commit допуска сохраняет running, даже если сообщение started не успело появиться.
+After exit code 130, inspect task NAME: interruption after admission commit preserves running even if the started message was never printed.
 
-Повторный Ctrl+C принудительно завершает процесс. SQLite откатывает незавершённые транзакции при восстановлении, системная файловая блокировка освобождается. Принудительная остановка до замены config может оставить временный файл; cleanup первого кооперативного сигнала к ней не относится. Файл config.toml.lock намеренно остаётся, но не держит блокировку сам по себе.
+A second Ctrl+C forcibly terminates the process. SQLite rolls back unfinished transactions during recovery, and the OS file lock is released. Forced termination before config replacement may leave a temporary file; cleanup for the first cooperative signal does not apply. config.toml.lock intentionally remains but does not itself hold a lock.
 
-## Интеграционные проверки
+## Integration checks
 
-apps/cli/tests/interruptions.rs запускает настоящий CLI, удерживает его в выбранной точке и посылает реальный сигнал: SIGINT на Unix, CTRL_C_EVENT в отдельную консоль на Windows. Затем проверяются exit 130, долговечные состояния, слоты, целостность файла, освобождение блокировки и успешность последующей операции. Ожидание SQLite/file lock проверяется с независимым процессом, который действительно держит lock.
+apps/cli/tests/interruptions.rs launches the real CLI, holds it at a selected checkpoint, and sends a real signal: SIGINT on Unix, CTRL_C_EVENT in a separate console on Windows. It then checks exit 130, durable states, slots, file integrity, lock release, and a successful subsequent operation. SQLite/file lock waits are tested with an independent process actually holding the lock.
 
-Набор проходит границы и промежуточные записи, включая все три commits create -twc, варианты команд, autocreate и set/unset/read config. Это проверка наблюдаемых границ, а не перебор каждой машинной инструкции.
+The suite covers boundaries and intermediate writes, including all three create -twc commits, command variants, autocreate, and config set/unset/read. It checks observable boundaries rather than every machine instruction.
 
-Отдельные тесты создают вывод больше ёмкости pipe, дожидаются первого байта и посылают один настоящий сигнал. Остальные данные читаются только после завершения CLI: тест не может случайно освободить pipe и скрыть зависание. Проверяются stdout и stderr, сохранность running/config и успешность последующих операций. Успешное чтение большого вывода и закрытый потребителем pipe проверяются в workflow suite.
+Separate tests produce output larger than pipe capacity, wait for the first byte, and send one real signal. Remaining data is read only after CLI exits, so the test cannot accidentally drain the pipe and hide a hang. Checks cover stdout and stderr, running/config persistence, and successful subsequent operations. Successful large-output reads and consumer-closed pipes are tested in the workflow suite.
 
 ```bash
 cargo test --locked -p anyq --test interruptions --features integration-test-hooks
 ```
 
-Контрольные точки собраны только с integration-test-hooks. В обычной сборке переменные ANYQ_TEST_CHECKPOINT не имеют эффекта. CI на всех трёх ОС явно включает обязательный native suite; отсутствие feature не заменяет его запуск.
+Checkpoints are built only with integration-test-hooks. ANYQ_TEST_CHECKPOINT variables have no effect in a normal build. CI on all three operating systems explicitly enables the required native suite; omitting the feature does not replace running it.

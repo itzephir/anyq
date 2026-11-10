@@ -2,53 +2,53 @@
 
 ## Purpose
 
-Установка anyq из опубликованных нативных бинарников без компилятора и без изменения пользовательских данных очереди.
+Install anyq from published native binaries without a compiler or changes to user queue data.
 
 ## ADDED Requirements
 
-### Requirement: Нативные релизы
-Релиз SHALL содержать бинарники macOS arm64/x86_64, Linux arm64/x86_64 и Windows x86_64, а также SHA-256 каждого архива. Неполный набор SHALL не становиться latest-релизом.
+### Requirement: Native releases
+A release SHALL contain macOS arm64/x86_64, Linux arm64/x86_64, and Windows x86_64 binaries plus SHA-256 for each archive. An incomplete set SHALL NOT become the latest release.
 
-#### Scenario: Выпуск версии
-- **WHEN** все нативные сборки тега версии успешно проверены
-- **THEN** GitHub Release публикует полный набор архивов и checksums
+#### Scenario: Version release
+- **WHEN** all native builds for a version tag are successfully verified
+- **THEN** GitHub Release publishes the full archive/checksum set
 
-### Requirement: Проверенная установка
-Установщик SHALL определять ОС и архитектуру, получать latest или явно заданную версию и проверять SHA-256 и версию бинарника до замены. Ошибка загрузки, проверки или несовместимая платформа SHALL сохранять установленный бинарник. Настройки и базы SHALL сохраняться.
+### Requirement: Verified installation
+The installer SHALL detect OS/architecture, fetch latest or an explicit version, and verify SHA-256 and binary version before replacement. Download/verification failures or unsupported platforms SHALL preserve the installed binary. Settings/databases SHALL be retained.
 
-#### Scenario: Повреждённая загрузка
-- **WHEN** скачанный архив не соответствует SHA-256
-- **THEN** установка завершается ошибкой и существующий бинарник сохраняется
+#### Scenario: Corrupt download
+- **WHEN** the downloaded archive does not match SHA-256
+- **THEN** installation fails and the existing binary is preserved
 
-#### Scenario: Windows без Unix shell
-- **WHEN** пользователь Windows запускает PowerShell установщик
-- **THEN** anyq.exe устанавливается без Bash, WSL и Rust
+#### Scenario: Windows without Unix shell
+- **WHEN** a Windows user runs the PowerShell installer
+- **THEN** anyq.exe installs without Bash, WSL, or Rust
 
-### Requirement: Системный контекст по умолчанию
-Установщик SHALL по умолчанию выбирать /usr/local/bin на macOS/Linux и Program Files/anyq на Windows. Явный --user или -Scope User SHALL выбирать ~/.local/bin или LOCALAPPDATA/Programs/anyq без повышения прав. Явный каталог SHALL иметь приоритет над каталогом режима.
+### Requirement: System scope by default
+The installer SHALL default to /usr/local/bin on macOS/Linux and Program Files/anyq on Windows. Explicit --user or -Scope User SHALL select ~/.local/bin or LOCALAPPDATA/Programs/anyq without elevation. An explicit directory SHALL override the mode's default.
 
-#### Scenario: Установка для всех
-- **WHEN** пользователь запускает установщик без выбора каталога или режима
-- **THEN** бинарник размещается в системном каталоге и доступен всем пользователям
+#### Scenario: Install for everyone
+- **WHEN** a user runs the installer without selecting a directory or mode
+- **THEN** the binary is placed in the system directory and available to all users
 
-#### Scenario: Пользовательский режим
-- **WHEN** выбран --user или -Scope User
-- **THEN** установщик использует пользовательский каталог без запроса sudo/UAC
+#### Scenario: User mode
+- **WHEN** --user or -Scope User is selected
+- **THEN** the installer uses the user directory without requesting sudo/UAC
 
-### Requirement: Ограниченное повышение прав
-Установщик SHALL скачивать и проверять бинарник до запроса sudo/UAC. Дополнительные права SHALL использоваться только для размещения и системного PATH; копия SHALL проверяться перед атомарной заменой. Отказ в правах или неудачная проверка SHALL сохранять установленную версию.
+### Requirement: Limited elevation
+The installer SHALL download/verify the binary before sudo/UAC. Elevated permissions SHALL be used only for placement/system PATH; the copy SHALL be verified before atomic replacement. Permission refusal or verification failure SHALL preserve the installed version.
 
-#### Scenario: Отказ повышения
-- **WHEN** пользователь отклоняет sudo/UAC
-- **THEN** установщик сообщает об ошибке, сохраняя прежний бинарник и PATH
+#### Scenario: Elevation refused
+- **WHEN** the user declines sudo/UAC
+- **THEN** the installer reports an error, preserving the previous binary and PATH
 
-### Requirement: Контекст Windows PATH
-Windows установщик SHALL добавлять каталог без дубликатов в системный PATH при System и пользовательский PATH при User. Ошибка записи PATH SHALL откатывать замену бинарника. -NoPathUpdate SHALL отключать изменение PATH.
+### Requirement: Windows PATH scope
+The Windows installer SHALL add the directory without duplicates to system PATH in System mode and user PATH in User mode. PATH-write failures SHALL roll back binary replacement. -NoPathUpdate SHALL disable PATH changes.
 
-#### Scenario: Системная установка Windows
-- **WHEN** установка в режиме System завершилась успешно
-- **THEN** системный PATH содержит каталог, а пользовательский PATH сохраняется
+#### Scenario: Windows system installation
+- **WHEN** System-mode installation succeeds
+- **THEN** system PATH contains the directory and user PATH is preserved
 
-#### Scenario: Ошибка PATH
-- **WHEN** запись PATH завершается ошибкой после размещения бинарника
-- **THEN** прежний бинарник восстанавливается
+#### Scenario: PATH error
+- **WHEN** PATH writing fails after binary placement
+- **THEN** the previous binary is restored

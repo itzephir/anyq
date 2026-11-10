@@ -1,15 +1,15 @@
 # Tasks
 
-## 1. Контракты и сценарии
+## 1. Contracts and use cases
 
-- [x] 1.1 Удалить Queue/Command/Output/Dispatch, выделить отдельные контракты, интеракторы и persistence-порты; проверить конкретные сценарии unit и SQLite integration tests без изменения поведения.
-- [x] 1.2 Перевести worker и CLI на минимальные типизированные зависимости, разделить модели, адаптеры, аргументы и test doubles по файлам; проверить CLI handoff, retries, heartbeat и ошибки.
-- [x] 1.3 Разделить объявления, методы и логические этапы пустыми строками, включая подготовку/действие/проверки в тестах; закрепить правила читаемости и проверить, что Rust diff меняет только пробельное оформление; строковые литералы сохранены, форматирование и локальные проверки проходят.
+- [x] 1.1 Remove Queue/Command/Output/Dispatch; extract separate contracts, interactors, and persistence ports; verify concrete unit/SQLite integration scenarios without behavior changes.
+- [x] 1.2 Move worker and CLI to minimal typed dependencies; split models, adapters, arguments, and test doubles into files; verify CLI handoff, retries, heartbeat, and errors.
+- [x] 1.3 Separate declarations, methods, and logical phases with blank lines, including arrange/act/assert in tests; document readability rules and verify the Rust diff changes whitespace only; string literals remain unchanged, formatting and local checks pass.
 
-## 2. Закрепление правил
+## 2. Enforcing rules
 
-- [x] 2.1 Добавить проверку одного верхнеуровневого типа на файл и запрета универсального бизнес-dispatcher, отрицательные fixtures и архитектурную документацию; пройти fmt/clippy/tests/architecture/OpenSpec и CI.
+- [x] 2.1 Add one-top-level-type-per-file and generic-business-dispatcher checks, negative fixtures, and architecture documentation; pass fmt/clippy/tests/architecture/OpenSpec and CI.
 
 ## Workflow follow-up
 
-- После ревью архивировать завершённый change; PR не сливать без просьбы пользователя.
+- Archive the completed change after review; do not merge the PR without a user request.

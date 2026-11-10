@@ -2,15 +2,15 @@
 
 ## ADDED Requirements
 
-### Requirement: Независимая проверка задач и ресурсов
-Инварианты задач, атомарного допуска и завершения SHALL проверяться без базы и процессов. Адаптеры SHALL проверяться отдельно, включая настоящую конкуренцию за несколько топиков, долговечность владения и rollback.
+### Requirement: Independent verification of tasks and resources
+Task, atomic admission, and completion invariants SHALL be tested without a database or processes. Adapters SHALL be tested separately, including real contention for several topics, ownership durability, and rollback.
 
-#### Scenario: Недоступен один ресурс
-- **WHEN** unit test передаёт сценарию задачи два топика, один из которых занят
-- **THEN** чистая доменная политика отказывает в допуске, не резервируя второй ресурс и не обращаясь к реальной инфраструктуре
+#### Scenario: One resource unavailable
+- **WHEN** a unit test supplies a task use case with two topics, one busy
+- **THEN** pure domain policy rejects admission without reserving the other resource or using real infrastructure
 
 ## REMOVED Requirements
 
-### Requirement: Независимая проверка правил
-**Reason**: Конкретные проверки lease и прежних сценариев доставки заменяются инвариантами именованной задачи и её допуска.
-**Migration**: Сохранить изолированные domain/use-case tests и отдельные adapter tests, заменив fixtures сообщений, групп и lease на задачи и ресурсы.
+### Requirement: Independent rule verification
+**Reason**: Lease/delivery checks are replaced by named-task/admission invariants.
+**Migration**: Retain isolated domain/use-case and separate adapter tests, replacing message/group/lease fixtures with tasks/resources.

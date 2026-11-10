@@ -2,37 +2,37 @@
 
 ## Why
 
-anyq должен координировать допуск внешней работы к локальным ресурсам. Реализованный поток сообщений с worker, запускающим команды, и временный Python launcher подменили эту ответственность: пользователь ожидает именованную задачу, несколько топиков и явные wait/complete.
+anyq should coordinate admission of external work to local resources. The implemented message/command-worker flow and temporary Python launcher replaced this responsibility: the user expects named tasks, several topics, and explicit wait/complete.
 
 ## What Changes
 
-- **BREAKING:** заменить сообщения, consumer groups, leases, retries и worker моделью именованных задач; не сохранять прежний API параллельно.
-- Добавить нативные команды `anyq task create NAME [--topic TOPIC]`, `anyq topic link TOPIC NAME`, равнозначную `anyq task link NAME TOPIC`, `anyq task wait NAME`, `anyq task complete NAME`, `anyq task complete --force NAME` и список `anyq topic --list`. Вместимость изменяется через `anyq topic capacity TOPIC N`; создание сохраняет `--capacity N`.
-- Поддержать краткие флаги `-t` для повторяемого `--topic`, `-l` для `--list`, `-c` для `--capacity` при создании топика и `-f` для `--force`. Регистрация с начальными топиками атомарна и не занимает слоты.
-- Добавить `task create NAME -t TOPIC --wait/-w --complete/-c`, включая `-twc TOPIC`: wait требует topic, complete требует wait. Без complete владение остаётся running. `-v` и `-h` равнозначны --version и --help.
-- Добавить `task list/--list/-l` со всеми именами, `task NAME` со статусом и топиками, `topic TOPIC` с текущими queued/running по номеру регистрации и `topic capacity TOPIC` для чтения вместимости. Просмотр не меняет существующее владение; autocreate может создать отсутствующее имя.
-- В domain определить общую схему имён задач и топиков: bare-имя начинается с a-z/A-Z и не совпадает с list/create/capacity/link/add/wait/complete/config/help; последующие символы произвольны. Буквальная обёртка обратными кавычками допускает любое содержимое, включая слова команд. Обёртка снимается один раз: build и `build` имеют одну идентичность. CLI не копирует бизнес-правила имён.
-- Добавить command-first и name-first формы команд, list и help, зависимые цепочки link/wait с complete.
-- Добавить git-style config со списком list/--list/-l в ~/.anyq/config.toml: task.autocreate и topic.autocreate по умолчанию false, db.path. List не является допустимым ключом. Autocreate входит в транзакцию основного сценария и откатывается при его ошибке. Приоритет пути: --db, ANYQ_DB, db.path, прежний системный путь по умолчанию.
-- Одна задача может требовать слоты нескольких топиков. `wait` атомарно получает допуск во всех них и возвращается; внешнюю команду выполняет вызывающая сторона.
-- Хранить владение до явного завершения. Выход CLI, падение вызывающего процесса и прошедшее время не освобождают слоты.
-- Отклонять `wait` без топиков и обычный `complete` до запуска. `--force` позволяет завершить зарегистрированную или ожидающую задачу, не исполняя её.
-- Сохранять историю и состояние локально. Старую базу сообщений не преобразовывать автоматически и не очищать: новая модель использует новую версию схемы и отдельный файл при обнаружении старой базы.
-- Заменить примеры и проверки сценарием «зарегистрировать → добавить в топики → дождаться допуска → выполнить внешнюю работу → завершить».
+- **BREAKING:** replace messages, consumer groups, leases, retries, and worker with named tasks; do not retain the previous API in parallel.
+- Add native `anyq task create NAME [--topic TOPIC]`, `anyq topic link TOPIC NAME`, equivalent `anyq task link NAME TOPIC`, `anyq task wait NAME`, `anyq task complete NAME`, `anyq task complete --force NAME`, and `anyq topic --list`. Change capacity through `anyq topic capacity TOPIC N`; creation retains `--capacity N`.
+- Support short flags `-t` for repeated `--topic`, `-l` for `--list`, `-c` for `--capacity` on topic creation, and `-f` for `--force`. Registration with initial topics is atomic and does not acquire slots.
+- Add `task create NAME -t TOPIC --wait/-w --complete/-c`, including `-twc TOPIC`: wait requires topic; complete requires wait. Without complete, ownership stays running. `-v`/`-h` equal --version/--help.
+- Add `task list/--list/-l` for all names, `task NAME` for state/topics, `topic TOPIC` for current queued/running registration order, and `topic capacity TOPIC` to read capacity. Lookups do not change existing ownership; autocreate may create missing names.
+- Define shared domain task/topic names: bare starts with a-z/A-Z, differs from list/create/capacity/link/add/wait/complete/config/help, and has an arbitrary tail. A literal backtick wrapper permits any content, including command words, and is stripped once: build and `build` share identity. CLI does not duplicate business naming rules.
+- Add command-first/name-first forms, list/help, and dependent link/wait chains with complete.
+- Add git-style config list/--list/-l in ~/.anyq/config.toml: task.autocreate/topic.autocreate default false, db.path. List is not a valid key. Autocreate is transactional and rolls back with the main use case. Path precedence: --db, ANYQ_DB, db.path, existing platform default.
+- One task may require several topic slots. `wait` atomically obtains admission across all of them and returns; the caller executes external commands.
+- Retain ownership until explicit completion. CLI exit, caller crash, and elapsed time do not release slots.
+- Reject `wait` without topics and ordinary `complete` before admission. `--force` can finish registered/queued tasks without executing them.
+- Persist history/state locally. Do not automatically convert or clear the old message database: the new model uses a new schema version and requires a separate file when an old database is detected.
+- Replace examples/checks with register → link topics → await admission → perform external work → complete.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `local-config`: типизированные настройки, сохранение TOML, git-style CLI, разрешение пути базы и политика autocreate.
+- `local-config`: typed settings, TOML persistence, git-style CLI, database path resolution, and autocreate policy.
 
 ### Modified Capabilities
 
-- `task-queue`: именованные задачи, членство в нескольких топиках, атомарный допуск и постоянное владение до завершения заменяют сообщения и доставки групп.
-- `command-worker`: удалить capability; запуск команд, heartbeat и автоматический следующий этап больше не являются ответственностью anyq.
-- `platform-support`: нативный CLI координации сохраняется на трёх ОС; управление деревом внешних процессов удаляется из контракта.
-- `architecture`: независимые проверки привязываются к допуску задач вместо устаревших lease-сценариев; правила границ и DI сохраняются.
+- `task-queue`: named tasks, multiple topics, atomic admission, and persistent ownership replace messages/group deliveries.
+- `command-worker`: remove the capability; command execution, heartbeat, and automatic follow-up are no longer anyq responsibilities.
+- `platform-support`: retain native coordination CLI on three operating systems; remove external process-tree management from the contract.
+- `architecture`: independent checks use task admission instead of obsolete lease scenarios; boundary/DI rules remain.
 
 ## Impact
 
-Основные изменения затрагивают `features/queue/{api,impl}`, CLI и SQLite-схему. Четыре worker crates и их зависимости удаляются. Архитектурные границы, один тип на файл и отдельные типизированные сценарии сохраняются; разрешённый Cargo graph, документация, AGENTS.md и OpenSpec context обновляются под новую модель. Linux lint и обе нативные CI-матрицы сохраняются. Временный пилот itzdesign переводится на нативный task CLI после реализации и проверки, на отдельной базе; старые бинарник и данные пилота не перезаписываются.
+Main changes affect `features/queue/{api,impl}`, CLI, and SQLite schema. Four worker crates and dependencies are removed. Architecture boundaries, one type per file, and separate typed use cases remain; update the allowed Cargo graph, documentation, AGENTS.md, and OpenSpec context. Retain Linux lint and both native CI matrices. After implementation/verification, move the temporary itzdesign pilot to native task CLI on a separate database; do not overwrite its old binary/data.

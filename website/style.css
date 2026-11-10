@@ -126,7 +126,8 @@ nav a {
   margin-left: 8px;
   color: var(--muted);
 }
-.theme {
+.theme,
+.language {
   display: grid;
   place-items: center;
   width: 44px;
@@ -137,7 +138,12 @@ nav a {
   color: var(--text);
   background: var(--panel);
 }
-.theme:hover {
+.language {
+  font-family: PlexMono, monospace;
+  font-size: 12px;
+}
+.theme:hover,
+.language:hover {
   background: var(--raised);
 }
 .hero {
@@ -578,6 +584,9 @@ pre {
     gap: 16px;
   }
   nav a[href="#usage"] {
+    display: none;
+  }
+  nav .github {
     display: none;
   }
   nav a {
