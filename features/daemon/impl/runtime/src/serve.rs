@@ -1,4 +1,4 @@
-use crate::{QueueFactory, SessionSignals, session::Session};
+use crate::{QueueFactory, SessionSignals, session::Session, session_capacity::SessionCapacity};
 use anyq_daemon_transport::{Endpoint, OwnerLock, validate_peer};
 use anyq_queue_api::{Error, Result};
 use std::{
@@ -21,6 +21,7 @@ pub fn serve(
         .listen()
         .map_err(|error| Error::Storage(error.to_string()))?;
     let mut sessions = Vec::new();
+    let capacity = Arc::new(SessionCapacity::default());
     let mut failure = None;
 
     while !shutdown.load(Ordering::SeqCst) {
@@ -32,10 +33,13 @@ pub fn serve(
 
         match listener.accept() {
             Ok(stream) => {
-                if sessions.len() >= 64 || validate_peer(&stream).is_err() {
+                if validate_peer(&stream).is_err() {
                     continue;
                 }
 
+                let Some(permit) = capacity.admit() else {
+                    continue;
+                };
                 let signals = Arc::new(SessionSignals::default());
                 let session = Session {
                     stream: Arc::new(stream),
@@ -43,6 +47,7 @@ pub fn serve(
                     factory: factory.clone(),
                     signals: signals.clone(),
                     shutdown: shutdown.clone(),
+                    permit,
                 };
                 sessions.push((signals, thread::spawn(move || session.run())));
             }

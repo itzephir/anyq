@@ -1,4 +1,7 @@
-use crate::{QueueFactory, SessionSignals, route::route};
+use crate::{
+    QueueFactory, SessionSignals, route::route, session_class::SessionClass,
+    session_permit::SessionPermit,
+};
 use anyq_daemon_api::{
     PROTOCOL_VERSION, QueueRequest, QueueResponse, QueueServices, RequestFrame, ResponseFrame,
 };
@@ -20,6 +23,7 @@ pub(crate) struct Session {
     pub factory: Arc<dyn QueueFactory>,
     pub signals: Arc<SessionSignals>,
     pub shutdown: Arc<AtomicBool>,
+    pub permit: SessionPermit,
 }
 
 impl Session {
@@ -58,6 +62,17 @@ impl Session {
             };
             self.reply(frame.id, response)?;
         }
+    }
+
+    fn require_capacity(&mut self, class: SessionClass) -> Result<()> {
+        if self.permit.enter(class) {
+            return Ok(());
+        }
+
+        Err(Error::Storage(match class {
+            SessionClass::Waiting => "daemon waiting session limit reached".into(),
+            _ => "daemon command session limit reached".into(),
+        }))
     }
 
     fn reply(&self, id: u64, response: QueueResponse) -> Result<()> {
@@ -101,7 +116,7 @@ impl Session {
     }
 
     fn queue_loop(
-        &self,
+        &mut self,
         receiver: &Receiver<RequestFrame>,
         id: u64,
         policy: QueuePolicy,
@@ -122,15 +137,37 @@ impl Session {
 
         loop {
             let frame = self.next(receiver)?;
+            let class = match &frame.request {
+                QueueRequest::CheckTaskRunning { .. } | QueueRequest::StartTask { .. } => {
+                    self.permit.class
+                }
+                _ => SessionClass::Command,
+            };
+            if let Err(error) = self.require_capacity(class) {
+                self.reply(frame.id, QueueResponse::Error(error.into()))?;
+
+                return Ok(());
+            }
+
             let response = match route(frame.request, &mut services) {
                 Ok(response) => response,
                 Err(error) => QueueResponse::Error(error.into()),
             };
+            let waiting = matches!(&response, QueueResponse::Running(false))
+                || matches!(&response, QueueResponse::Started(outcome) if outcome == "busy");
+            if waiting {
+                if let Err(error) = self.require_capacity(SessionClass::Waiting) {
+                    self.reply(frame.id, QueueResponse::Error(error.into()))?;
+
+                    return Ok(());
+                }
+            }
+
             self.reply(frame.id, response)?;
         }
     }
 
-    fn handle(&self, receiver: &Receiver<RequestFrame>) -> Result<()> {
+    fn handle(&mut self, receiver: &Receiver<RequestFrame>) -> Result<()> {
         let frame = self.next(receiver)?;
         match frame.request {
             QueueRequest::OpenObservation { database_id } => {
@@ -141,6 +178,10 @@ impl Session {
                             Error::Invalid("daemon database identity mismatch".into()).into(),
                         ),
                     );
+                }
+
+                if let Err(error) = self.require_capacity(SessionClass::Command) {
+                    return self.reply(frame.id, QueueResponse::Error(error.into()));
                 }
 
                 self.observation_loop(receiver, frame.id)
@@ -165,6 +206,10 @@ impl Session {
                             Error::Invalid("daemon database identity mismatch".into()).into(),
                         ),
                     );
+                }
+
+                if let Err(error) = self.require_capacity(SessionClass::Command) {
+                    return self.reply(frame.id, QueueResponse::Error(error.into()));
                 }
 
                 #[cfg(feature = "integration-test-hooks")]
@@ -192,7 +237,7 @@ impl Session {
         }
     }
 
-    pub fn run(self) {
+    pub fn run(mut self) {
         let (sender, receiver) = mpsc::sync_channel(1);
         let stream = self.stream.clone();
         let signals = self.signals.clone();

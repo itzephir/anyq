@@ -1,6 +1,7 @@
 use crate::support::queue::Queue;
 use anyq_daemon_api::{
-    PROTOCOL_VERSION, QueueRequest, QueueResponse, RequestFrame, ResponseFrame, TopicDto,
+    PROTOCOL_VERSION, QueueError, QueueRequest, QueueResponse, RequestFrame, ResponseFrame,
+    TopicDto,
 };
 use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_frame};
 use anyq_queue_api::{QueueSnapshot, TaskState};
@@ -32,6 +33,10 @@ fn request(stream: &Stream, id: u64, request: QueueRequest) -> QueueResponse {
 fn observer(queue: &Queue) -> Stream {
     queue.call(&["daemon", "start"]);
     let endpoint = Endpoint::resolve(&queue.db).unwrap();
+    open_observer(&endpoint)
+}
+
+fn open_observer(endpoint: &Endpoint) -> Stream {
     let stream = endpoint.connect().unwrap();
 
     let reply = request(
@@ -46,6 +51,38 @@ fn observer(queue: &Queue) -> Stream {
         matches!(reply, QueueResponse::Ready { database_id, .. } if database_id == endpoint.identity)
     );
     stream
+}
+
+#[test]
+fn observation_capacity_cannot_consume_reserved_lifecycle_sessions() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    let endpoint = Endpoint::resolve(&queue.db).unwrap();
+    let sessions: Vec<_> = (0..64).map(|_| open_observer(&endpoint)).collect();
+
+    let overflow = endpoint.connect().unwrap();
+    let response = request(
+        &overflow,
+        1,
+        QueueRequest::OpenObservation {
+            database_id: endpoint.identity.clone(),
+        },
+    );
+
+    match response {
+        QueueResponse::Error(QueueError::Storage(message)) => {
+            assert_eq!(message, "daemon command session limit reached");
+        }
+        other => panic!("unexpected observation at command capacity: {other:?}"),
+    }
+    assert!(queue.call(&["daemon", "status"]).contains("running"));
+
+    queue.call(&["daemon", "stop"]);
+    drop(sessions);
+
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
 }
 
 #[test]
