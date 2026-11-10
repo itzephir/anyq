@@ -33,5 +33,5 @@ depends on `introduce-queue-daemon` and prepares data for lifecycle event snapsh
 Task/Topic aggregates, typed metadata use cases, SQLite schema/migration and daemon
 protocol gain metadata. JSON/YAML/TOML parsing stays in outer adapters. Existing
 configuration retains its typed known-key policy; metadata is not config storage.
-UI text/help supports English and Russian. Parser dependencies are limited to
+CLI text/help remains English-only. Parser dependencies are limited to
 the adapters that need them; domain values remain independent of file formats.

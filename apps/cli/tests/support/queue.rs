@@ -90,8 +90,71 @@ impl Queue {
         )
     }
 
+    pub fn spawn_owner(&self) -> TestProcess {
+        let mut command = self.cmd(&["daemon", "run"]);
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+
+            command.creation_flags(0x00000010);
+        }
+
+        let mut owner = TestProcess::spawn(&mut command);
+        let deadline = Instant::now() + Duration::from_secs(10);
+
+        while self.call(&["daemon", "status"]) == "daemon is stopped" {
+            assert!(Instant::now() < deadline, "foreground daemon did not start");
+            owner.assert_running();
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        owner.assert_running();
+
+        owner
+    }
+
     pub fn wait_for_log(&self, label: &str, expected: &str) {
         wait_for_file(&self.log(label), Some(expected));
+    }
+}
+
+impl Drop for Queue {
+    fn drop(&mut self) {
+        fn databases(directory: &Path, found: &mut Vec<PathBuf>) {
+            let Ok(entries) = fs::read_dir(directory) else {
+                return;
+            };
+
+            for entry in entries.flatten() {
+                if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+                    databases(&entry.path(), found);
+                } else if let Some(name) = entry
+                    .file_name()
+                    .to_str()
+                    .and_then(|name| name.strip_suffix(".anyq-owner.lock"))
+                {
+                    found.push(entry.path().with_file_name(name));
+                }
+            }
+        }
+
+        let mut paths = Vec::new();
+        databases(self.dir.path(), &mut paths);
+        for path in paths {
+            let _ = self
+                .cmd(&["daemon", "stop"])
+                .arg("--db")
+                .arg(path)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
     }
 }
 

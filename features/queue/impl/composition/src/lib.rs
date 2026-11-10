@@ -1,9 +1,7 @@
-mod queue_module;
-
+pub use anyq_queue_api::QueueServices as QueueModule;
 use anyq_queue_api::{QueuePolicy, Result};
 use anyq_queue_dispatch::*;
 use anyq_queue_sqlite::Sqlite;
-pub use queue_module::QueueModule;
 use std::{
     path::Path,
     sync::{Arc, atomic::AtomicBool},

@@ -1,6 +1,6 @@
 # Working on anyq
 
-- Write repository content in English: documentation, specifications, instructions, code comments, and new contributor-facing text. User interfaces must support English (`en`) and Russian (`ru`). Russian is allowed in localization resources and language-specific test fixtures. For websites, resolve language from a valid URL override, saved choice, browser preferences, then English; expose it through the HTML `lang` attribute for layout and accessibility.
+- Write repository content in English: documentation, specifications, instructions, code comments, and new contributor-facing text. The CLI is English-only and must not add language selection or translations. Websites and other graphical interfaces support English (`en`) and Russian (`ru`). Russian is allowed in graphical-interface localization resources and language-specific test fixtures. For websites, resolve language from a valid URL override, saved choice, browser preferences, then English; expose it through the HTML `lang` attribute for layout and accessibility.
 
 - The project is a local admission queue written in Rust; specifications and tasks live in OpenSpec. A named task atomically acquires one slot from every attached topic and holds them until explicit complete.
 - Follow [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Robert Martin's Clean Architecture, organized by domain feature first, then layer. Each feature has separate api/impl Cargo crates; cross-feature dependencies may target api only.

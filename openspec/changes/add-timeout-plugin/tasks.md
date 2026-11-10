@@ -8,7 +8,7 @@
 
 ## 2. Runtime integration and recovery
 
-- [ ] 2.1 Expose the first-party executable plugin mode through the ordinary versioned protocol; verify registration, subscriptions and localized status work without direct queue/database access.
+- [ ] 2.1 Expose the first-party executable plugin mode through the ordinary versioned protocol; verify registration, subscriptions and English-only status work without direct queue/database access.
 - [ ] 2.2 Persist deadline/state acknowledgements and replay-safe completion actions; verify delayed delivery, restart-after-deadline and disable/re-enable never extend the deadline.
 - [ ] 2.3 Integrate the common managed-execution completion barrier; verify a fixture worker's failed cancellation retains slots and confirmed stop permits atomic release/admission.
 - [ ] 2.4 Add real-client tests for manual completion/expiry races and completion timer retirement; verify one logical completion and no forced removal of queued/registered tasks.

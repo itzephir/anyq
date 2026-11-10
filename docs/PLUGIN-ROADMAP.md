@@ -13,6 +13,9 @@ resource ownership. A plugin requests a typed queue operation; it never edits
 SQLite, allocates slots, or bypasses task transitions. Running means admission was
 obtained; it does not mean that a script has already started or succeeded.
 
+The CLI is English-only throughout all five stages, without translations or
+language selection. Website language support remains a separate concern.
+
 ## Delivery order
 
 | Stage | OpenSpec change | Prerequisite | Independently reviewable result |

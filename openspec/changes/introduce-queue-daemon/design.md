@@ -88,8 +88,8 @@ their isolated owner during fixture cleanup, without adding production idle exit
 `start` waits for readiness, `status` probes without starting, `stop` requests
 bounded graceful shutdown, and `run` owns the foreground signal handler. Queue
 commands auto-start and wait for readiness without inheriting CLI stdout/stderr
-pipes. New lifecycle messages are localized in en/ru at the presentation boundary;
-wire error kinds remain language independent. Preserve existing default-English
+pipes. Lifecycle messages and help remain English-only, without language settings;
+wire error kinds stay separate from presentation. Preserve existing
 text and exit codes, including first Ctrl+C = 130 and forced second interruption.
 
 ## Risks / Trade-offs

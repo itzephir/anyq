@@ -16,7 +16,7 @@
 
 ## 3. Outcomes and plugin integration
 
-- [ ] 3.1 Expose first-party shell through the public executable protocol and inspection API/CLI; verify localized status, exit codes and bounded logs remain available after daemon restart.
+- [ ] 3.1 Expose first-party shell through the public executable protocol and inspection API/CLI; verify English-only status, exit codes and bounded logs remain available after daemon restart.
 - [ ] 3.2 Implement autocomplete false/true through replay-safe completion requests; verify success, nonzero exit and no-process launch failure retain outcomes while applying the chosen completion policy.
 - [ ] 3.3 Add end-to-end timeout+shell tests with descendants and manual completion races; verify resource capacity is never reused before confirmed managed termination.
 - [ ] 3.4 Update architecture/project context, ownership/interruption docs and runnable examples for optional execution; verify ordinary caller-owned workflows and disabled shell still run no commands.

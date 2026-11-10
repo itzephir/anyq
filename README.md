@@ -1,6 +1,6 @@
 # anyq
 
-A local resource admission queue for named tasks: builds, agents, people, and emulators. Written in Rust, without a server; all participants share one SQLite file on a local disk.
+A local resource admission queue for named tasks: builds, agents, people, and emulators. A bundled Rust daemon owns each SQLite database on local disk; CLI commands send it local messages. Queue commands start the owner automatically, and it keeps running after clients exit.
 
 A task requires several topics at once. When autostart is enabled, the queue automatically acquires one slot from every topic atomically. Wait only waits for running and succeeds immediately if the task is already running. The caller performs the work and releases ownership with complete.
 
@@ -13,7 +13,7 @@ The landing page and its delivery workflow live in [website/](website/README.md)
 The website supports English and Russian, detects browser language, and remembers
 your EN/RU choice. Use `?lang=en` or `?lang=ru` for an explicit language override.
 Repository documentation, specifications, and comments are maintained in English;
-interface work supports both languages.
+the CLI is English-only, while website interfaces support both languages.
 
 Rust 1.85+ and C build tools for bundled SQLite are required. Linux, macOS, and Windows MSVC with Visual Studio Build Tools C++ are supported.
 
@@ -28,6 +28,8 @@ Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default.
 
 | Command | Action |
 | --- | --- |
+| `anyq daemon start` / `run` | Start the background owner or serve in the foreground |
+| `anyq daemon status` / `stop` | Inspect without starting, or stop without releasing task slots |
 | `anyq topic list` / `topic --list` / `topic -l` | List topics |
 | `anyq topic create TOPIC [-c N]` | Create a topic; -c = --capacity, default 1 |
 | `anyq topic TOPIC` | Current running/queued tasks in registration order and capacity |
@@ -46,7 +48,11 @@ Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default.
 | `anyq config list` / `--list` / `-l` | Effective settings |
 | `anyq help [command]` | Help, for example help task link |
 
--v = --version, -h = --help, -w = --wait, -c = --complete for tasks. --db PATH is available at every level.
+-v = --version, -h = --help, -w = --wait, -c = --complete for tasks. --db PATH is available at every level. The CLI is English-only.
+
+The daemon uses a private Unix socket or Windows named pipe under the current account,
+with one OS lifetime lock per canonical database path. Config/help/version remain
+independent of the owner. See [daemon lifecycle and protocol](docs/DAEMON.md).
 
 All actions support a name-first form: topic link cpu job = topic cpu link job; task link job cpu = task job link cpu; topic cpu capacity [N]; topic cpu create [-c N]; task job create/wait/complete. Normalization preserves names and global options.
 
@@ -174,6 +180,12 @@ CLI success is 0, input/state errors return 2 with stderr, and the first Ctrl+C 
 ## Persistent ownership and interruptions
 
 Returning from wait, a caller crash, and elapsed time do not release slots. After a crash, inspect the external work, then explicitly complete the known task.
+
+Stopping or crashing the queue daemon also preserves ownership. The next queue
+command restarts it and recovers committed state. A lost mutation response is
+reported as an uncertain outcome and is never automatically replayed; inspect
+the named task before retrying. Metadata, hooks and execution plugins remain
+planned in the [plugin roadmap](docs/PLUGIN-ROADMAP.md).
 
 Ctrl+C before commit rolls back the current transaction; after commit it preserves the result. In a -twc chain, registration may already persist running; wait only observes it, then complete persists completed. -tswc may leave a stopped queued task. After exit 130, inspect task NAME: persisted running requires complete. The outcome table and native integration suite are in [INTERRUPTIONS.md](docs/INTERRUPTIONS.md).
 

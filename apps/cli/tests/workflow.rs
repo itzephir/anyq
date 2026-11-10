@@ -897,3 +897,5 @@ fn unix_default_uses_xdg_then_home_without_touching_real_user_data() {
     assert!(result.status.success());
     assert!(home.join(".local/share/anyq/queue.db").exists());
 }
+#[path = "support/daemon.rs"]
+mod daemon;

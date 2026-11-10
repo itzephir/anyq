@@ -4,6 +4,8 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[command(about = "Start, inspect or stop the background queue owner")]
+    Daemon(super::daemon_args::DaemonArgs),
     #[command(about = "Read and update ~/.anyq/config.toml")]
     Config(ConfigArgs),
     #[command(about = "List topics, configure capacity or link a named task")]

@@ -1,7 +1,7 @@
-use anyq_queue_api::*;
+use crate::*;
 
 /// Passive composition handles. Every consumer receives a focused use-case contract.
-pub struct QueueModule {
+pub struct QueueServices {
     pub create_topic: Box<dyn CreateTopic>,
     pub set_topic_capacity: Box<dyn SetTopicCapacity>,
     pub list_topics: Box<dyn ListTopics>,
