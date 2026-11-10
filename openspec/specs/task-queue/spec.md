@@ -331,7 +331,8 @@ Create SHALL accept mutually exclusive --start, --stop, and -s. Stop SHALL persi
 - **THEN** the task obtains all slots and then completes; resources are released or passed to eligible successors
 
 ### Requirement: Supported schema upgrade
-A version 2 or 3 database SHALL upgrade to 4 atomically, preserving names, registration, links, states, and ownership. Existing entities SHALL receive empty metadata. For version 2, tasks SHALL receive default autostart=true and stopped=false; topics SHALL inherit the default. Database open SHALL NOT perform admission. Interruption before commit SHALL preserve the previous schema, and afterward the complete new schema.
+Versions 2/3/4 SHALL upgrade to schema 5 atomically, preserving names, registration, links, states, metadata and ownership. Queue events, receipts, managed work and plugin storage SHALL share one schema transaction, without admission or historical running events. Versions 2/3 SHALL receive empty metadata; version 2 SHALL receive task autostart=true/stopped=false with inheriting topics. Interruption SHALL leave the old schema before commit or the complete new schema afterward.
+
 
 #### Scenario: Existing ownership
 - **WHEN** a version 2 database with a running owner and queued successor is opened
@@ -340,3 +341,11 @@ A version 2 or 3 database SHALL upgrade to 4 atomically, preserving names, regis
 #### Scenario: Existing schema 3
 - **WHEN** a schema 3 database with running and queued tasks is upgraded
 - **THEN** metadata defaults to empty objects and all states, order and ownership survive
+
+#### Scenario: Metadata schema with active ownership
+- **WHEN** a schema 4 database containing running tasks and metadata is upgraded
+- **THEN** schema 5 preserves the metadata and all ownership without synthetic running events
+
+#### Scenario: Interrupted feature migration
+- **WHEN** initialization fails or is interrupted before schema commit
+- **THEN** outbox, receipts, managed work and plugin storage are all rolled back with the queue schema
