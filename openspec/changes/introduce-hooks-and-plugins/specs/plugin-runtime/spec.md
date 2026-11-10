@@ -62,6 +62,10 @@ Disabling a plugin SHALL pause its deliveries and timers without deleting receip
 - **WHEN** a managed worker cannot confirm process termination during disable
 - **THEN** the task retains all slots and status explains why shutdown or disable remains unresolved
 
+#### Scenario: Client transaction blocks background storage
+- **WHEN** a live queue transaction holds the database beyond the ordinary lock timeout
+- **THEN** the background host waits without terminating the daemon, retries only pre-mutation lock acquisition and stops waiting when owner shutdown requires cancellation without releasing committed task ownership
+
 ### Requirement: Observable bounded failures
 Plugin status SHALL expose enabled/running state, delivery lag, last failure, active timers and unresolved actions. Payloads, response times and retained diagnostics SHALL be bounded. Stored metadata, credentials and script output SHALL not be copied into ordinary status or logs by default.
 

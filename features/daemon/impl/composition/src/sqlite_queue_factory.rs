@@ -1,6 +1,6 @@
 use anyq_daemon_api::DaemonServices;
 use anyq_daemon_runtime::QueueFactory;
-use anyq_queue_api::{ExecutionDirectory, QueuePolicy, Result};
+use anyq_queue_api::{Error, ExecutionDirectory, QueuePolicy, Result};
 use std::{
     path::Path,
     sync::{
@@ -51,15 +51,26 @@ impl QueueFactory for SqliteQueueFactory {
     }
 
     fn background(&self, path: &Path, shutdown: Arc<AtomicBool>) -> Result<()> {
+        let result = self.run_plugins(path, shutdown.clone());
+        if matches!(&result, Err(Error::Interrupted)) && shutdown.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        result
+    }
+}
+
+impl SqliteQueueFactory {
+    fn run_plugins(&self, path: &Path, shutdown: Arc<AtomicBool>) -> Result<()> {
         while !self.initialized.load(Ordering::SeqCst) {
             if shutdown.load(Ordering::SeqCst) {
                 return Ok(());
             }
             thread::sleep(Duration::from_millis(10));
         }
-        let store = anyq_queue_sqlite::Sqlite::open_with_initializer(
+        let store = anyq_queue_sqlite::Sqlite::open_background(
             path,
-            Arc::new(AtomicBool::new(false)),
+            shutdown.clone(),
             anyq_plugin_impl::initialize,
         )?;
         let store = with_fixture_clock(store);

@@ -43,6 +43,12 @@ Windows uses native named pipes with a protected owner-rights ACL. Endpoint name
 contain a digest of the canonical path; the full identity is verified during
 session opening. No IP listener, access token or network service is exposed.
 
+Windows listeners explicitly assign their owner to the current process's user
+SID. Before sending Open, clients read the connected pipe handle's owner and
+require that same SID. A mismatch, missing owner or unreadable security descriptor
+fails closed. The descriptor check uses the connected handle, not a process ID
+or a second lookup by pipe name; the listener ACL separately restricts callers.
+
 Do not concurrently use pre-daemon anyq binaries on the same database: those
 binaries do not participate in the owner lock. Stop the daemon before rolling
 back to an older compatible binary. Schema 4 includes metadata and atomic
@@ -79,7 +85,10 @@ Eight additional connections are reserved for Ping/Stop when command capacity is
 full; Open must obtain command capacity before initializing SQLite. Exhausted
 quotas return an explicit capacity error without releasing task ownership.
 Permits are released when sessions close, bounding the owner to 136 sessions.
-Incoming frames have a 30-second deadline; response writes have a five-second
+Empty input has a 30-second idle deadline, paused while its worker executes a
+request or sends its response. The first byte starts a separate 30-second whole
+frame deadline, including continuation chunks, even while the worker is active.
+EOF, Cancel and shutdown remain observable during execution. Response writes have a five-second
 inactivity deadline and a two-minute
 total transfer limit. Progress renews the inactivity deadline so a consuming
 client can receive a large result under contention. IO is nonblocking with

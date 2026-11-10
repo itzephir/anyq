@@ -20,7 +20,7 @@ impl TestProcess {
         );
 
         Self {
-            child: Some(command.spawn().unwrap()),
+            child: Some(super::process_spawn::spawn(command).unwrap()),
             label,
         }
     }

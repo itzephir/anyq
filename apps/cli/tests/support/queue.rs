@@ -147,15 +147,14 @@ impl Drop for Queue {
         databases(self.dir.path(), &mut paths);
 
         for path in paths {
-            let Ok(mut child) = self
-                .cmd(&["daemon", "stop"])
+            let mut command = self.cmd(&["daemon", "stop"]);
+            command
                 .arg("--db")
                 .arg(path)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-            else {
+                .stderr(Stdio::null());
+            let Ok(mut child) = super::process_spawn::spawn(&mut command) else {
                 continue;
             };
             let deadline = Instant::now() + Duration::from_secs(10);

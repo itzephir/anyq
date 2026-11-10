@@ -34,6 +34,12 @@
 - [x] 5.2 Clarify selected anyq database ownership in README and document the session limits; verify mandatory local checks and synchronize only verified lifecycle scenarios.
 - [x] 5.3 Publish the corrections in PR #14 and verify current native Linux/macOS/Windows CI without merging PRs.
 
+## 6. Protocol review corrections
+
+- [x] 6.1 Separate idle/partial-frame deadlines from active execution; verify a real request survives 31 seconds before commit, cancellation/EOF still interrupt it, and incomplete input remains bounded.
+- [x] 6.2 Verify the connected Windows pipe owner SID before Open and explicitly assign the listener owner; verify native accepted/mismatched/unreadable owner cases without unsafe project code.
+- [x] 6.3 Run mandatory local checks and native Linux/macOS/Windows CI, synchronize verified protocol scenarios and publish the corrections in PR #14 without merging it.
+
 ## Workflow follow-up
 
 - This is stage 1; metadata implementation starts from its branch only after the daemon implementation is reviewable.

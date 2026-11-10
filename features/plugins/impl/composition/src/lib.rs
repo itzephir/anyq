@@ -33,7 +33,7 @@ pub fn run(
     shutdown: Arc<AtomicBool>,
 ) -> Result<()> {
     Host {
-        store: SqlitePluginStore::open(path)?,
+        store: SqlitePluginStore::open_background(path, shutdown.clone())?,
         events,
         read,
         work,
