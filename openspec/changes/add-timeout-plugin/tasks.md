@@ -17,8 +17,8 @@
 ## 3. Integration acceptance
 
 - [x] 3.1 Run mandatory local checks plus native expiry/restart/cancellation integration tests and record actual results.
-- [ ] 3.2 Open the timeout-only implementation PR and verify current CI passed on Linux/macOS/Windows and all required categories.
-- [ ] 3.3 Sync verified timeout ownership policy and capability specs; verify strict validation and unchanged no-timeout caller workflows.
+- [x] 3.2 Open the timeout-only implementation PR and verify current CI passed on Linux/macOS/Windows and all required categories.
+- [x] 3.3 Sync verified timeout ownership policy and capability specs; verify strict validation and unchanged no-timeout caller workflows.
 
 ## Workflow follow-up
 
