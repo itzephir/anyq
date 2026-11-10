@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "anyq"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-config-api",
  "anyq-config-impl",
@@ -69,25 +69,25 @@ dependencies = [
 
 [[package]]
 name = "anyq-architecture-lint"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "syn 2.0.119",
 ]
 
 [[package]]
 name = "anyq-config-api"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "anyq-config-dispatch"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-config-api",
 ]
 
 [[package]]
 name = "anyq-config-file"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-config-api",
  "anyq-config-dispatch",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "anyq-config-impl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-config-api",
  "anyq-config-dispatch",
@@ -108,22 +108,22 @@ dependencies = [
 
 [[package]]
 name = "anyq-integration-test-hooks"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "anyq-queue-api"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "anyq-queue-dispatch"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-queue-api",
 ]
 
 [[package]]
 name = "anyq-queue-impl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-queue-api",
  "anyq-queue-dispatch",
@@ -132,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "anyq-queue-sqlite"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyq-integration-test-hooks",
  "anyq-queue-api",
