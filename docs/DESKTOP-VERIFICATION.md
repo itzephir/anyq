@@ -27,6 +27,21 @@ Daemon prerequisite: commit `068ac48` passed [CI run 42804237207](https://github
   scenarios, comparing tracked platform PNGs; see [desktop tests](../tests/desktop/README.md). The ordinary native process/Ctrl+C matrices
   remain mandatory and unchanged. Packaging checks do not prove GUI behavior.
 
+## Native screenshot acceptance
+
+The Linux and Windows jobs in [generator run 42882733857](https://github.com/itzephir/anyq/actions/runs/42882733857)
+passed real native application/daemon integration and 15 configured visual states,
+each repeated in two independent clean processes and databases. Their 30 reviewed
+PNG files are recorded in [the golden directories](../tests/desktop/goldens).
+macOS accepted the integration scenarios but rejected one independently repeated
+text-rendering state; its baseline and the required current-head verify pass
+remain pending. Candidate generation does not satisfy the required `CI passed` gate.
+
+Observation prerequisite: `01705d8` passed [CI run 42866310020](https://github.com/itzephir/anyq/actions/runs/42866310020)
+on Linux/macOS/Windows, including native process and interruption suites. Its
+existing-only disappearance fixture joins the old owner before launching a fresh
+owner without a SQLite session and also passed 20 independent local native runs.
+
 ## Manual native acceptance
 
 The local macOS application bundle was launched on an isolated queue with two

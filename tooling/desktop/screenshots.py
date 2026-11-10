@@ -72,7 +72,11 @@ class Screenshots:
                 if case["focus"]
                 else ""
             )
-            + "return {width:innerWidth,height:innerHeight,text:document.body.innerText};",
+            + "const typography=[...document.querySelectorAll('.empty p')].map(element=>{"
+            "const css=getComputedStyle(element);const range=document.createRange();range.selectNodeContents(element);"
+            "return {font:css.font,smoothing:css.webkitFontSmoothing,lines:[...range.getClientRects()].map(rect=>[rect.x,rect.y,rect.width,rect.height])};});"
+            "return {width:innerWidth,height:innerHeight,text:document.body.innerText,typography,"
+            "fonts:[...document.fonts].map(font=>({family:font.family,weight:font.weight,status:font.status}))};",
             window,
             native="cursor",
             x=case["cursor"][0],
