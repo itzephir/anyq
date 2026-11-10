@@ -39,7 +39,13 @@ def run(cli, panel, output, goldens, configuration, mode):
                     + "\n",
                     encoding="utf-8",
                 )
-                driver = Driver(panel, home, automatic, configuration["clock_ms"])
+                driver = Driver(
+                    panel,
+                    home,
+                    automatic,
+                    configuration["clock_ms"],
+                    case["windows_browser_arguments"],
+                )
                 paused = None
                 try:
                     driver.start(

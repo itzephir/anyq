@@ -11,7 +11,8 @@ even one unstable pixel before comparing or generating anything.
 
 `config.json` owns each state's CLI seed commands, expected complete snapshot,
 fixed clock/timezone, source, preferences, viewport/decorations, selected topic/task,
-scroll, focus, masks and comparison thresholds. Cases do not inherit earlier scenarios.
+scroll, focus, cursor, renderer arguments, masks and comparison thresholds. Cases
+do not inherit earlier scenarios.
 Only machine-specific source-path text is masked and its actual identity is
 asserted separately. The display clock and timezone are injected only into the
 feature-gated test build. Timers still use real bounded deadlines; tests wait for
@@ -35,6 +36,13 @@ visible and comparable. Other content remains visible and comparable. The
 visual configuration disables native window decorations to exclude the macOS
 translucent rounded frame and its dependency on desktop pixels. Integration
 scenarios retain ordinary decorated windows; the production window is unchanged.
+The cursor is moved outside the client to exclude ambient hover state. Windows
+visual cases configure software rendering, grayscale text and sRGB explicitly;
+ordinary integration cases retain default WebView2 rendering. Native desktop
+capture avoids PrintWindow's partially blank WebView2 surfaces. Configured
+viewports fit the runner's visible work area without taskbar occlusion.
+macOS captures the selected native window buffer without its shadow, excluding
+display-compositor dithering while preserving the real WebKit-rendered content.
 The configured comparison requires exact pixels and rejects even one changed
 channel, missing goldens and dimension changes. Actual,
 difference and JSON evidence are uploaded even when CI fails. No comparison job

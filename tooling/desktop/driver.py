@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from fixtures import environment
 
 
 class Driver:
-    def __init__(self, executable, home, database, clock_ms):
+    def __init__(self, executable, home, database, clock_ms, browser_arguments=None):
         self.executable = Path(executable).resolve()
         self.home = Path(home)
         self.database = Path(database)
@@ -19,6 +20,11 @@ class Driver:
             "ANYQ_PANEL_TEST_DIR": str(self.directory),
             "ANYQ_PANEL_TEST_CLOCK": str(clock_ms),
         }
+        self.environment.pop("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", None)
+        if sys.platform == "win32" and browser_arguments is not None:
+            self.environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
+                browser_arguments
+            )
         self.process = None
         self.sequence = 0
         self.log = None

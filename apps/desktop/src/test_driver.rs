@@ -80,6 +80,17 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                                 .show()
                                 .and_then(|()| window.set_focus())
                                 .map_err(|error| error.to_string()),
+                            Some("cursor") => window
+                                .inner_position()
+                                .and_then(|position| {
+                                    window.set_cursor_position(tauri::PhysicalPosition::new(
+                                        command["x"].as_f64().unwrap_or(0.0)
+                                            - f64::from(position.x),
+                                        command["y"].as_f64().unwrap_or(0.0)
+                                            - f64::from(position.y),
+                                    ))
+                                })
+                                .map_err(|error| error.to_string()),
                             Some("resize") => window
                                 .show()
                                 .and_then(|()| window.set_focus())

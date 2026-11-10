@@ -1,7 +1,9 @@
 """Capture actual native client pixels; verify or explicitly generate PNG goldens."""
 
 import json
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -32,6 +34,8 @@ class Screenshots:
         self.comparison = comparison
         self.failures = []
         self.results = []
+        self.window_identifier = self.output / "native-window-id"
+        self.native_tools_ready = False
 
     def capture(self, driver, case, repetition):
         name, window = case["id"], case["surface"]
@@ -58,6 +62,9 @@ class Screenshots:
             )
             + "return {width:innerWidth,height:innerHeight,text:document.body.innerText};",
             window,
+            native="cursor",
+            x=case["cursor"][0],
+            y=case["cursor"][1],
         )
         viewport = result["payload"]["value"]
         assert [viewport["width"], viewport["height"]] == case["viewport"]
@@ -66,24 +73,54 @@ class Screenshots:
         border = max(0, (outer["width"] - width) // 2)
         inset_top = max(0, outer["height"] - height - border)
         time.sleep(0.15)
-        if sys.platform == "win32":
-            # PrintWindow captures the real window even when the taskbar overlaps it.
-            assert result["native_handle"], "Native Windows handle is unavailable"
-            captured = ImageGrab.grab(window=result["native_handle"]).convert("RGB")
-            if captured.size == (width, height):
-                actual = captured
-            else:
-                assert captured.width >= width and captured.height >= height, (
-                    captured.size,
-                    result,
-                )
-                actual = captured.crop(
-                    (border, inset_top, border + width, inset_top + height)
+        divisor = scale if sys.platform == "darwin" else 1
+        x = (outer["x"] + border) / divisor
+        y = (outer["y"] + inset_top) / divisor
+        # Capture displayed pixels. PrintWindow can return partially blank
+        # WebView2 surfaces despite a fully loaded DOM and a visible window.
+        if sys.platform == "darwin":
+            # The window buffer avoids display-compositor color dithering of
+            # antialiased SVG edges while retaining the actual native renderer.
+            if not self.native_tools_ready:
+                with tempfile.TemporaryDirectory(prefix="anyq-swift-cache-") as cache:
+                    subprocess.run(
+                        [
+                            "swiftc",
+                            str(Path(__file__).with_name("window_id_macos.swift")),
+                            "-module-cache-path",
+                            cache,
+                            "-o",
+                            str(self.window_identifier),
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
+                self.native_tools_ready = True
+            identifier = subprocess.check_output(
+                [
+                    str(self.window_identifier),
+                    str(driver.process.pid),
+                    *(str(outer[key] / scale) for key in ("x", "y", "width", "height")),
+                ],
+                text=True,
+            ).strip()
+            native = self.output / f"{name}.native.png"
+            subprocess.run(
+                ["/usr/sbin/screencapture", "-x", "-o", "-l", identifier, str(native)],
+                check=True,
+                capture_output=True,
+            )
+            with Image.open(native) as captured:
+                pixel_scale = captured.width / outer["width"]
+                actual = captured.convert("RGB").crop(
+                    (
+                        round(border * pixel_scale),
+                        round(inset_top * pixel_scale),
+                        round((border + width) * pixel_scale),
+                        round((inset_top + height) * pixel_scale),
+                    )
                 )
         else:
-            divisor = scale if sys.platform == "darwin" else 1
-            x = (outer["x"] + border) / divisor
-            y = (outer["y"] + inset_top) / divisor
             actual = ImageGrab.grab(
                 bbox=(
                     round(x),
