@@ -31,8 +31,8 @@
 ## 5. Review corrections
 
 - [x] 5.1 Separate bounded waiting/command session quotas and reserve lifecycle capacity; verify 64 real wait/start clients, chained completion, quota exhaustion and lifecycle access at full command capacity.
-- [ ] 5.2 Clarify selected anyq database ownership in README and document the session limits; verify mandatory local checks and synchronize only verified lifecycle scenarios.
-- [ ] 5.3 Publish the corrections in PR #14 and verify current native Linux/macOS/Windows CI without merging PRs.
+- [x] 5.2 Clarify selected anyq database ownership in README and document the session limits; verify mandatory local checks and synchronize only verified lifecycle scenarios.
+- [x] 5.3 Publish the corrections in PR #14 and verify current native Linux/macOS/Windows CI without merging PRs.
 
 ## Workflow follow-up
 
