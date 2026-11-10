@@ -36,7 +36,7 @@ passed real native application/daemon integration and 15 configured visual state
 each repeated in two independent clean processes and databases. All 45 reviewed
 PNG files are recorded in [the golden directories](../tests/desktop/goldens);
 downloaded ZIP digests matched GitHub's artifact digests. Full [PR CI run 42891577193](https://github.com/itzephir/anyq/actions/runs/42891577193)
-passed on `afd232f`; the restacked `954b782` also passed [CI run 42894507898](https://github.com/itzephir/anyq/actions/runs/42894507898), including native integration and verification against the
+passed on `afd232f`; the restacked `088007e` also passed [CI run 42900003085](https://github.com/itzephir/anyq/actions/runs/42900003085), including native integration and verification against the
 committed goldens on all three operating systems, four GUI package builds and
 the ordinary native process/Ctrl+C matrices. Later commits must pass the same
 required PR workflow; this evidence does not waive current-head checks.
@@ -49,10 +49,18 @@ The kerning failure changed a line's advance by 13 font units despite identical
 text and loaded fonts. The product now sets its text policy explicitly; tests
 assert that policy and retain measured line rectangles and font metadata.
 
-Observation prerequisite: `b3d3be2` passed [CI run 42894005440](https://github.com/itzephir/anyq/actions/runs/42894005440)
+Observation prerequisite: `09ec5ed` passed [CI run 42900909651](https://github.com/itzephir/anyq/actions/runs/42900909651)
 on Linux/macOS/Windows, including native process and interruption suites. Its
 existing-only disappearance fixture joins the old owner before launching a fresh
 owner without a SQLite session and also passed 20 independent local native runs.
+
+Dedicated observation process tests cover a foreign database identity,
+unsupported versions, cancellation, a snapshot with over 1 MiB of encoded
+Unicode/escaped names below the raw-text limit, oversized-text rejection and a
+slow reader alongside concurrent commands and owner shutdown. The capacity
+scenario verifies that 64 read-only sessions cannot consume the reserved
+lifecycle quota. Native Linux/macOS/Windows CI passed these cases and all 73 CLI
+workflows and 27 interruption scenarios; stopping the owner preserves slots.
 
 ## Manual native acceptance
 
@@ -94,13 +102,6 @@ The local macOS menu-bar follow-up could not proceed because the screen was
 locked. The main window was accessible before the lock; no additional tray or
 file-picker acceptance is inferred from that partial session. Its isolated panel
 and owner processes were stopped afterward.
-
-Task 2.3 also remains unchecked: ordinary transport process tests cover bounded
-frames, incompatible versions, cancellation and slow clients, but dedicated
-observation-session evidence for every listed boundary is still required. The
-new observation capacity scenario verifies that 64 read-only sessions cannot
-consume the reserved lifecycle quota, and stopping the owner preserves slots.
-
 
 The initial desktop implementation passed [CI run 42829086558](https://github.com/itzephir/anyq/actions/runs/42829086558)
 on `563a74a`: native GUI packages for macOS ARM64/Intel, Windows and Linux;

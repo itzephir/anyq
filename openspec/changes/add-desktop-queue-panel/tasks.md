@@ -10,7 +10,7 @@
 
 - [x] 2.1 Add the separate typed observation contract and pure snapshot projection; verify exact current-state inclusion, empty topics, registration order, inherited autostart, stopped tasks, full membership, and distinct global totals without infrastructure.
 - [x] 2.2 Implement the consumer-owned observation port and SQLite adapter under one short snapshot transaction; verify completion/admission races return a complete old or new state and observation leaves business state unchanged with autocreate enabled.
-- [ ] 2.3 Add the versioned daemon observation operation and narrow client adapter; verify canonical identities including empty/Unicode/backtick names, canonical database identity, unsupported versions, bounded collection/encoding, oversized snapshots, cancellation, and slow clients with real owner processes.
+- [x] 2.3 Add the versioned daemon observation operation and narrow client adapter; verify canonical identities including empty/Unicode/backtick names, canonical database identity, unsupported versions, bounded collection/encoding, oversized snapshots, cancellation, and slow clients with real owner processes.
 - [x] 2.4 Add existing-database-only owner attachment/startup for the desktop client; verify missing paths, a target disappearing during startup, incompatible files, and owner recovery never create a replacement database, alter ownership, or change ordinary CLI startup behavior.
 - [x] 2.5 Document the observation contract, complete-response limit, process ownership, and compatibility errors alongside the daemon API; verify the documented examples against an isolated database without enabling metadata or plugins.
 

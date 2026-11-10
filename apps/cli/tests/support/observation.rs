@@ -5,7 +5,12 @@ use anyq_daemon_api::{
 };
 use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_frame};
 use anyq_queue_api::{QueueSnapshot, TaskState};
-use std::{sync::atomic::AtomicBool, time::Duration};
+use std::{
+    io::{self, Read},
+    sync::atomic::AtomicBool,
+    thread,
+    time::{Duration, Instant},
+};
 
 fn request(stream: &Stream, id: u64, request: QueueRequest) -> QueueResponse {
     let cancelled = AtomicBool::new(false);
@@ -195,4 +200,165 @@ fn owner_refuses_missing_existing_only_target_after_discovery() {
     assert!(matches!(response, QueueResponse::Error(_)));
     assert!(!queue.db.exists());
     assert!(queue.call(&["daemon", "status"]).contains("running"));
+}
+
+#[test]
+fn observation_rejects_foreign_identity_and_versions_and_accepts_cancellation() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    let endpoint = Endpoint::resolve(&queue.db).unwrap();
+    let foreign = endpoint.connect().unwrap();
+
+    let response = request(
+        &foreign,
+        1,
+        QueueRequest::OpenObservation {
+            database_id: format!("{}-foreign", endpoint.identity),
+        },
+    );
+
+    assert!(matches!(
+        response,
+        QueueResponse::Error(QueueError::Invalid(_))
+    ));
+
+    for (version, operation) in [
+        (
+            PROTOCOL_VERSION + 1,
+            QueueRequest::ObserveQueue {
+                max_entities: 10_000,
+                max_text_bytes: 1024 * 1024,
+            },
+        ),
+        (PROTOCOL_VERSION, QueueRequest::Cancel),
+    ] {
+        let stream = open_observer(&endpoint);
+
+        send_frame(
+            &stream,
+            &RequestFrame {
+                version,
+                id: 2,
+                request: operation,
+            },
+            &AtomicBool::new(false),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        let result = FrameReader::for_responses().receive::<ResponseFrame>(
+            &stream,
+            &AtomicBool::new(false),
+            Duration::from_secs(5),
+        );
+
+        let error = result.expect_err("invalid/cancelled observation must close");
+        assert_ne!(error.kind(), io::ErrorKind::TimedOut);
+    }
+
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+    assert_eq!(queue.call(&["task", "list"]), "- owner");
+}
+
+#[test]
+fn bounded_escaped_observation_and_a_slow_reader_preserve_other_clients_and_shutdown() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    let mut connection = rusqlite::Connection::open(&queue.db).unwrap();
+    let transaction = connection.transaction().unwrap();
+    let suffix = "\\\"\n".repeat(1024);
+    let mut names = Vec::new();
+    for index in 0..256 {
+        let name = format!("данные-{index:03}-{suffix}");
+        transaction
+            .execute(
+                "INSERT INTO tasks(name,state) VALUES (?1,'queued')",
+                rusqlite::params![name],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO task_topics(task_id,topic_name) VALUES (?1,'cpu')",
+                [transaction.last_insert_rowid()],
+            )
+            .unwrap();
+        names.push(name);
+    }
+    transaction.commit().unwrap();
+    drop(connection);
+    let stream = observer(&queue);
+
+    let response = request(
+        &stream,
+        2,
+        QueueRequest::ObserveQueue {
+            max_entities: 10_000,
+            max_text_bytes: 1024 * 1024,
+        },
+    );
+
+    assert!(serde_json::to_vec(&response).unwrap().len() > 1024 * 1024);
+    match response {
+        QueueResponse::Observation { snapshot, .. } => {
+            let snapshot = QueueSnapshot::try_from(snapshot).unwrap();
+            assert_eq!(snapshot.tasks.len(), 257);
+            assert_eq!(
+                snapshot.tasks[1..]
+                    .iter()
+                    .map(|task| task.name())
+                    .collect::<Vec<_>>(),
+                names.iter().map(String::as_str).collect::<Vec<_>>()
+            );
+        }
+        other => panic!("unexpected escaped snapshot: {other:?}"),
+    }
+    assert!(matches!(
+        request(
+            &stream,
+            3,
+            QueueRequest::ObserveQueue {
+                max_entities: 10_000,
+                max_text_bytes: 1024
+            }
+        ),
+        QueueResponse::Error(QueueError::Invalid(_))
+    ));
+
+    send_frame(
+        &stream,
+        &RequestFrame {
+            version: PROTOCOL_VERSION,
+            id: 4,
+            request: QueueRequest::ObserveQueue {
+                max_entities: 10_000,
+                max_text_bytes: 1024 * 1024,
+            },
+        },
+        &AtomicBool::new(false),
+        Duration::from_secs(5),
+    )
+    .unwrap();
+    let mut stream = stream;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        match stream.read(&mut [0]) {
+            Ok(1) => break,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(2));
+            }
+            result => panic!("expected an observation response prefix: {result:?}"),
+        }
+    }
+
+    queue.topic("unrelated");
+    assert_eq!(queue.usage("cpu"), 1);
+    let stopped = Instant::now();
+    queue.call(&["daemon", "stop"]);
+
+    assert!(stopped.elapsed() < Duration::from_secs(5));
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
 }
