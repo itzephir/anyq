@@ -9,6 +9,61 @@ use std::fs;
 use support::queue::Queue;
 
 #[test]
+fn daemon_stop_cancels_a_transaction_while_plugin_storage_waits_for_its_lock() {
+    let queue = Queue::new();
+    let owner = queue.spawn_owner();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "uncommitted", "-t", "cpu"],
+        "sqlite.before-commit",
+        1,
+    );
+
+    std::thread::sleep(std::time::Duration::from_secs(6));
+    queue.call(&["daemon", "stop"]);
+
+    assert!(owner.output().status.success());
+    assert!(!client.output().status.success());
+    assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
+    assert_eq!(queue.usage("cpu"), 1);
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.call(&["task", "list"]), "- owner");
+    queue.call(&["task", "complete", "owner"]);
+    queue.task("next", &["cpu"]);
+    assert_eq!(queue.state("next"), "running");
+}
+
+#[test]
+fn active_request_survives_the_incoming_frame_idle_timeout() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "slow", "-t", "cpu", "-wc"],
+        "sqlite.before-commit",
+        1,
+    );
+
+    std::thread::sleep(std::time::Duration::from_secs(31));
+    assert!(
+        queue
+            .call(&["daemon", "status"])
+            .starts_with("daemon is running")
+    );
+    let output = client.release();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(queue.state("slow"), "completed");
+    assert_eq!(queue.usage("cpu"), 0);
+}
+
+#[test]
 fn native_owner_ctrl_c_rolls_back_or_preserves_its_active_client_commit() {
     for (stage, committed) in [
         ("sqlite.before-commit", false),

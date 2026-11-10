@@ -28,6 +28,11 @@
 - [x] 4.2 Open the hooks/plugins-only implementation PR and verify current CI passed for all supported OSes and required categories.
 - [x] 4.3 Sync verified queue-events/plugin-runtime specs and verify strict validation while timeout and shell remain planned changes.
 
+## 5. Storage contention review corrections
+
+- [x] 5.1 Keep background pre-mutation lock acquisition retryable until shutdown; verify a 31-second transaction commits once, lifecycle remains responsive and stopping under contention cancels safely without replay or slot release.
+- [x] 5.2 Verify current native Linux/macOS/Windows CI and synchronize the verified background-contention scenario without merging PRs.
+
 ## Workflow follow-up
 
 - This is stage 3 and depends on the daemon and metadata implementations.

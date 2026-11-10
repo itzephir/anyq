@@ -1,5 +1,5 @@
 use crate::support::process::TestProcess;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 impl TestProcess {
     pub fn interrupt(mut self) -> Output {
@@ -7,10 +7,16 @@ impl TestProcess {
         let python = if cfg!(windows) { "python" } else { "python3" };
         let helper = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tooling/send_interrupt.py");
-        let signal = Command::new(python)
+        let mut command = Command::new(python);
+        command
             .arg(helper)
             .arg(pid.to_string())
-            .output()
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let signal = crate::support::process_spawn::spawn(&mut command)
+            .unwrap()
+            .wait_with_output()
             .unwrap();
         assert!(
             signal.status.success(),

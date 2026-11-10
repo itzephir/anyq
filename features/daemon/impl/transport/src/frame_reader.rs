@@ -1,11 +1,11 @@
-use crate::{MORE, Stream};
+use crate::{MORE, Stream, receive_deadline::ReceiveDeadline};
 use anyq_daemon_api::MAX_FRAME_BYTES;
 use serde::de::DeserializeOwned;
 use std::{
     io::{self, Read},
     sync::atomic::{AtomicBool, Ordering},
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 pub struct FrameReader {
@@ -23,7 +23,7 @@ fn fill(
     buffer: &mut [u8],
     read: &mut usize,
     cancelled: &AtomicBool,
-    deadline: Instant,
+    deadline: &mut ReceiveDeadline<'_>,
 ) -> io::Result<()> {
     let mut stream = stream;
 
@@ -32,6 +32,7 @@ fn fill(
             return Err(io::Error::new(io::ErrorKind::Interrupted, "interrupted"));
         }
 
+        deadline.check()?;
         match stream.read(&mut buffer[*read..]) {
             Ok(0) => {
                 return Err(io::Error::new(
@@ -39,15 +40,11 @@ fn fill(
                     "daemon connection closed",
                 ));
             }
-            Ok(count) => *read += count,
+            Ok(count) => {
+                deadline.progress();
+                *read += count;
+            }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                if Instant::now() >= deadline {
-                    return Err(io::Error::new(
-                        io::ErrorKind::TimedOut,
-                        "daemon receive timed out",
-                    ));
-                }
-
                 thread::sleep(Duration::from_millis(2));
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
@@ -89,7 +86,30 @@ impl FrameReader {
         cancelled: &AtomicBool,
         timeout: Duration,
     ) -> io::Result<T> {
-        let deadline = Instant::now() + timeout;
+        self.receive_inner(stream, cancelled, timeout, None)
+    }
+
+    /// Suspend an empty input's idle timeout while the worker handles a request.
+    /// Once any byte arrives, the complete frame has its own fixed deadline.
+    pub fn receive_request<T: DeserializeOwned>(
+        &mut self,
+        stream: &Stream,
+        cancelled: &AtomicBool,
+        active: &AtomicBool,
+        timeout: Duration,
+    ) -> io::Result<T> {
+        self.receive_inner(stream, cancelled, timeout, Some(active))
+    }
+
+    fn receive_inner<T: DeserializeOwned>(
+        &mut self,
+        stream: &Stream,
+        cancelled: &AtomicBool,
+        timeout: Duration,
+        active: Option<&AtomicBool>,
+    ) -> io::Result<T> {
+        let started = self.prefix_read != 0 || !self.payload.is_empty();
+        let mut deadline = ReceiveDeadline::new(timeout, active, started);
 
         loop {
             fill(
@@ -97,7 +117,7 @@ impl FrameReader {
                 &mut self.prefix,
                 &mut self.prefix_read,
                 cancelled,
-                deadline,
+                &mut deadline,
             )?;
 
             if self.chunk_length.is_none() {
@@ -131,7 +151,7 @@ impl FrameReader {
                 &mut self.payload,
                 &mut self.payload_read,
                 cancelled,
-                deadline,
+                &mut deadline,
             )?;
             if self.more {
                 self.prefix = [0; 4];

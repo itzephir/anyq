@@ -152,13 +152,9 @@ impl Endpoint {
 
         #[cfg(windows)]
         let options = {
-            use interprocess::os::windows::{
-                local_socket::ListenerOptionsExt, security_descriptor::SecurityDescriptor,
-            };
+            use interprocess::os::windows::local_socket::ListenerOptionsExt;
 
-            options.security_descriptor(SecurityDescriptor::deserialize(widestring::u16cstr!(
-                "D:P(A;;GA;;;OW)"
-            ))?)
+            options.security_descriptor(crate::windows_peer::descriptor()?)
         };
 
         let _runtime = io_runtime()?.enter();
@@ -196,7 +192,7 @@ pub fn validate_peer(stream: &Stream) -> io::Result<()> {
     }
 
     #[cfg(windows)]
-    let _ = stream;
+    crate::windows_peer::validate(stream)?;
 
     Ok(())
 }

@@ -10,6 +10,7 @@ pub(crate) fn begin_transaction<'connection>(
     connection: &'connection Connection,
     cancelled: &AtomicBool,
     timeout: Duration,
+    stop_waiting: Option<&AtomicBool>,
 ) -> Result<Transaction<'connection>> {
     connection
         .busy_timeout(Duration::from_millis(100))
@@ -25,7 +26,7 @@ pub(crate) fn begin_transaction<'connection>(
                 connection.busy_timeout(timeout).map_err(storage)?;
                 return Ok(transaction);
             }
-            Err(error) if crate::retry_lock::contention(&error) && Instant::now() < deadline => {
+            Err(error) if crate::retry_lock::can_retry(&error, deadline, stop_waiting)? => {
                 checkpoint("sqlite.waiting-lock", cancelled)?;
                 std::thread::sleep(Duration::from_millis(10));
             }
