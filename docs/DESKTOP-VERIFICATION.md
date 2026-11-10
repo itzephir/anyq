@@ -33,8 +33,11 @@ The Linux, macOS and Windows jobs in [generator run 42888007910](https://github.
 passed real native application/daemon integration and 15 configured visual states,
 each repeated in two independent clean processes and databases. All 45 reviewed
 PNG files are recorded in [the golden directories](../tests/desktop/goldens);
-downloaded ZIP digests matched GitHub's artifact digests. Required verification
-against these committed files remains pending until a current full PR CI pass.
+downloaded ZIP digests matched GitHub's artifact digests. Full [PR CI run 42891577193](https://github.com/itzephir/anyq/actions/runs/42891577193)
+passed on `afd232f`, including native integration and verification against the
+committed goldens on all three operating systems, four GUI package builds and
+the ordinary native process/Ctrl+C matrices. Later commits must pass the same
+required PR workflow; this evidence does not waive current-head checks.
 Candidate generation does not satisfy the required `CI passed` gate.
 
 Native checks found and fixed Windows file-sharing races in test transport and

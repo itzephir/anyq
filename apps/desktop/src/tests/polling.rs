@@ -144,3 +144,60 @@ fn connection_failure_retains_a_complete_stale_snapshot_and_recovers() {
     assert_eq!(controller.session().model.status, ConnectionState::Live);
     assert!(controller.session().model.error.is_none());
 }
+
+#[test]
+fn request_deadline_cancels_a_blocked_read_without_overlapping_refreshes() {
+    let (started, start) = mpsc::channel();
+    let (timed_out, timeout) = mpsc::channel();
+    let (resume, resumed) = mpsc::channel();
+    let resumed = Mutex::new(resumed);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let controller = Arc::new(Controller::new(
+        Ok(preferences("A")),
+        Box::new(PreferenceWriter(Arc::new(AtomicBool::new(false)))),
+        Arc::new(selection),
+        Arc::new(move |_, cancelled| {
+            if observed.fetch_add(1, Ordering::SeqCst) == 0 {
+                started.send(()).unwrap();
+                let limit = std::time::Instant::now() + Duration::from_secs(15);
+                while !cancelled.load(Ordering::SeqCst) {
+                    assert!(std::time::Instant::now() < limit, "deadline did not cancel");
+                    std::thread::park_timeout(Duration::from_millis(5));
+                }
+                timed_out.send(()).unwrap();
+                resumed
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(3))
+                    .unwrap();
+
+                return Err(Error::Interrupted);
+            }
+
+            Ok(snapshot(1))
+        }),
+        Arc::new(|| 1735732800000),
+    ));
+    let worker_controller = controller.clone();
+    let (published, received) = mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        worker_controller.run(|| published.send(()).unwrap());
+    });
+    start.recv_timeout(Duration::from_secs(3)).unwrap();
+
+    for _ in 0..100 {
+        controller.refresh();
+    }
+    timeout.recv_timeout(Duration::from_secs(15)).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    resume.send(()).unwrap();
+    received.recv_timeout(Duration::from_secs(3)).unwrap();
+    received.recv_timeout(Duration::from_secs(3)).unwrap();
+    controller.stop();
+    worker.join().unwrap();
+
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(controller.session().model.status, ConnectionState::Live);
+    assert_eq!(controller.session().last_success, Some(1735732800000));
+}
