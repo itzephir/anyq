@@ -2,24 +2,24 @@
 
 ## Context
 
-Текущий PR #1 уже прошёл единый CI job на macOS, Windows и Linux. Default branch — main, доступ пользователя ADMIN; защиты и rulesets пока нет. GitHub Actions app id 15368 подтверждён существующими check runs.
+PR #1 already passed a combined CI job on macOS/Windows/Linux. Default branch is main; user access is ADMIN; no protection/rulesets yet. Existing check runs confirm GitHub Actions app id 15368.
 
 ## Goals / Non-Goals
 
-**Goals:** независимые категории проверок, стабильный обязательный статус и фактически применённая защита main.
+**Goals:** independent check categories, stable required status, and actually enforced main protection.
 
-**Non-Goals:** merge PR по собственной инициативе, обязательный сторонний reviewer для персонального проекта, релизы и автоматический deploy.
+**Non-Goals:** unsolicited PR merging, mandatory third-party review for a personal project, releases, or automatic deployment.
 
 ## Decisions
 
-- Один Linux job lint (Rustfmt, Clippy, AST, Cargo graph, Ruff, OpenSpec) и две нативные матрицы macOS/Windows/Linux: build-and-unit-tests (cargo build workspace, cargo test --lib --bins с исключением SQLite adapter suite), integration-tests (SQLite adapter suite, CLI workflow suite и переносимый demo). Повторять общие линтеры на других ОС не требуется.
-- CI passed использует always(), needs всех трёх категорий и явную проверку каждого needs.*.result == success. Обычный пропуск зависимого job не подходит: GitHub считает skipped успешным для required checks.
-- Workflow запускается на PR и push в main. Branch pushes с открытым PR проверяются событием synchronize, без дублирования push/PR runs. Concurrency отменяет устаревшие запуски одной ветки/PR.
-- Classic branch protection для проверенной default branch main: CI passed только от GitHub Actions, strict up-to-date, enforce_admins, PR с нулём обязательных approvals, conversation resolution, запрет force/deletion и linear history. Squash/rebase должны оставаться доступны. Пользователь не ограничивается требованием чужого review своего личного проекта.
-- Точное тело REST update хранится в .github/branch-protection.json; после применения GET проверяет фактические настройки. Защита сама по себе не является workflow, payload и документация не считаются доказательством её включения.
+- One Linux lint job (Rustfmt, Clippy, AST, Cargo graph, Ruff, OpenSpec) and two native macOS/Windows/Linux matrices: build-and-unit-tests (cargo build workspace, cargo test --lib --bins excluding SQLite adapter suite), integration-tests (SQLite adapter suite, CLI workflows, portable demo). Do not repeat common linters on other operating systems.
+- CI passed uses always(), needs all three categories, and explicitly checks every needs.*.result == success. Ordinary dependency skipping is insufficient: GitHub treats skipped required checks as successful.
+- Run workflow on PRs/main pushes. Open-PR branch pushes use synchronize without duplicate push/PR runs. Concurrency cancels obsolete branch/PR runs.
+- Classic protection for verified default main: CI passed only from GitHub Actions, strict up-to-date, enforce_admins, PRs with zero required approvals, conversation resolution, no force/deletion, linear history. Keep squash/rebase available. Do not require someone else's review of the user's personal project.
+- Store exact REST update in .github/branch-protection.json; GET verifies applied settings. Protection is not itself a workflow; payload/documentation do not prove enforcement.
 
 ## Risks / Trade-offs
 
-- [Тариф или права не позволяют private branch protection] → проверить реальную ошибку API, сохранить готовую конфигурацию и явно сообщить, что enforcement не включён; не менять видимость и оплату автоматически.
-- [Изменение имени итогового job] → имя CI passed является стабильным контрактом с настройкой protection, менять вместе.
-- [Владелец снимает защиту через настройки] → как администратор он управляет политикой; текущая политика запрещает обход при обычном merge/push.
+- [Plan/permissions prohibit private branch protection] → inspect actual API error, retain ready configuration, explicitly report missing enforcement; do not change visibility/payment automatically.
+- [Aggregate job renamed] → CI passed is a stable protection contract; update both together.
+- [Owner removes protection in settings] → administrators control policy; current policy forbids ordinary merge/push bypass.

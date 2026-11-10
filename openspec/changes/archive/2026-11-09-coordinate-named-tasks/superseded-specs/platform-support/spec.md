@@ -2,38 +2,38 @@
 
 ## Purpose
 
-Пользователь может запускать одну и ту же локальную очередь нативно на macOS, Windows и Linux, а CI проверяет реальные процессы и долговечность на каждой платформе.
+Users can run the same local queue natively on macOS, Windows, and Linux, with CI checking real processes and durability on every platform.
 
 ## Requirements
 
-### Requirement: Нативный CLI и worker
-CLI и worker SHALL собираться и выполнять команды нативно на macOS, Windows и Linux, сохраняя JSON stdin, переменные окружения и независимые consumer groups. Windows SHALL не требовать WSL или bash для runtime и тестов.
+### Requirement: Native CLI and worker
+CLI and worker SHALL build and execute natively on macOS/Windows/Linux, preserving JSON stdin, environment variables, and independent consumer groups. Windows SHALL NOT require WSL or bash for runtime/tests.
 
-#### Scenario: Команда Windows
-- **WHEN** Windows worker успешно выполняет явно указанную программу
-- **THEN** он подтверждает доставку и атомарно публикует следующий этап
+#### Scenario: Windows command
+- **WHEN** Windows worker successfully executes an explicitly specified program
+- **THEN** it acknowledges delivery and atomically publishes the next stage
 
-### Requirement: Завершение дерева процессов
-При остановке или обнаруженной потере lease worker SHALL завершать запущенную команду и её потомков в управляемой группе. После завершения главной команды оставшиеся потомки SHALL завершаться до освобождения доставки. macOS/Linux SHALL обрабатывать SIGINT/SIGTERM, Windows SHALL обрабатывать Ctrl+C/Ctrl+Break.
+### Requirement: Process-tree termination
+On cancellation or detected lease loss, worker SHALL terminate the launched command and descendants in its managed group. After the main command exits, remaining descendants SHALL terminate before releasing delivery. macOS/Linux SHALL handle SIGINT/SIGTERM; Windows SHALL handle Ctrl+C/Ctrl+Break.
 
-#### Scenario: Родитель завершился раньше потомка
-- **WHEN** команда оставляет работающего потомка и завершается
-- **THEN** worker завершает потомка перед подтверждением результата
+#### Scenario: Parent exits before descendant
+- **WHEN** a command exits leaving a running descendant
+- **THEN** worker terminates the descendant before acknowledging the result
 
-#### Scenario: Прерывание Windows
-- **WHEN** Windows worker получает консольное прерывание во время команды
-- **THEN** дерево команды завершается, доставка возвращается и worker выходит с кодом 130
+#### Scenario: Windows interruption
+- **WHEN** Windows worker receives a console interruption during a command
+- **THEN** the command tree terminates, delivery is rejected, and worker exits 130
 
-### Requirement: Путь базы Windows
-Без --db и ANYQ_DB CLI Windows SHALL использовать LOCALAPPDATA/anyq/queue.db. Явные пути SHALL иметь приоритет над стандартным расположением.
+### Requirement: Windows database path
+Without --db or ANYQ_DB, Windows CLI SHALL use LOCALAPPDATA/anyq/queue.db. Explicit paths SHALL override the default location.
 
-#### Scenario: Локальная база
-- **WHEN** Windows CLI запускается с LOCALAPPDATA и без явного пути базы
-- **THEN** база создаётся в подкаталоге anyq внутри LOCALAPPDATA
+#### Scenario: Local database
+- **WHEN** Windows CLI runs with LOCALAPPDATA and no explicit database path
+- **THEN** the database is created in the anyq subdirectory of LOCALAPPDATA
 
-### Requirement: Матрица CI
-CI SHALL проверять форматирование, архитектуру, OpenSpec и lint на Linux, а сборку, доменные и сквозные тесты и демонстрацию — нативно на macOS, Windows и Linux. Ошибка одной платформы SHALL не отменять проверку остальных.
+### Requirement: CI matrix
+CI SHALL check formatting, architecture, OpenSpec, and lint on Linux, and builds, domain/end-to-end tests, and demos natively on macOS, Windows, and Linux. Failure on one platform SHALL NOT cancel the others.
 
-#### Scenario: Изменение реализации
-- **WHEN** отправлен commit или открыт PR
-- **THEN** lint проходит на Linux, а сборка и тесты — на всех трёх нативных runner
+#### Scenario: Implementation change
+- **WHEN** a commit is pushed or a PR opened
+- **THEN** lint passes on Linux and builds and tests pass on all three native runners

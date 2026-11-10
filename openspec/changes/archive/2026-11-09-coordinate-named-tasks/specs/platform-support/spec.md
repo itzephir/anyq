@@ -2,41 +2,41 @@
 
 ## ADDED Requirements
 
-### Requirement: Нативный CLI координации
-Регистрация задач, добавление в топики, wait и complete SHALL выполняться нативно на macOS, Windows и Linux с одинаковыми состояниями, атомарностью и ошибками. Runtime SHALL не требовать Python, bash или WSL; запуск внешней работы SHALL оставаться обязанностью вызывающей стороны.
+### Requirement: Native coordination CLI
+Task registration, topic linking, wait, and complete SHALL run natively on macOS, Windows, and Linux with identical states, atomicity, and errors. Runtime SHALL NOT require Python, bash, or WSL; the caller SHALL remain responsible for external execution.
 
-#### Scenario: Допуск на Windows
-- **WHEN** Windows CLI получает допуск задачи к двум топикам и завершается
-- **THEN** задача остаётся running в обоих топиках до отдельного вызова complete
+#### Scenario: Admission on Windows
+- **WHEN** Windows CLI obtains task admission to two topics and exits
+- **THEN** the task remains running in both topics until a separate complete
 
-### Requirement: Прерывание нативного CLI
-Первый Ctrl+C SHALL возвращать 130. До commit SQLite SHALL откатывать текущую транзакцию, после commit SHALL сохранять результат и владение. Цепочки SHALL оставлять последнюю сохранённую стадию. Native integration tests SHALL посылать реальные SIGINT/CTRL_C_EVENT на всех трёх ОС без skip/ignore и проверять состояния, слоты и последующие операции.
+### Requirement: Native CLI interruption
+The first Ctrl+C SHALL return 130. Before commit, SQLite SHALL roll back the current transaction; after commit it SHALL preserve the result and ownership. Chains SHALL leave the last committed stage. Native integration tests SHALL send real SIGINT/CTRL_C_EVENT on all three operating systems without skip/ignore and verify states, slots, and subsequent operations.
 
-#### Scenario: Сигнал после допуска
-- **WHEN** Ctrl+C приходит после commit running до сообщения CLI
-- **THEN** задача остаётся running и занимает все слоты до явного complete
+#### Scenario: Signal after admission
+- **WHEN** Ctrl+C arrives after running commit but before the CLI message
+- **THEN** the task stays running and holds every slot until explicit complete
 
-#### Scenario: Сигнал до допуска
-- **WHEN** Ctrl+C приходит до commit running или при ожидании ресурса
-- **THEN** задача queued без частичного владения
+#### Scenario: Signal before admission
+- **WHEN** Ctrl+C arrives before running commit or while waiting for a resource
+- **THEN** the task is queued without partial ownership
 
-### Requirement: Прерывание заблокированного вывода
-Первый Ctrl+C SHALL завершать CLI с кодом 130 даже при заполненном stdout или stderr без чтения потребителем. Отмена вывода SHALL не менять сохранённые состояния, владение и настройки. Native integration tests SHALL воспроизводить реальное заполнение pipe и посылать один сигнал на каждой ОС.
+### Requirement: Interrupt blocked output
+The first Ctrl+C SHALL exit CLI with 130 even when stdout or stderr is full and the consumer is not reading. Output cancellation SHALL NOT change persisted states, ownership, or settings. Native integration tests SHALL reproduce actual pipe saturation and send one signal on each OS.
 
-#### Scenario: Потребитель перестал читать
-- **WHEN** CLI заблокирован на записи в полный stdout или stderr и получает первый Ctrl+C
-- **THEN** процесс завершается с 130 без второго сигнала и без ожидания чтения pipe
+#### Scenario: Consumer stopped reading
+- **WHEN** CLI is blocked writing to full stdout or stderr and receives the first Ctrl+C
+- **THEN** the process exits with 130 without a second signal or waiting for pipe reads
 
-#### Scenario: Вывод прочитан полностью
-- **WHEN** потребитель читает stdout без прерывания
-- **THEN** CLI возвращает полный результат, сохраняя обычный код завершения
+#### Scenario: Output fully read
+- **WHEN** the consumer reads stdout without interruption
+- **THEN** CLI returns the full result with its ordinary exit code
 
 ## REMOVED Requirements
 
-### Requirement: Нативный CLI и worker
-**Reason**: CLI координации заменяет worker, запускающий команды с payload и идентичностью группы.
-**Migration**: Использовать task create, topic link TOPIC NAME или task link NAME TOPIC, task wait и task complete на той же ОС; внешние команды запускать самостоятельно.
+### Requirement: Native CLI and worker
+**Reason**: The coordination CLI replaces command workers with payloads/group identities.
+**Migration**: Use task create, topic link TOPIC NAME or task link NAME TOPIC, task wait, and task complete on the same OS; run external commands yourself.
 
-### Requirement: Завершение дерева процессов
-**Reason**: anyq не запускает внешнюю работу и не владеет её деревом процессов. Падение вызывающей стороны не освобождает слоты автоматически.
-**Migration**: Управление внешними процессами выполняет вызывающая сторона; после проверки оставшейся работы задачу завершают явно.
+### Requirement: Process-tree termination
+**Reason**: anyq does not launch external work or own its process tree. Caller crashes do not release slots automatically.
+**Migration**: The caller manages external processes; complete tasks explicitly after inspecting remaining work.

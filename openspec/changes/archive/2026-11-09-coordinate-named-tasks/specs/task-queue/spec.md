@@ -2,265 +2,265 @@
 
 ## ADDED Requirements
 
-### Requirement: Реестр именованных задач
-`anyq task create NAME` SHALL создавать долговечную задачу с уникальным в пределах базы именем и состоянием registered. Регистрация SHALL не запускать внешнюю работу и не занимать слоты. Повторная регистрация существующего имени SHALL завершаться ошибкой, включая имя завершённой задачи.
+### Requirement: Named task registry
+`anyq task create NAME` SHALL create a durable task with a database-unique name and registered state. Registration SHALL NOT launch external work or acquire slots. Registering an existing name SHALL fail, including the name of a completed task.
 
-#### Scenario: Регистрация
-- **WHEN** зарегистрировано новое имя my-task
-- **THEN** CLI сообщает `successfully registered task 'my-task'`, а задача существует без топиков и занятых слотов
+#### Scenario: Registration
+- **WHEN** a new name my-task is registered
+- **THEN** CLI reports `successfully registered task 'my-task'` and the task exists without topics or acquired slots
 
-#### Scenario: Повтор имени
-- **WHEN** task create вызывается для уже существующего имени
-- **THEN** CLI возвращает ошибку и сохраняет исходную задачу без изменений
+#### Scenario: Duplicate name
+- **WHEN** task create is called for an existing name
+- **THEN** CLI returns an error and preserves the original task unchanged
 
-### Requirement: Атомарная регистрация с топиками
-`anyq task create NAME --topic TOPIC` и краткая форма `-t TOPIC` SHALL регистрировать задачу и связывать её с существующим топиком в одной транзакции без занятия слотов. Флаг SHALL допускать повторение для нескольких топиков; повтор одной связи SHALL быть идемпотентным. Результат с топиками SHALL иметь состояние queued. Ошибка проверки или сохранения SHALL не оставлять задачу или часть связей.
+### Requirement: Atomic registration with topics
+`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction without acquiring slots. The flag SHALL allow repetition for multiple topics; duplicate links SHALL be idempotent. A result with topics SHALL be queued. Validation/persistence errors SHALL leave neither a task nor partial links.
 
-#### Scenario: Несколько начальных топиков
-- **WHEN** вызывается task create my-task --topic cpu -t repo -t cpu
-- **THEN** создаётся одна queued-задача с двумя связями cpu и repo, без занятых слотов
+#### Scenario: Several initial topics
+- **WHEN** task create my-task --topic cpu -t repo -t cpu is called
+- **THEN** one queued task is created with cpu/repo links and no acquired slots
 
-#### Scenario: Неизвестный начальный топик
-- **WHEN** хотя бы один указанный при регистрации топик не существует и topic.autocreate выключен
-- **THEN** команда возвращает ошибку, а новое имя задачи и связи не сохраняются
+#### Scenario: Unknown initial topic
+- **WHEN** at least one topic specified at registration is absent and topic.autocreate is off
+- **THEN** the command returns an error without saving the new task name or links
 
-### Requirement: Топики как ограниченные ресурсы
-Топик SHALL иметь уникальное имя и положительную вместимость, по умолчанию один слот. `anyq topic list`, `anyq topic --list` и `anyq topic -l` SHALL перечислять имена топиков. `topic create TOPIC [--capacity N]` SHALL поддерживать краткий флаг `-c N`. Вместимость SHALL изменяться через `topic capacity TOPIC N` с позиционным числом; уменьшение ниже числа running-задач SHALL отклоняться. Прежняя форма `topic capacity TOPIC --capacity N` SHALL отклоняться.
+### Requirement: Topics as bounded resources
+A topic SHALL have a unique name and positive capacity, default one slot. `anyq topic list`, `anyq topic --list`, and `anyq topic -l` SHALL list names. `topic create TOPIC [--capacity N]` SHALL support `-c N`. Capacity SHALL change through positional `topic capacity TOPIC N`; reductions below running usage SHALL fail. Old `topic capacity TOPIC --capacity N` SHALL be rejected.
 
-#### Scenario: Список топиков
-- **WHEN** существуют itzdesign-commands, pixel-10-emulator и itzdesign-repo-lock
-- **THEN** topic --list перечисляет эти имена
+#### Scenario: Topic list
+- **WHEN** itzdesign-commands, pixel-10-emulator, and itzdesign-repo-lock exist
+- **THEN** topic --list lists these names
 
-#### Scenario: Изменение занятой вместимости
-- **WHEN** уменьшение вместимости оставило бы больше running-задач, чем слотов
-- **THEN** изменение отклоняется, а действующие допуски сохраняются
+#### Scenario: Changing occupied capacity
+- **WHEN** reducing capacity would leave more running tasks than slots
+- **THEN** the change is rejected and existing admissions are preserved
 
-### Requirement: Список всех задач
-`anyq task list`, `anyq task --list` и `anyq task -l` SHALL возвращать все зарегистрированные имена, включая completed, по алфавиту в формате списка топиков, не меняя состояния и слоты.
+### Requirement: List all tasks
+`anyq task list`, `anyq task --list`, and `anyq task -l` SHALL return all registered names, including completed tasks, alphabetically in the topic-list format without changing states or slots.
 
-#### Scenario: Завершённое имя в списке
-- **WHEN** вызывается task -l после завершения задачи
-- **THEN** имя остаётся в списке, а владение ресурсами не меняется
+#### Scenario: Completed name in list
+- **WHEN** task -l is called after a task completes
+- **THEN** the name remains listed and resource ownership is unchanged
 
-### Requirement: Просмотр состояния задачи
-`anyq task NAME` SHALL показывать состояние и сохранённые топики задачи без изменения состояния и слотов. Неизвестное имя SHALL давать ошибку при выключенном autocreate; включённый SHALL создавать registered-задачу без слотов.
+### Requirement: Task state lookup
+`anyq task NAME` SHALL show task state and stored topics without changing state or slots. An unknown name SHALL produce an error with autocreate off; with it enabled, a registered task without slots SHALL be created.
 
-#### Scenario: Состояние завершённой задачи
-- **WHEN** вызывается task NAME для завершённой задачи
-- **THEN** просмотр показывает completed и сохранённые топики, не занимая слоты
+#### Scenario: Completed task state
+- **WHEN** task NAME is called for a completed task
+- **THEN** the lookup shows completed and stored topics without acquiring slots
 
-### Requirement: Просмотр текущей очереди
-`anyq topic TOPIC` SHALL показывать вместимость и текущие queued/running-задачи по номеру регистрации без изменения состояний и слотов. Неизвестный топик SHALL давать ошибку при выключенном autocreate.
+### Requirement: Current queue lookup
+`anyq topic TOPIC` SHALL show capacity and current queued/running tasks in registration order without changing states or slots. An unknown topic SHALL produce an error with autocreate off.
 
-#### Scenario: Текущая очередь
-- **WHEN** топик содержит running-, queued- и completed-задачи
-- **THEN** просмотр показывает только running и queued в порядке регистрации и сохраняет их состояния и владение
+#### Scenario: Current queue
+- **WHEN** a topic contains running, queued, and completed tasks
+- **THEN** the lookup shows only running and queued in registration order, preserving their states and ownership
 
-### Requirement: Доменные имена задач и топиков
-Общая политика domain SHALL требовать ASCII Latin initial для bare-имени и разрешать любой хвост. Bare list/create/capacity/link/add/wait/complete/config/help SHALL быть запрещены. Одна буквальная внешняя пара обратных кавычек SHALL разрешать любое содержимое, включая пустое, команды и начальные дефисы, и сниматься ровно один раз. CLI и SQL SHALL не копировать правила.
+### Requirement: Domain naming for tasks and topics
+Shared domain policy SHALL require an ASCII Latin initial for bare names and allow any tail. Bare list/create/capacity/link/add/wait/complete/config/help SHALL be forbidden. One literal outer backtick pair SHALL allow any content, including empty strings, commands, and leading hyphens, and be stripped exactly once. CLI/SQL SHALL NOT duplicate these rules.
 
-#### Scenario: Голое запрещённое имя
-- **WHEN** Topic или Task создаются с bare create, --cpu или нелатинским началом
-- **THEN** domain отклоняет имя без изменения агрегата
+#### Scenario: Invalid bare name
+- **WHEN** Topic or Task is created with bare create, --cpu, or a non-Latin initial
+- **THEN** the domain rejects the name without changing the aggregate
 
-#### Scenario: Произвольное quoted-имя
-- **WHEN** имя целиком обёрнуто буквальными обратными кавычками
-- **THEN** допускаются любые внутренние символы, команды и пустое содержимое
+#### Scenario: Arbitrary quoted name
+- **WHEN** the entire name is wrapped in literal backticks
+- **THEN** any inner characters, commands, and empty content are allowed
 
-### Requirement: Каноническая идентичность имени
-Bare build и обёрнутое обратными кавычками build SHALL обозначать одну сущность. Сохранение и restore SHALL использовать канонические строки без повторного снятия кавычек. Отображение SHALL возвращать обратимое написание. Shell-экранирование пробелов SHALL не ограничивать допустимый хвост имени; внутренние backslash SHALL сохраняться буквально.
+### Requirement: Canonical name identity
+Bare build and backtick-wrapped build SHALL identify one entity. Persistence and restore SHALL use canonical strings without stripping backticks again. Display SHALL return a reversible spelling. Shell escaping of spaces SHALL NOT restrict the allowed name tail; inner backslashes SHALL remain literal.
 
-#### Scenario: Вложенные кавычки
-- **WHEN** имя с внутренними обратными кавычками сохраняется и читается новым процессом
-- **THEN** содержимое и идентичность не меняются при restore
+#### Scenario: Nested backticks
+- **WHEN** a name containing inner backticks is saved and read by a new process
+- **THEN** its content and identity remain unchanged during restore
 
-### Requirement: Чтение вместимости
-`anyq topic capacity TOPIC` без числа SHALL показывать текущую вместимость топика без её изменения. Неизвестный топик SHALL давать ошибку при выключенном autocreate.
+### Requirement: Read capacity
+`anyq topic capacity TOPIC` without a number SHALL show the topic's current capacity without changing it. An unknown topic SHALL produce an error with autocreate off.
 
-#### Scenario: Чтение после изменения
-- **WHEN** после topic capacity cpu 2 вызывается topic capacity cpu
-- **THEN** команда показывает 2, не меняя очередь и владение
+#### Scenario: Read after change
+- **WHEN** topic capacity cpu is called after topic capacity cpu 2
+- **THEN** the command shows 2 without changing the queue or ownership
 
-### Requirement: Сокращённая последовательность регистрации
-`anyq task create NAME --topic TOPIC --wait --complete` SHALL последовательно зарегистрировать задачу со связями, дождаться допуска и завершить её. Краткие флаги SHALL быть -t, -w и -c; форма -twc TOPIC SHALL работать с тем же результатом. Шаги wait и complete SHALL быть необязательны. Ошибка wait SHALL прерывать цепочку без сообщения об успешном допуске или завершении.
+### Requirement: Shorthand registration sequence
+`anyq task create NAME --topic TOPIC --wait --complete` SHALL sequentially register the task with links, wait for admission, and complete it. Short flags SHALL be -t, -w, and -c; -twc TOPIC SHALL produce the same result. Wait and complete steps SHALL be optional. A wait error SHALL stop the chain without reporting successful admission or completion.
 
-#### Scenario: Полная цепочка
-- **WHEN** task create my-task -twc cpu получает свободный слот
-- **THEN** задача последовательно становится queued, running и completed, а слот освобождён
+#### Scenario: Full chain
+- **WHEN** task create my-task -twc cpu obtains a free slot
+- **THEN** the task becomes queued, running, and completed in sequence, and the slot is released
 
-#### Scenario: Ожидание без автоматического завершения
-- **WHEN** task create my-task -tw cpu получает допуск
-- **THEN** команда возвращает 0, а задача остаётся running до отдельного complete
+#### Scenario: Wait without automatic completion
+- **WHEN** task create my-task -tw cpu obtains admission
+- **THEN** the command returns 0 and the task remains running until a separate complete
 
-#### Scenario: Ожидающая цепочка завершена другим процессом
-- **WHEN** queued-задача завершена с force во время ожидания цепочки с --complete
-- **THEN** цепочка возвращает ошибку, не сообщает о запуске или собственном завершении и не затрагивает владельца занятого ресурса
+#### Scenario: Waiting chain completed by another process
+- **WHEN** a queued task is force-completed while a chain with --complete is waiting
+- **THEN** the chain returns an error, reports neither admission nor its own completion, and leaves the busy resource's owner untouched
 
-### Requirement: Зависимости флагов регистрации
-При task create флаг --wait/-w SHALL требовать хотя бы один --topic/-t, а --complete/-c SHALL требовать --wait/-w. Ошибки сочетаний SHALL возвращаться до открытия базы и регистрации задачи.
+### Requirement: Registration flag dependencies
+For task create, --wait/-w SHALL require at least one --topic/-t, and --complete/-c SHALL require --wait/-w. Invalid combinations SHALL be rejected before opening the database or registering a task.
 
-#### Scenario: Нет обязательного предшествующего флага
-- **WHEN** wait задан без topic или complete без wait
-- **THEN** CLI возвращает ошибку без регистрации задачи и открытия базы
+#### Scenario: Required preceding flag missing
+- **WHEN** wait is specified without topic or complete without wait
+- **THEN** CLI returns an error without registering a task or opening the database
 
-### Requirement: Членство задачи в нескольких топиках
-`anyq topic link TOPIC NAME` и `anyq task link NAME TOPIC` SHALL равнозначно добавлять существующую задачу в существующий топик, переводя registered в queued, через один сценарий AddTaskToTopic. Одна задача SHALL поддерживать несколько разных топиков. Повтор той же связи SHALL быть идемпотентным; членство running- и completed-задач SHALL не изменяться. Прежняя форма `topic TOPIC add NAME` SHALL отклоняться.
+### Requirement: Task membership in several topics
+`anyq topic link TOPIC NAME` and `anyq task link NAME TOPIC` SHALL equivalently add an existing task to an existing topic through AddTaskToTopic, transitioning registered to queued. A task SHALL support multiple distinct topics. Duplicate links SHALL be idempotent; running/completed membership SHALL NOT change. Old `topic TOPIC add NAME` SHALL be rejected.
 
-#### Scenario: Равнозначные формы link
-- **WHEN** связь создана через topic link cpu my-task и повторена через task link my-task cpu
-- **THEN** сохраняется одна связь без захвата слота, а обе команды сообщают `successfully added 'my-task' to topic 'cpu'`
+#### Scenario: Equivalent link forms
+- **WHEN** a link is created through topic link cpu my-task and repeated through task link my-task cpu
+- **THEN** one link is stored without acquiring a slot, and both commands report `successfully added 'my-task' to topic 'cpu'`
 
-#### Scenario: Два ресурса
-- **WHEN** my-task добавляется в itzdesign-commands и itzdesign-repo-lock
-- **THEN** обе связи сохраняются без захвата слотов, а CLI для каждой сообщает `successfully added 'my-task' to topic 'TOPIC'`
+#### Scenario: Two resources
+- **WHEN** my-task is added to itzdesign-commands and itzdesign-repo-lock
+- **THEN** both links are stored without acquiring slots, and CLI reports `successfully added 'my-task' to topic 'TOPIC'` for each
 
-#### Scenario: Неизвестная задача или топик
-- **WHEN** команда добавления ссылается на отсутствующее имя задачи или топика
-- **THEN** CLI возвращает ошибку без создания неявной задачи или топика
+#### Scenario: Unknown task or topic
+- **WHEN** an add command references a missing task or topic name
+- **THEN** CLI returns an error without implicitly creating a task or topic
 
-#### Scenario: Добавление во время выполнения
-- **WHEN** задаче в состоянии running добавляют ещё один топик
-- **THEN** команда отклоняется, а набор занятых ресурсов сохраняется
+#### Scenario: Adding during execution
+- **WHEN** another topic is added to a running task
+- **THEN** the command is rejected and the acquired resource set is preserved
 
-### Requirement: Блокирующее ожидание собственного допуска
-`anyq task wait NAME` SHALL ожидать допуск указанной queued-задачи и возвращать код 0 только после её перехода в running. Неизвестная задача, отсутствие топиков, состояния running и completed SHALL давать ошибку без ожидания. Ожидание SHALL не запускать команды или отдельного исполнителя задач.
+### Requirement: Blocking wait for own admission
+`anyq task wait NAME` SHALL wait for the specified queued task's admission and return 0 only after running. Unknown tasks, no topics, running, and completed SHALL fail without waiting. Waiting SHALL NOT launch commands or a separate task executor.
 
-#### Scenario: Нет топиков
-- **WHEN** wait вызывается для зарегистрированной задачи без топиков
-- **THEN** CLI немедленно сообщает ошибку `'my-task' is not registered in any topic` и возвращает ненулевой код
+#### Scenario: No topics
+- **WHEN** wait is called for a registered task without topics
+- **THEN** CLI immediately reports `'my-task' is not registered in any topic` and returns nonzero
 
-#### Scenario: Занятый ресурс
-- **WHEN** у queued-задачи ещё нет допуска по всем её топикам
-- **THEN** CLI сообщает `waiting for 'my-task' to start` и продолжает ожидание
+#### Scenario: Busy resource
+- **WHEN** a queued task has not yet been admitted across all its topics
+- **THEN** CLI reports `waiting for 'my-task' to start` and continues waiting
 
-#### Scenario: Допуск получен
-- **WHEN** задача атомарно получает допуск во всех топиках
-- **THEN** wait возвращает код 0, после чего вызывающая сторона сама выполняет внешнюю работу
+#### Scenario: Admission obtained
+- **WHEN** a task atomically obtains admission in every topic
+- **THEN** wait returns 0, after which the caller performs external work itself
 
-#### Scenario: Два ожидания одного имени
-- **WHEN** два процесса одновременно вызывают wait для одной задачи
-- **THEN** ровно один получает новый допуск, а второй возвращает ошибку уже запущенной задачи
+#### Scenario: Two waits for one name
+- **WHEN** two processes concurrently call wait for the same task
+- **THEN** exactly one obtains new admission and the other reports an already-running error
 
-### Requirement: Атомарный допуск ко всем ресурсам
-Задача SHALL переходить в running только при доступности одного слота каждого её топика. Проверка доступности, состава топиков и переход состояния SHALL составлять одну атомарную операцию. Задача без полного допуска SHALL не удерживать часть ресурсов; ни один успешный допуск SHALL не превышать вместимость топиков.
+### Requirement: Atomic admission to all resources
+A task SHALL become running only when one slot from every attached topic is available. Availability checks, topic membership, and the state transition SHALL form one atomic operation. A task without full admission SHALL NOT hold partial resources; no successful admission SHALL exceed topic capacity.
 
-#### Scenario: Один из двух топиков занят
-- **WHEN** свободен itzdesign-commands, но занят itzdesign-repo-lock
-- **THEN** задача остаётся queued и не занимает слот ни одного топика
+#### Scenario: One of two topics busy
+- **WHEN** itzdesign-commands is free but itzdesign-repo-lock is busy
+- **THEN** the task stays queued without holding a slot in either topic
 
-#### Scenario: Конкурирующие процессы
-- **WHEN** два процесса претендуют на последний слот общего топика через разные задачи
-- **THEN** только одна задача переходит в running
+#### Scenario: Competing processes
+- **WHEN** two processes compete for a shared topic's last slot through different tasks
+- **THEN** only one task becomes running
 
-#### Scenario: Сбой сохранения
-- **WHEN** запись допуска завершается ошибкой
-- **THEN** состояние задачи и доступность всех ресурсов остаются прежними
+#### Scenario: Persistence failure
+- **WHEN** saving admission fails
+- **THEN** task state and availability of all resources remain unchanged
 
-### Requirement: Общий порядок задач
-Порядок queued-задач во всех их топиках SHALL определяться единым монотонным номером регистрации задачи. При допуске в каждом топике задача SHALL находиться среди первых queued-задач в количестве свободных слотов. Позднее добавление связи SHALL не создавать противоположные порядки одной пары задач в разных топиках.
+### Requirement: Global task order
+Queued order across all of a task's topics SHALL be determined by one monotonic task registration sequence. At admission, the task SHALL be among the first queued tasks within the number of free slots in every topic. Adding a link later SHALL NOT create opposite ordering of the same task pair in different topics.
 
-#### Scenario: Перекрёстное добавление
-- **WHEN** A зарегистрирована раньше B, а обе задачи добавлены в два топика в разной последовательности
-- **THEN** A предшествует B в обеих очередях, и частичного взаимного захвата не возникает
+#### Scenario: Crossed linking
+- **WHEN** A is registered before B and both tasks are added to two topics in different sequences
+- **THEN** A precedes B in both queues and no mutual partial acquisition occurs
 
-### Requirement: Постоянное владение до завершения
-Running-задача SHALL удерживать по одному слоту всех своих топиков до явного complete. Выход wait, завершение или падение вызывающего процесса, перезапуск CLI и истечение времени SHALL не освобождать владение. Heartbeat, lease и автоматическое восстановление слотов по таймауту SHALL отсутствовать.
+### Requirement: Persistent ownership until completion
+A running task SHALL hold one slot from every attached topic until explicit complete. Wait return, caller exit/crash, CLI restart, and elapsed time SHALL NOT release ownership. Heartbeat, leases, and automatic timeout-based slot recovery SHALL be absent.
 
-#### Scenario: Процесс wait завершился
-- **WHEN** wait успешно вернул допуск и его процесс завершился
-- **THEN** задача остаётся running и продолжает занимать все свои слоты
+#### Scenario: Wait process exited
+- **WHEN** wait successfully returned admission and its process exited
+- **THEN** the task remains running and holds all its slots
 
-#### Scenario: Внешняя работа аварийно завершилась
-- **WHEN** вызывающий процесс погиб после получения допуска
-- **THEN** слоты остаются занятыми до явного завершения задачи
+#### Scenario: External work crashed
+- **WHEN** the caller process dies after admission
+- **THEN** slots remain acquired until explicit task completion
 
-### Requirement: Обычное завершение запущенной задачи
-`anyq task complete NAME` SHALL завершать только running-задачу, атомарно переводя её в completed и освобождая все её слоты. Зарегистрированная или queued-задача SHALL давать ошибку `'NAME' was not run`. Неизвестная или уже завершённая задача SHALL давать ошибку без изменения состояния.
+### Requirement: Ordinary completion of a running task
+`anyq task complete NAME` SHALL complete only running tasks, atomically transitioning to completed and releasing all slots. Registered/queued SHALL report `'NAME' was not run`. Unknown/already completed tasks SHALL fail without state changes.
 
-#### Scenario: Завершение
-- **WHEN** complete вызывается для running-задачи my-task
-- **THEN** CLI сообщает `'my-task' successfully completed`, а все её ресурсы освобождены
+#### Scenario: Completion
+- **WHEN** complete is called for running task my-task
+- **THEN** CLI reports `'my-task' successfully completed` and all its resources are released
 
-#### Scenario: Задача не запускалась
-- **WHEN** complete вызывается для registered- или queued-задачи my-task без --force
-- **THEN** CLI сообщает `'my-task' was not run`, возвращает ненулевой код и сохраняет состояние
+#### Scenario: Task never ran
+- **WHEN** complete is called for registered or queued task my-task without --force
+- **THEN** CLI reports `'my-task' was not run`, returns nonzero, and preserves state
 
-### Requirement: Принудительное завершение
-`anyq task complete --force NAME` и краткая форма `-f` SHALL позволять переход registered-, queued- и running-задачи в completed. Для незапущенной задачи операция SHALL снимать её с очередей без исполнения внешней работы; для running-задачи SHALL освобождать все её слоты. Отсутствующее имя SHALL создаваться только при включённом task.autocreate; completed SHALL не перезапускаться.
+### Requirement: Forced completion
+`anyq task complete --force NAME` and short `-f` SHALL allow registered/queued/running to become completed. Unstarted tasks SHALL leave queues without external execution; running tasks SHALL release all slots. Missing names SHALL be created only with task.autocreate enabled; completed SHALL NOT restart.
 
-#### Scenario: Незапущенная задача
-- **WHEN** complete --force вызывается для queued-задачи my-task
-- **THEN** CLI сообщает `'my-task' successfully completed`, задача становится completed и перестаёт блокировать очереди
+#### Scenario: Unstarted task
+- **WHEN** complete --force is called for queued task my-task
+- **THEN** CLI reports `'my-task' successfully completed`, the task becomes completed, and it no longer blocks queues
 
-#### Scenario: Force во время ожидания
-- **WHEN** задача завершена с --force раньше получения допуска ожидающим wait
-- **THEN** ожидающий wait возвращает ошибку без разрешения выполнять внешнюю работу
+#### Scenario: Force during wait
+- **WHEN** a task is completed with --force before the waiting wait obtains admission
+- **THEN** the waiting wait returns an error without authorizing external work
 
-### Requirement: Долговечность и переход со старой базы
-Имена, связи с топиками, порядок и состояния SHALL сохраняться при открытии базы новым процессом. База прежних сообщений и групп SHALL отклоняться с понятным сообщением о несовместимой схеме и выборе отдельного файла через --db. Её данные SHALL не удаляться и не преобразовываться автоматически.
+### Requirement: Durability and transition from the old database
+Names, topic links, order, and states SHALL survive opening in a new process. The former message/group database SHALL be rejected with a clear incompatible-schema message recommending a separate file through --db. Its data SHALL NOT be deleted or converted automatically.
 
-#### Scenario: Перезапуск
-- **WHEN** новый процесс открывает базу с queued-, running- и completed-задачами
-- **THEN** он видит прежние состояния, порядок, состав топиков и занятые слоты
+#### Scenario: Restart
+- **WHEN** a new process opens a database containing queued, running, and completed tasks
+- **THEN** it sees the previous states, order, topic membership, and acquired slots
 
-#### Scenario: Старая база
-- **WHEN** новый CLI открывает базу сообщений со схемой версии 1
-- **THEN** операция завершается ошибкой с указанием использовать отдельную базу, а прежние данные сохраняются
+#### Scenario: Old database
+- **WHEN** the new CLI opens a message database with schema version 1
+- **THEN** the operation fails, recommends a separate database, and preserves previous data
 
-### Requirement: Нативный интерфейс координации
-Команды task и topic SHALL работать нативно без вспомогательного Python launcher, демона, payload со списком команд и consumer groups. Успешные операции SHALL возвращать код 0 и понятное сообщение, ошибки состояния и входа — ненулевой код. Прежние publish/claim/ack/nack/renew/retry/jobs/group/worker SHALL не оставаться параллельным API.
+### Requirement: Native coordination interface
+Task/topic commands SHALL work natively without a Python launcher, daemon, command-list payload, or consumer groups. Success SHALL return 0 with a clear message; state/input errors return nonzero. Old publish/claim/ack/nack/renew/retry/jobs/group/worker SHALL NOT remain a parallel API.
 
-#### Scenario: Внешняя сборка
-- **WHEN** вызывающая сторона регистрирует задачу, добавляет её в топики, получает wait, выполняет сборку и вызывает complete
-- **THEN** anyq координирует слоты, а процесс сборки запускается и обслуживается вызывающей стороной
+#### Scenario: External build
+- **WHEN** the caller registers a task, links it to topics, obtains wait, performs a build, and calls complete
+- **THEN** anyq coordinates slots while the caller launches and manages the build process
 
-### Requirement: Справка и версия без IO
-Флаги -v и -h SHALL быть равнозначны --version и --help; help [command] SHALL показывать справку, включая вложенные команды. Эти формы SHALL не открывать config или базу.
+### Requirement: Help and version without IO
+Flags -v and -h SHALL be equivalent to --version and --help; help [command] SHALL show help, including nested commands. These forms SHALL NOT open config or the database.
 
-#### Scenario: Вложенная справка
-- **WHEN** вызывается help task link при повреждённом config
-- **THEN** вывод равен task link --help, а база не открывается
+#### Scenario: Nested help
+- **WHEN** help task link is called with damaged config
+- **THEN** output equals task link --help and the database is not opened
 
-### Requirement: Равнозначный порядок действий
-Команды с именованным объектом SHALL поддерживать command-first и name-first: topic link TOPIC NAME = topic TOPIC link NAME, task link NAME TOPIC = task NAME link TOPIC, topic TOPIC create/capacity, task NAME create/wait/complete. Значения имён, --db и -- SHALL сохраняться. Task add SHALL отклоняться.
+### Requirement: Equivalent action ordering
+Named-object commands SHALL support command-first/name-first: topic link TOPIC NAME = topic TOPIC link NAME, task link NAME TOPIC = task NAME link TOPIC, topic TOPIC create/capacity, task NAME create/wait/complete. Names, --db, and -- SHALL be preserved. Task add SHALL be rejected.
 
-#### Scenario: Name-first создание
-- **WHEN** вызывается task job create -twc cpu
-- **THEN** результат равнозначен task create job -twc cpu
+#### Scenario: Name-first creation
+- **WHEN** task job create -twc cpu is called
+- **THEN** the result equals task create job -twc cpu
 
-### Requirement: Цепочки link и wait
-Обе формы link SHALL принимать --wait/-w и --complete/-c; complete SHALL требовать wait. Task wait SHALL принимать --complete/-c. Шаги SHALL последовательно вызывать отдельные сценарии и прекращаться при ошибке. Без complete успешный допуск SHALL оставлять running до явного завершения.
+### Requirement: Link and wait chains
+Both link forms SHALL accept --wait/-w and --complete/-c; complete SHALL require wait. Task wait SHALL accept --complete/-c. Steps SHALL invoke separate use cases sequentially and stop on error. Without complete, successful admission SHALL leave running until explicit completion.
 
-#### Scenario: Полный link
-- **WHEN** task job link cpu -wc получает свободный ресурс
-- **THEN** связь сохраняется, задача запускается и сразу завершается
+#### Scenario: Full link
+- **WHEN** task job link cpu -wc obtains a free resource
+- **THEN** the link is saved, the task starts, and it immediately completes
 
-#### Scenario: Неверный link
-- **WHEN** complete задан для link без wait
-- **THEN** CLI возвращает ошибку до открытия базы
+#### Scenario: Invalid link
+- **WHEN** complete is specified for link without wait
+- **THEN** CLI returns an error before opening the database
 
 ## REMOVED Requirements
 
-### Requirement: Темы и долговечные задания
-**Reason**: Реестр именованных задач заменяет публикацию JSON-сообщений и idempotency keys.
-**Migration**: Создать отдельную базу новой модели, зарегистрировать имя через task create и связать его с топиками.
+### Requirement: Topics and durable jobs
+**Reason**: Named-task registration replaces JSON publication and idempotency keys.
+**Migration**: Create a separate new-model database, register through task create, and link topics.
 
-### Requirement: Независимые consumer groups
-**Reason**: Задача имеет один жизненный цикл и общий допуск, без копий обработок по группам.
-**Migration**: Использовать именованную задачу и task wait; группы из прежней базы не переносятся автоматически.
+### Requirement: Independent consumer groups
+**Reason**: A task has one lifecycle and shared admission, without group-specific processing copies.
+**Migration**: Use a named task and task wait; old database groups are not imported automatically.
 
-### Requirement: Конкурирующие consumers и порядок
-**Reason**: Допуск одной задачи во все топики заменяет захват доставки одной группы.
-**Migration**: Добавить задаче все нужные топики и использовать общий порядок регистрации.
+### Requirement: Competing consumers and ordering
+**Reason**: Admission of one task across all topics replaces claiming one group's delivery.
+**Migration**: Attach every required topic and use the global registration order.
 
-### Requirement: Lease и fencing
-**Reason**: Пользователь выбрал постоянное владение до явного complete вместо истечения lease.
-**Migration**: Завершать задачу явно; при оставшейся после аварии задаче использовать complete после проверки внешней работы.
+### Requirement: Lease and fencing
+**Reason**: The user chose persistent ownership until explicit complete instead of lease expiry.
+**Migration**: Complete tasks explicitly; after a crash, inspect external work before complete.
 
-### Requirement: Повторы и наблюдаемость
-**Reason**: anyq больше не исполняет команду, не оценивает её exit code и не повторяет её автоматически.
-**Migration**: Вызывающая сторона решает, как обработать результат внешней работы; новое выполнение регистрируется под новым именем.
+### Requirement: Retries and observability
+**Reason**: anyq no longer executes commands, evaluates exit codes, or retries automatically.
+**Migration**: The caller handles external work outcomes; register new execution under a new name.
 
-### Requirement: Атомарный следующий этап
-**Reason**: Основной контракт ограничен регистрацией, допуском и завершением именованной задачи.
-**Migration**: Следующий этап регистрирует вызывающая сторона, а не worker через ack с публикацией.
+### Requirement: Atomic follow-up stage
+**Reason**: The core contract is registration, admission, and completion of a named task.
+**Migration**: The caller registers follow-up stages rather than worker publishing with ack.

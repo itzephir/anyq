@@ -2,35 +2,35 @@
 
 ## Purpose
 
-Изменения проходят отдельные проверяемые этапы CI, а default branch принимает их только через PR с успешным актуальным результатом всех обязательных проверок.
+Changes pass separate verifiable CI stages; the default branch accepts them only through a PR with a current successful result for all required checks.
 
 ## ADDED Requirements
 
-### Requirement: Отдельные категории CI
-CI SHALL запускать отдельный lint job только на Linux, а build-and-unit-tests и integration-tests — нативно на Linux, macOS и Windows. Ошибка одной ОС SHALL не отменять остальные ОС.
+### Requirement: Separate CI categories
+CI SHALL run a separate lint job only on Linux, and build-and-unit-tests and integration-tests natively on Linux, macOS, and Windows. Failure on one OS SHALL NOT cancel the others.
 
-#### Scenario: Один запуск линтеров
-- **WHEN** создан или обновлён PR
-- **THEN** lint запускается один раз на Linux, а сборка и тесты проверяются на трёх ОС
+#### Scenario: One linter run
+- **WHEN** a PR is created or updated
+- **THEN** lint runs once on Linux while builds and tests run on three operating systems
 
-#### Scenario: Падение интеграции
-- **WHEN** integration test падает на Windows
-- **THEN** job Windows integration завершается ошибкой, а остальные платформы продолжают свои проверки
+#### Scenario: Integration failure
+- **WHEN** an integration test fails on Windows
+- **THEN** Windows integration fails while the other platforms continue their checks
 
-### Requirement: Обязательный итоговый статус
-Итоговый CI passed SHALL выполняться после всех категорий и проходить только при success каждой категории. Failure, cancelled и skipped SHALL не давать успешный итоговый статус.
+### Requirement: Required aggregate status
+The final CI passed SHALL run after all categories and pass only when every category succeeds. Failure, cancelled, and skipped SHALL NOT produce a successful final status.
 
-#### Scenario: Пропущенный job
-- **WHEN** любой обязательный job пропущен или отменён
-- **THEN** итоговый CI passed не разрешает слияние
+#### Scenario: Skipped job
+- **WHEN** any required job is skipped or cancelled
+- **THEN** the final CI passed does not permit merging
 
-### Requirement: Защита default branch
-GitHub SHALL требовать PR и успешный актуальный CI passed от GitHub Actions перед слиянием в default branch, в том числе для администраторов. Force push и удаление default branch SHALL быть запрещены, обсуждения PR SHALL быть разрешены до слияния.
+### Requirement: Default branch protection
+GitHub SHALL require a PR and current successful CI passed from GitHub Actions before merging into the default branch, including for administrators. Force pushes and default branch deletion SHALL be forbidden; PR discussions SHALL be resolved before merge.
 
-#### Scenario: CI не прошёл
-- **WHEN** PR не имеет успешного актуального CI passed
-- **THEN** GitHub блокирует слияние в default branch
+#### Scenario: CI did not pass
+- **WHEN** a PR lacks a current successful CI passed
+- **THEN** GitHub blocks merging into the default branch
 
-#### Scenario: Прямой push
-- **WHEN** администратор пытается отправить изменение прямо в default branch или выполнить force push
-- **THEN** GitHub отклоняет обход установленного PR/CI workflow
+#### Scenario: Direct push
+- **WHEN** an administrator attempts to push directly to the default branch or force-push
+- **THEN** GitHub rejects bypassing the configured PR/CI workflow

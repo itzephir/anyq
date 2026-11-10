@@ -2,30 +2,30 @@
 
 ## Why
 
-Тяжёлые локальные билды и тесты конкурируют за ресурсы одной машины. Агентам, людям и bash-процессам нужна общая долговечная очередь, где завершение билда позволяет надёжно поставить следующий этап на эмулятор.
+Heavy local builds/tests compete for one machine's resources. Agents, people, and bash processes need a shared durable queue where finishing a build reliably schedules the next emulator stage.
 
 ## What Changes
 
-- Rust CLI `anyq`: топики, consumer groups, публикация JSON-сообщений, ручной захват и подтверждение, bash workers.
-- Долговечная локальная очередь с ограничением параллелизма на топик, lease, heartbeat, повторными попытками и историей статусов.
-- Атомарное подтверждение задания вместе с публикацией следующего задания в другой топик.
-- Доменные фичи с отдельными Rust crates `api`/`impl`, внутренними портами, явной DI и проверкой архитектуры в CI.
-- OpenSpec и приватный GitHub-репозиторий с проверками Linux/macOS.
+- Rust `anyq` CLI: topics, consumer groups, JSON publication, manual claim/ack, and bash workers.
+- Durable local queue with per-topic concurrency, leases, heartbeat, retries, and status history.
+- Atomic acknowledgment plus publication of the next task to another topic.
+- Domain features with separate Rust `api`/`impl` crates, internal ports, explicit DI, and CI architecture checks.
+- OpenSpec and a private GitHub repository with Linux/macOS checks.
 
-По выбору пользователя каждая consumer group получает собственную копию потока топика; внутри группы сообщение выполняет один consumer. Новая группа читает сохранённый поток с начала. Kafka wire protocol, сетевой брокер, web UI и распределённая координация не входят в первую версию.
+The user chose a separate copy of the topic stream for every consumer group; within a group one consumer executes a message. New groups read retained history from the beginning. Kafka wire protocol, network broker, web UI, and distributed coordination are outside v1.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `task-queue`: топики, долговечные задания, leases, повторы, статусы и атомарная передача следующему этапу.
-- `command-worker`: явный запуск локальной команды с JSON-входом и продлением lease.
-- `architecture`: границы доменных фич, Dependency Rule, DI и автоматическая проверка.
+- `task-queue`: topics, durable jobs, leases, retries, statuses, and atomic follow-up handoff.
+- `command-worker`: explicit local command execution with JSON input and lease renewal.
+- `architecture`: domain feature boundaries, Dependency Rule, DI, and automated checks.
 
 ### Modified Capabilities
 
-Нет: новый проект.
+None: new project.
 
 ## Impact
 
-Новый Cargo workspace, CLI и локальная SQLite-база. Команды выполняются с правами пользователя; payload является данными, команду явно выбирает владелец worker. Node используется только для закреплённого OpenSpec CLI.
+New Cargo workspace, CLI, and local SQLite database. Commands run as the user; payload is data, and the worker owner explicitly selects commands. Node is used only for the pinned OpenSpec CLI.

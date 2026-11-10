@@ -1,7 +1,7 @@
-# Установка готового anyq
+# Installing prebuilt anyq
 
-Скрипты используют GitHub Releases itzephir/anyq. Первый полный релиз должен
-быть опубликован до проверки публичной установки.
+The scripts use GitHub Releases from itzephir/anyq. The first complete release must
+be published before public installation can be verified.
 
 macOS/Linux:
 
@@ -17,29 +17,29 @@ curl.exe -fL https://anyq.itzephir.com/install.ps1 -o install-anyq.ps1; if ($?) 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 -Scope User -Version v0.1.0 -BinDir "$env:USERPROFILE\bin"
 ```
 
-ExecutionPolicy действует только в новом процессе; постоянная политика Windows
-не изменяется. Можно сначала прочитать скачанный скрипт, затем запустить его.
-Поддерживаются macOS Intel/Apple Silicon, Linux x86_64/ARM64 (musl static) и
-Windows x64 MSVC со статическим C runtime, без WSL и отдельной установки VC++.
-Нет Rust, C toolchain, Python или Node в runtime.
+ExecutionPolicy applies only to the new process; the persistent Windows policy
+is unchanged. You can read the downloaded script before running it.
+Supported platforms: macOS Intel/Apple Silicon, Linux x86_64/ARM64 (static musl), and
+Windows x64 MSVC with a static C runtime, without WSL or a separate VC++ installation.
+Rust, a C toolchain, Python, and Node are not required at runtime.
 
-Архив и SHA256SUMS берутся из одной версии. До замены бинарника проверяются
-SHA-256, распаковка и --version. Ошибка сохраняет старый файл. Запущенный Windows
-бинарник может блокировать замену: завершите его и повторите установку.
+The archive and SHA256SUMS come from the same version. Before replacing the binary,
+the installer verifies SHA-256, extraction, and --version. Failure preserves the old file. A running Windows
+binary may block replacement: stop it and retry installation.
 
-По умолчанию установка системная, для всех пользователей:
+Installation is system-wide for all users by default:
 
-| ОС | Каталог | Права и PATH |
+| OS | Directory | Permissions and PATH |
 | --- | --- | --- |
-| macOS/Linux | /usr/local/bin | sudo запрашивается только при отсутствии прав записи; shell config не меняется |
-| Windows | %ProgramFiles%\anyq | При необходимости появляется UAC; обновляется системный PATH |
+| macOS/Linux | /usr/local/bin | sudo requested only without write access; shell config unchanged |
+| Windows | %ProgramFiles%\anyq | UAC when needed; system PATH updated |
 
-Скачивание, checksum и запуск --version происходят до повышения прав. Только
-размещение и системный PATH выполняются через sudo/UAC. Копия проверяется повторно
-перед атомарной заменой. Отказ в повышении прав сохраняет предыдущую версию.
-Ошибка записи Windows PATH откатывает замену бинарника.
+Download, checksum verification, and --version run before elevation. Only
+placement and system PATH updates use sudo/UAC. The copy is verified again
+before atomic replacement. Declining elevation preserves the previous version.
+A Windows PATH write failure rolls back binary replacement.
 
-Для установки одному пользователю без повышения прав:
+For installation for one user without elevation:
 
 ```sh
 ./install-anyq --user
@@ -49,42 +49,42 @@ SHA-256, распаковка и --version. Ошибка сохраняет ст
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 -Scope User
 ```
 
---user выбирает ~/.local/bin; -Scope User — %LOCALAPPDATA%\Programs\anyq и
-пользовательский PATH. --system / -Scope System явно выбирают системный режим.
---bin-dir / -BinDir переопределяют каталог выбранного режима; ANYQ_BIN_DIR —
-дополнительный Unix default. Пользовательский режим не вызывает sudo/UAC даже
-для недоступного каталога: в таком случае установка завершается ошибкой.
+--user selects ~/.local/bin; -Scope User selects %LOCALAPPDATA%\Programs\anyq and
+the user PATH. --system / -Scope System explicitly select system mode.
+--bin-dir / -BinDir override the selected mode's directory; ANYQ_BIN_DIR provides
+an additional Unix default. User mode never invokes sudo/UAC, even for an
+inaccessible directory: installation fails in that case.
 
-Unix сообщает, если каталог отсутствует в PATH. Windows PATH дополняется без
-дубликатов в контексте режима; после установки перезапустите терминал.
--NoPathUpdate отключает изменение PATH. Очереди, настройки и история сохраняются.
-Удаление: удалить anyq/anyq.exe и при необходимости добавленный каталог из PATH.
+Unix reports when the directory is absent from PATH. Windows PATH is extended without
+duplicates within the selected scope; restart the terminal after installation.
+-NoPathUpdate disables PATH changes. Queues, settings, and history are retained.
+To uninstall, delete anyq/anyq.exe and optionally remove the added PATH directory.
 
-## Выпуск
+## Releases
 
-После review/merge commit с версией Cargo.toml:
+After reviewing/merging the commit with the Cargo.toml version:
 
 ```sh
 git tag v0.1.0 MAIN_COMMIT
 git push origin v0.1.0
 ```
 
-Workflow отклоняет tag вне main и несовпадающую Cargo-версию. Пять нативных
-сборок проверяют настоящую установку latest/pin и ошибки загрузки/checksum.
-Полный набор загружается в draft до публикации. Повтор продолжает draft;
-опубликованный релиз не перезаписывается. Apple/Windows signing не настроен.
-SHA-256 проверяет целостность и не заменяет независимую подпись издателя.
+The workflow rejects tags outside main and mismatched Cargo versions. Five native
+builds check real latest/pinned installation and download/checksum errors.
+The complete set is uploaded to a draft before publication. Reruns resume the draft;
+published releases are not overwritten. Apple/Windows signing is not configured.
+SHA-256 verifies integrity and does not replace an independent publisher signature.
 
 ```sh
 python3 tooling/package_release.py --target aarch64-apple-darwin
 python3 tooling/test_installers.py --target aarch64-apple-darwin
 ```
 
-CI добавляет --system к тестам на одноразовых runners: проверяет настоящий
-системный каталог, обновление и PATH, затем удаляет только свой бинарник и
-восстанавливает PATH. Локальные тесты используют временные пользовательские пути;
-они также проверяют отказ sudo, передачу аргументов UAC и откат Windows PATH.
+CI adds --system to tests on disposable runners: it checks the actual
+system directory, updates, and PATH, then removes only its own binary and
+restores PATH. Local tests use temporary user paths;
+they also check sudo refusal, UAC argument forwarding, and Windows PATH rollback.
 
-ANYQ_RELEASE_BASE_URL (Unix) / -ReleaseBaseUrl (Windows) задают доверенное зеркало
-для тестов. HTTP допускается только на loopback. Источник checksums и архивов
-остаётся доверенным источником выпуска.
+ANYQ_RELEASE_BASE_URL (Unix) / -ReleaseBaseUrl (Windows) specify a trusted mirror
+for tests. HTTP is allowed only on loopback. The checksum and archive source
+remains a trusted release source.

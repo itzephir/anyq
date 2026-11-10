@@ -1,46 +1,46 @@
 # Tasks
 
-## 1. Домен и сценарии
+## 1. Domain and use cases
 
-- [x] 1.1 Заменить Message/Delivery-модель на Task, его состояния и членство в топиках, сохранив один самостоятельный тип на файл; проверить переходы и уникальность имени. В domain реализовать общую схему имён задач/топиков: Latin initial и произвольный хвост, bare-команды зарезервированы, буквальные обратные кавычки разрешают любое содержимое и снимаются один раз; quoted и bare представления имеют одну идентичность. Проверить символы, Unicode, пробелы, вложенные кавычки, восстановление канонического имени и обновить docs/ARCHITECTURE.md.
-- [x] 1.2 Реализовать чистую политику допуска по вместимости всех топиков и единому номеру регистрации; unit-тестами проверить capacity 1 и 2, перекрёстный порядок добавления, блокирование предшественником и отсутствие частичного захвата.
-- [x] 1.3 Выделить отдельные typed contracts/interactors RegisterTask, AddTaskToTopic, TryStartTask и CompleteTask с consumer-owned портами; RegisterTaskRequest поддерживает атомарную регистрацию с начальными топиками. Doubles проверить обычный complete до запуска, force для registered/queued, конкурентное повторное получение, отсутствие частично созданной задачи при неизвестном топике и rollback при ошибке сохранения. Описать ответственность политики и транзакционной границы в архитектурной документации.
-- [x] 1.4 Реализовать отдельные ListTasks, GetTask и GetTopicQueue, точное чтение TaskFilter и просмотр capacity через GetTopic; doubles и SQLite/CLI tests проверить все состояния списка, исключение completed/registered из текущей очереди, порядок регистрации, неизвестные имена и отсутствие изменений владения при просмотре.
+- [x] 1.1 Replace Message/Delivery with Task, states, and topic membership, retaining one standalone type per file; verify transitions and unique names. Implement shared domain task/topic naming: Latin initial, arbitrary tail, reserved bare commands, literal backticks allowing any content and stripped once; quoted/bare forms share identity. Test symbols, Unicode, spaces, nested backticks, canonical restore, and update docs/ARCHITECTURE.md.
+- [x] 1.2 Implement pure admission policy using all topic capacities and one registration sequence; unit-test capacities 1/2, crossed linking order, predecessor blocking, and no partial acquisition.
+- [x] 1.3 Extract typed RegisterTask, AddTaskToTopic, TryStartTask, and CompleteTask contracts/interactors with consumer-owned ports; RegisterTaskRequest supports atomic registration with initial topics. Use doubles to test ordinary completion before admission, force for registered/queued, concurrent reacquisition, unknown-topic registration atomicity, and persistence rollback. Document policy and transaction-boundary responsibilities.
+- [x] 1.4 Implement separate ListTasks, GetTask, GetTopicQueue, exact TaskFilter reads, and capacity lookup through GetTopic; doubles and SQLite/CLI tests verify all listed states, exclusion of completed/registered from current queues, registration order, unknown names, and unchanged lookup ownership.
 
-## 2. Хранилище
+## 2. Storage
 
-- [x] 2.1 Ввести SQLite-схему 2 для topics/tasks/task_topics и чтение версии до изменений; тестами подтвердить открытие новой базы, сохранность registered/queued/running/completed при переоткрытии и отказ для старой/будущей схемы без удаления прежних данных. Описать выбор отдельного файла базы в README.
-- [x] 2.2 Реализовать TaskRecords, TopicRecords и общую UnitOfWork для регистрации, связей, счёта занятых слотов/предшественников, допуска и завершения; SQLite integration tests проверить атомарность двух топиков, rollback и невозможность снизить capacity ниже использования.
-- [x] 2.3 Проверить настоящими независимыми соединениями и процессами конкуренцию за общий последний слот, два wait одного имени, add одновременно с допуском и force одновременно с допуском/ожиданием; подтвердить ровно один переход в running и отсутствие частичного владения.
+- [x] 2.1 Introduce SQLite schema 2 for topics/tasks/task_topics and read the version before changes; test new database opening, registered/queued/running/completed persistence on reopen, and rejection of old/future schemas without deleting existing data. Document separate database selection in README.
+- [x] 2.2 Implement TaskRecords, TopicRecords, and shared UnitOfWork for registration, links, slot/predecessor counts, admission, and completion; SQLite integration tests verify two-topic atomicity, rollback, and rejection of capacity below usage.
+- [x] 2.3 Use truly independent connections/processes to test contention for the last shared slot, two waits for one name, add concurrent with admission, and force concurrent with admission/wait; confirm exactly one running transition and no partial ownership.
 
-## 3. Нативный CLI и замена прежней модели
+## 3. Native CLI and replacement of the previous model
 
-- [x] 3.1 Реализовать списки list/--list/-l для topic/task, topic create TOPIC --capacity/-c N, topic capacity TOPIC [N], topic link TOPIC NAME и равнозначный task link NAME TOPIC, topic TOPIC и task NAME. Поддержать name-first формы действий и help [command]. Task create принимает повторяемый --topic/-t и зависимые --wait/-w, --complete/-c с формой -twc TOPIC; link поддерживает --wait/--complete, wait — --complete/-c, complete — --force/-f. CLI tests проверить равнозначность форм, цепочки, quoted names, ошибки и обновить README.
-- [x] 3.2 Реализовать блокирующий task wait с повтором отдельного TryStartTask без удержания транзакции во время паузы; CLI tests проверить немедленную ошибку без топиков, ожидание до освобождения всех слотов, выход 0 только после running и ошибку после force незапущенной задачи. Документировать, что команда выполняется вызывающей стороной после допуска.
-- [x] 3.3 Удалить прежние CLI-команды, Message/Delivery/lease-контракты, четыре worker crates, process adapters/fixtures и неиспользуемые зависимости; проверить сборку актуального workspace, актуальный Cargo graph и отрицательные fixtures архитектурных линтеров. Обновить AGENTS.md, OpenSpec context, docs/ARCHITECTURE.md и docs/CODE-RULES.md под согласованную замену модели.
+- [x] 3.1 Implement topic/task list/--list/-l, topic create TOPIC --capacity/-c N, topic capacity TOPIC [N], topic link TOPIC NAME and equivalent task link NAME TOPIC, topic TOPIC, and task NAME. Support name-first actions and help [command]. Task create accepts repeated --topic/-t and dependent --wait/-w, --complete/-c with -twc TOPIC; link supports --wait/--complete, wait supports --complete/-c, complete supports --force/-f. CLI tests verify equivalent forms, chains, quoted names, errors; update README.
+- [x] 3.2 Implement blocking task wait retrying separate TryStartTask without holding a transaction during pauses; CLI tests verify immediate no-topic error, waiting for all slots, exit 0 only after running, and errors after forcing an unstarted task. Document caller-owned execution after admission.
+- [x] 3.3 Remove old CLI commands, Message/Delivery/lease contracts, four worker crates, process adapters/fixtures, and unused dependencies; verify the current workspace build, Cargo graph, and negative architecture fixtures. Update AGENTS.md, OpenSpec context, docs/ARCHITECTURE.md, and docs/CODE-RULES.md for the agreed model replacement.
 
-## 4. Сквозная проверка и пилот
+## 4. End-to-end verification and pilot
 
-- [x] 4.1 Заменить demo и прежние worker workflow tests нативным сценарием и на трёх ОС проверить все команды, aliases, флаги и границы. Реальными процессами и настоящим Ctrl+C детерминированно проверить до/после commit регистрации, link, допуска, complete, инициализации базы, ожидание, цепочки, autocreate, чтение, запись config до/после замены и ожидание блокировок; проверить exit/state/slots, отсутствие частичных изменений и доступность последующих операций. Без skip/ignore; описать исход каждой границы и включить отдельную обязательную integration-проверку в CI.
-- [x] 4.2 На отдельной базе нового формата провести build и lint itzdesign прямыми task-командами; зафиксировать допуск по общим топикам, отсутствие одновременного выполнения и освобождение после complete. Передать в связанный чат новый способ использования, сохранив старый временный бинарник и базу пилота для истории и отката.
-- [x] 4.3 Выполнить обязательные fmt/clippy/tests, оба архитектурных линтера, Ruff, строгую OpenSpec validation и git diff --check; отправить реализацию в PR, дождаться всех восьми CI jobs и провести ревью итогового контракта по пользовательским примерам. Не отмечать непроверенные сценарии выполненными.
+- [x] 4.1 Replace demo and old worker workflow tests with the native scenario; verify commands, aliases, flags, and boundaries on three operating systems. Real processes and Ctrl+C deterministically check before/after registration, link, admission, complete, database initialization, waiting, chains, autocreate, reads, config writes before/after replacement, and lock waits; verify exit/state/slots, no partial changes, and subsequent operations. No skip/ignore; document each boundary and add a separate required CI integration check.
+- [x] 4.2 On a separate new-format database, run itzdesign build/lint through direct task commands; record admission across shared topics, no simultaneous execution, and release after complete. Share the new usage with the linked chat, retaining the old temporary binary and pilot database for history/rollback.
+- [x] 4.3 Run required fmt/clippy/tests, both architecture linters, Ruff, strict OpenSpec validation, and git diff --check; submit a PR, wait for all eight CI jobs, and review the final contract against user examples. Do not mark unverified scenarios complete.
 
-## 5. Настройки и autocreate
+## 5. Configuration and autocreate
 
-- [x] 5.1 Выделить config api/dispatch/file/composition crates с отдельными узкими GetConfig, GetConfigValue, SetConfigValue и UnsetConfigValue. В domain определить три ключа, типы, defaults и проверку значений; unit-тесты без IO проверяют неизвестные ключи, bool, путь и unset.
-- [x] 5.2 Реализовать TOML-адаптер для ~/.anyq/config.toml с атомарной заменой и блокировкой конкурентных изменений; integration tests проверяют отсутствие файла, чтение/запись, сохранение прежнего файла при ошибке и независимые конкурентные изменения. Обновить Cargo graph, архитектурные линтеры и CI без сокращения матриц.
-- [x] 5.3 Реализовать git-style config CLI: чтение/запись key value, --get, --unset, --list/-l. Проверить приоритет --db > ANYQ_DB > db.path > default и Unix/Windows home; config/help/version не открывают базу, все тесты изолируют пользовательский home.
-- [x] 5.4 Ввести доменную AutoCreatePolicy, явно внедряемую в сценарии queue. task.autocreate/topic.autocreate создают отсутствующие сущности внутри транзакции основного сценария; при ошибке создание откатывается, остальные инварианты сохраняются. Unit/SQLite/CLI tests проверяют defaults false, read/link/wait/complete/capacity, rollback и независимые процессы.
-- [x] 5.5 Обновить артефакты OpenSpec, README, docs/ARCHITECTURE.md, CODE-RULES и demo под окончательный синтаксис, quoted/bare identity, config и autocreate; сверить полный контракт после зелёного CI и не синхронизировать baseline до разрешённого merge.
+- [x] 5.1 Extract config api/dispatch/file/composition crates with narrow GetConfig, GetConfigValue, SetConfigValue, and UnsetConfigValue. Define three domain keys, types, defaults, and validation; IO-free unit tests cover unknown keys, bool, path, and unset.
+- [x] 5.2 Implement TOML storage for ~/.anyq/config.toml with atomic replacement and concurrent-write locking; integration tests cover absence, reads/writes, preserving the old file on failure, and independent concurrent mutations. Update Cargo graph, architecture linters, and CI without reducing matrices.
+- [x] 5.3 Implement git-style config CLI: key/value reads/writes, --get, --unset, --list/-l. Test --db > ANYQ_DB > db.path > default and Unix/Windows home; config/help/version do not open the database; all tests isolate user home.
+- [x] 5.4 Introduce domain AutoCreatePolicy explicitly injected into queue use cases. task.autocreate/topic.autocreate create missing entities inside the main transaction; errors roll back creation and retain other invariants. Unit/SQLite/CLI tests cover defaults false, read/link/wait/complete/capacity, rollback, and independent processes.
+- [x] 5.5 Update OpenSpec artifacts, README, docs/ARCHITECTURE.md, CODE-RULES, and demo for final syntax, quoted/bare identity, config, and autocreate; verify the complete contract after green CI and do not sync baseline before an authorized merge.
 
-- [x] 5.6 Добавить config list как подкоманду, равнозначную --list/-l; list не является допустимым ConfigKey. Интеграционно проверить defaults и сохранённые настройки, отсутствие записи/открытия базы, справку, неверные сочетания и настоящий Ctrl+C на границах чтения; обновить README и delta spec.
+- [x] 5.6 Add config list as a subcommand equivalent to --list/-l; list is not a valid ConfigKey. Integration-test defaults/persisted settings, no file writes/database opens, help, invalid combinations, and real Ctrl+C at read boundaries; update README and delta spec.
 
-## 6. Исправления по ревью
+## 6. Review fixes
 
-- [x] 6.1 Доменные правила определяют допустимые разделы конфигурации; TOML-адаптер отклоняет таблицы вместо конечных значений и неизвестные разделы, включая пустые. Интеграционно проверить чтение, set/unset и сохранность байтов при ошибке, валидные пустые разделы и повторную запись после исправления файла.
-- [x] 6.2 Сделать stdout/stderr и вывод справки прерываемыми первым Ctrl+C при заполненном канале без изменения сохранённого владения. Добавить настоящие native integration tests с непрочитанным pipe, проверкой начала записи, кодом 130 и последующими операциями; проверить также полный вывод при успешном чтении и ошибки записи.
+- [x] 6.1 Domain rules define valid config sections; the TOML adapter rejects tables instead of terminal values and unknown sections, including empty ones. Integration-test reads, set/unset, byte preservation on errors, valid empty sections, and successful writes after file repair.
+- [x] 6.2 Make stdout/stderr and help interruptible by the first Ctrl+C with a full pipe, without changing persisted ownership. Add real native integration tests with unread pipes, verified write start, exit 130, and subsequent operations; also test complete output with successful reads and write errors.
 
 ## Workflow follow-up
 
-- Сливать PR только по явной просьбе пользователя, сохраняя защиту main.
-- После реализации, ревью и разрешённого merge синхронизировать delta specs и архивировать change. Удаление capability command-worker включает его устаревший Purpose; остальные существующие Purpose сохраняются.
+- Merge the PR only on an explicit user request, preserving main protection.
+- After implementation, review, and authorized merge, sync delta specs and archive the change. Removing command-worker includes its obsolete Purpose; preserve other existing Purposes.

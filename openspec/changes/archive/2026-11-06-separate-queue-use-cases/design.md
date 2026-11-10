@@ -2,25 +2,25 @@
 
 ## Context
 
-Пользователь прямо потребовал один самостоятельный тип на файл, разделение ответственности, SOLID, DRY и KISS. Основной дефект — единая точка execute с командным и результирующим enum, а не только размер файлов.
+The user explicitly requested one standalone type per file, separation of responsibilities, SOLID, DRY, and KISS. The main defect is a single execute entry point with command/result enums, rather than merely file size.
 
 ## Goals / Non-Goals
 
-**Goals:** compile-time типы результата, узкие зависимости потребителей, отдельный владелец каждого сценария, однозначные файлы типов и проверка этих правил.
+**Goals:** compile-time result types, narrow consumer dependencies, one owner per use case, unambiguous type files, and enforcement of these rules.
 
-**Non-Goals:** изменение протокола CLI, queue semantics, схемы БД и добавление новых фреймворков.
+**Non-Goals:** CLI protocol, queue semantics, database schema changes, or new frameworks.
 
 ## Decisions
 
-- В queue api каждый сценарий имеет отдельный минимальный trait и конкретный результат: Topic, Message, Assignment, Delivery, Completion или коллекция. Command/Output и публичный Queue dispatcher удаляются.
-- В dispatch отдельный interactor реализует один контракт. Общие операции публикации в транзакции, восстановления lease и чтения повторно используются как именованные внутренние функции без DI locator и универсального маршрутизатора.
-- Persistence разделяется на TopicRecords, GroupRecords, MessageRecords, DeliveryRecords. UnitOfWork только задаёт общую транзакцию с явным доступом к этим портам для atomic handoff и fan-out; предметные сценарии в нём не живут. SQL-реализации разделены по этим же данным.
-- Composition root возвращает явно типизированные зависимости без метода исполнения/разрешения по имени. Worker получает только ClaimDelivery, RenewLease, CompleteDelivery, RejectDelivery и GetTopic. CLI вызывает соответствующий контракт напрямую; enum CLI остаётся только синтаксисом аргументов внешнего адаптера.
-- Каждый верхнеуровневый struct/enum/trait размещается в отдельном файле; связанные impl остаются с типом. Проверка выполняется по синтаксическим токенам Rust, с отрицательными fixtures для нескольких типов и возврата универсального API.
-- Тесты переходят на конкретные сценарии и узкие doubles; сквозные CLI-тесты подтверждают сохранение поведения.
-- Пустые строки разделяют объявления, методы и смысловые этапы сценариев; тесты визуально выделяют подготовку, действие и проверки. Связанные операции группируются вручную, без пустой строки после каждого выражения. Такое оформление не делегируется Rustfmt как замене чтения кода.
+- Each queue api use case has a separate minimal trait and concrete result: Topic, Message, Assignment, Delivery, Completion, or a collection. Remove Command/Output and the public Queue dispatcher.
+- A separate dispatch interactor implements each contract. Shared transactional publication, lease recovery, and reads become named internal functions without a DI locator or universal router.
+- Persistence is split into TopicRecords, GroupRecords, MessageRecords, and DeliveryRecords. UnitOfWork only defines the shared transaction and explicit access to these ports for atomic handoff/fan-out; it contains no business use cases. SQL implementations follow the same data split.
+- The composition root returns explicitly typed dependencies without execution/name-resolution methods. Worker receives only ClaimDelivery, RenewLease, CompleteDelivery, RejectDelivery, and GetTopic. CLI invokes the appropriate contract directly; CLI enums remain argument syntax in the external adapter only.
+- Every top-level struct/enum/trait has its own file; related impls stay with the type. Rust syntax tokens support checks, with negative fixtures for multiple types and reintroduced generic APIs.
+- Tests move to concrete use cases and narrow doubles; end-to-end CLI tests confirm preserved behavior.
+- Blank lines separate declarations, methods, and logical use-case phases; tests visibly separate arrange, act, and assert. Group related operations manually rather than inserting a blank line after every expression. Rustfmt does not replace reading and organizing the code.
 
 ## Risks / Trade-offs
 
-- [Много файлов] → это осмысленные типы/сценарии, lib.rs только задаёт публичные exports; не добавлять интерфейсы без потребителя или правила.
-- [Потеря атомарности при разделении] → общий consumer-owned UnitOfWork и SQLite rollback/concurrency suite сохраняют проверяемую транзакционность.
+- [Many files] → meaningful types/use cases, with lib.rs defining public exports only; do not add interfaces without a consumer or rule.
+- [Lost atomicity during separation] → shared consumer-owned UnitOfWork and SQLite rollback/concurrency suites preserve verifiable transactions.

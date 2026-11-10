@@ -2,31 +2,31 @@
 
 ## Purpose
 
-Локальный worker подключает bash, сборку и эмулятор к общей очереди, сохраняя явный выбор команды и протокол владения заданием своей группы.
+A local worker connects bash, builds, and emulators to the shared queue while retaining explicit command selection and the group's ownership protocol.
 
 ## ADDED Requirements
 
-### Requirement: Явная команда и payload
-Worker SHALL запускать только явно указанную команду с JSON-payload на stdin и идентичностью задания в переменных окружения. stdout команды SHALL идти в stderr worker, сохраняя stdout CLI для JSON протокола.
+### Requirement: Explicit command and payload
+Worker SHALL launch only explicitly specified commands with JSON payload on stdin and job identity in environment variables. Command stdout SHALL go to worker stderr, preserving CLI stdout for the JSON protocol.
 
-#### Scenario: Без интерпретации payload
-- **WHEN** payload содержит shell-текст, а worker запускает программу чтения stdin
-- **THEN** текст передаётся как данные и не исполняется оболочкой
+#### Scenario: Payload is not interpreted
+- **WHEN** payload contains shell text and worker launches a stdin reader
+- **THEN** text is passed as data and is not executed by a shell
 
-### Requirement: Выполнение и продление владения
-Worker SHALL продлевать lease во время команды, подтверждать exit code 0, возвращать неуспех для повтора и завершать запущенную группу процессов при потере lease. Режим once SHALL обрабатывать не более одного задания.
+### Requirement: Execution and ownership renewal
+Worker SHALL renew leases during commands, acknowledge exit 0, reject failures for retry, and terminate the launched process group on lease loss. Once mode SHALL process at most one job.
 
-#### Scenario: Долгий билд
-- **WHEN** команда длится дольше исходного lease
-- **THEN** heartbeat сохраняет владение до завершения команды
+#### Scenario: Long build
+- **WHEN** a command lasts longer than its initial lease
+- **THEN** heartbeat preserves ownership until the command finishes
 
-#### Scenario: Потеря владения
-- **WHEN** продлить lease невозможно
-- **THEN** worker прекращает команду и не подтверждает её результат
+#### Scenario: Ownership lost
+- **WHEN** the lease cannot be renewed
+- **THEN** worker stops the command without acknowledging its result
 
-### Requirement: Следующий этап worker
-Worker SHALL поддерживать необязательный следующий топик с явным JSON-payload и атомарно публиковать его при успешном выполнении.
+### Requirement: Worker follow-up stage
+Worker SHALL support an optional next topic with explicit JSON payload and publish it atomically after successful execution.
 
-#### Scenario: Неуспешный билд
-- **WHEN** команда билда завершается с ненулевым кодом
-- **THEN** тест на эмулятор не публикуется
+#### Scenario: Failed build
+- **WHEN** the build command exits nonzero
+- **THEN** no emulator test is published

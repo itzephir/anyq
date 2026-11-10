@@ -2,31 +2,31 @@
 
 ## Context
 
-См. proposal.md. Сейчас TryStartTask читает ресурсы и меняет состояние в IMMEDIATE-транзакции; остальные операции очередь не продвигают. Слоты выводятся из running-задач. SQL-фильтр требует конкретный топик.
+See proposal.md. TryStartTask currently reads resources and changes state in an IMMEDIATE transaction; other operations do not advance the queue. Slots derive from running tasks. The SQL filter requires a specific topic.
 
 ## Goals / Non-Goals
 
-Обеспечить атомарность исходной операции и вызванных ею допусков, сохранив независимость домена от IO. Не добавлять демон, таймеры, выполнение команд или повторный запуск completed.
+Keep the original operation and resulting admissions atomic while retaining an IO-independent domain. Do not add a daemon, timers, or command execution; do not restart completed tasks.
 
 ## Decisions
 
-- Общая внутренняя функция dispatch выбирает queued-задачи по явному фильтру без топика, сортирует по sequence и для каждой передаёт домену полный актуальный снимок ресурсов. После каждого допуска следующая задача видит сохранённое running. Одного прохода достаточно: допускаются только более ранние задачи, а недоступный предшественник сохраняет своё место. Альтернатива с планированием в SQL нарушила бы доменные границы.
-- RegisterTask, AddTaskToTopic, CompleteTask и SetTopicCapacity вызывают этот проход до commit. Возвращаемый Task перечитывается после допуска. Ошибка любой записи откатывает и исходную операцию, и уже допущенных последователей.
-- CheckTaskRunning заменяет публичный TryStartTask. Домен возвращает true для running, false для queued и прежние ошибки для registered/completed. Проверка выполняется внутри транзакции, чтобы неуспешный wait откатывал autocreate. CLI только повторяет её с паузой.
-- TaskFilter.topic становится optional: None означает все топики, Some — прежнее ограничение. SQLite использует EXISTS, чтобы одна многотопиковая задача не дублировалась. Это технический фильтр, не бизнес-решение.
-- Два отдельных typed-сценария AddTaskToTopics и AddTasksToTopic используют общий внутренний помощник связывания. Вся пачка проверяется и сохраняется одной транзакцией, затем выполняется один проход допуска. Повторные имена дедуплицируются; task-пачка возвращается по sequence. Флаги topic link -w/-c обрабатывают задачи по регистрации, complete — после каждого успешного wait. Ошибка любого участника откатывает всю пачку и autocreate.
-- QueuePolicy передаёт autocreate и default task.autostart из config. Task сохраняет default при создании; Config по-прежнему не открывает БД и не меняет существующие задачи. Topic.autostart переопределяет default, для нескольких топиков требуется разрешение всех. Stopped сохраняется отдельно и не сбрасывается изменением capacity/topic.
-- StartPreference задаёт default/start/stop/toggle. Домен разрешает --start как no-op при эффективном autostart=true, иначе требует немедленного полного допуска с rollback всей регистрации при Busy. -s инвертирует эффективное значение по полному набору ресурсов.
-- StartTask возвращает Started/AlreadyRunning/Busy; неуспешная попытка не меняет задачу. CLI без -w превращает Busy в ошибку; с -w повторяет попытки. -c требует -w и вызывает отдельное завершение после успеха. Wait остаётся наблюдателем даже для stopped.
-- Набор топиков running остаётся неизменным. Для нескольких ресурсов рекомендуется атомарная регистрация со всеми -t либо task link с полным набором топиков; последовательные link допустимы, пока задача queued.
+- A shared internal dispatch function selects queued tasks using an explicit topic-free filter, sorts by sequence, and passes each task's complete current resource snapshot to the domain. After every admission, the next task sees persisted running. One pass suffices: only earlier tasks are admitted, and unavailable predecessors retain their place. SQL scheduling would violate domain boundaries.
+- RegisterTask, AddTaskToTopic, CompleteTask, and SetTopicCapacity invoke the pass before commit. Returned Tasks are reread after admission. Any write error rolls back the original operation and already admitted successors.
+- CheckTaskRunning replaces public TryStartTask. The domain returns true for running, false for queued, and previous errors for registered/completed. Checks run inside a transaction so failed waits roll back autocreate. CLI only retries with a pause.
+- TaskFilter.topic becomes optional: None means all topics, Some retains the old restriction. SQLite uses EXISTS to avoid duplicate multi-topic tasks. This is a technical filter, not a business decision.
+- Separate typed AddTaskToTopics and AddTasksToTopic use cases share an internal linking helper. The whole batch is validated/saved in one transaction, followed by one admission pass. Repeated names are deduplicated; task batches return in sequence order. topic link -w/-c processes tasks in registration order, completing after each successful wait. Any participant's error rolls back the batch and autocreate.
+- QueuePolicy supplies autocreate and default task.autostart from config. Task stores the default on creation; Config still does not open the database or change existing tasks. Topic.autostart overrides the default; all topics must allow admission. Stopped is stored separately and is not reset by capacity/topic changes.
+- StartPreference defines default/start/stop/toggle. The domain treats --start as a no-op with effective autostart=true; otherwise it requires immediate full admission and rolls back registration on Busy. -s inverts the effective value across the complete resource set.
+- StartTask returns Started/AlreadyRunning/Busy; failed attempts leave the task unchanged. CLI without -w turns Busy into an error; with -w it retries. -c requires -w and performs separate completion after success. Wait remains an observer even for stopped tasks.
+- Running topic membership stays immutable. For several resources, prefer atomic registration with all -t flags or task link with the complete set; sequential links remain valid while queued.
 
 ## Risks / Trade-offs
 
-- Автоматический старт после первого link → явно описать необходимость регистрации полного набора ресурсов сразу.
-- Ранее созданная queued-задача могла ждать только wait → ближайшая успешная операция изменения очереди пересматривает все queued; чтение и wait намеренно не запускают их. Схема и старые данные не переписываются при открытии.
-- Проход охватывает всю queued-очередь → достаточная простота для локального инструмента; точечную оптимизацию можно добавить при измеренной потребности без смены контракта.
-- Прерывание завершения может происходить между записями нескольких задач → тесты проверяют полный rollback до commit и сохранение всего результата после commit.
+- Automatic start after the first link → explicitly document specifying all resources at registration.
+- Previously queued tasks may have depended on wait → the next successful mutation reconsiders all queued tasks; reads/wait intentionally do not start them. Opening does not rewrite the schema or old data.
+- The pass covers the entire queued set → sufficiently simple for a local tool; add targeted optimization only for measured need without changing the contract.
+- Completion may be interrupted between several task writes → tests verify full rollback before commit and complete persistence afterward.
 
 ## Migration Plan
 
-Схема базы становится версии 3; версия 2 обновляется транзакционно через добавление столбцов task.autostart_default/stopped и nullable topic.autostart. Версии 1 и неизвестные отклоняются. Обновляются CLI и внутренние Rust-контракты вместе с документацией. Перед commit выполняются все обязательные проверки, в PR — штатный CI трёх ОС. Изменение не сливается автоматически; базовые specs не синхронизируются до проверки поведения.
+Schema becomes version 3; version 2 upgrades transactionally by adding task.autostart_default/stopped and nullable topic.autostart. Version 1 and unknown versions are rejected. Update CLI/internal Rust contracts and documentation. Run required checks before committing and standard three-OS PR CI. Do not merge automatically or sync baseline specs before behavior verification.

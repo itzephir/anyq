@@ -1,23 +1,23 @@
 # Tasks
 
-## 1. Доменные границы
+## 1. Domain boundaries
 
-- [x] 1.1 Создать Cargo workspace с фичами queue/worker и отдельными api/impl; закрепить правила в AGENTS.md и docs/ARCHITECTURE.md; проверить граф и отрицательные fixtures архитектурным checker.
-- [x] 1.2 Реализовать чистые модели очереди, leases, retries и интеракторы через подставляемые Store/Clock/Tokens; проверить доменные сценарии без SQLite.
+- [x] 1.1 Create a queue/worker Cargo workspace with separate api/impl; document rules in AGENTS.md/docs/ARCHITECTURE.md; verify graph/negative fixtures with the architecture checker.
+- [x] 1.2 Implement pure queue/lease/retry models and interactors with injectable Store/Clock/Tokens; test domain scenarios without SQLite.
 
-## 2. Долговечность
+## 2. Durability
 
-- [x] 2.1 Реализовать SQLite-порт и фабрику DI; проверить независимые группы, позднюю подписку, дедупликацию, rollback handoff, expiry/fencing и конкурентный захват реальными соединениями.
+- [x] 2.1 Implement SQLite port/DI factory; verify independent groups, late subscription, deduplication, handoff rollback, expiry/fencing, and real-connection concurrent claims.
 
-## 3. Использование
+## 3. Usage
 
-- [x] 3.1 Реализовать worker через queue api и порты процесса/ожидания; unit-тестами проверить heartbeat, потерю lease и неуспех без настоящего процесса.
-- [x] 3.2 Реализовать CLI, JSON-презентеры и POSIX process adapter; документировать и проверить ручной/автоматический build → emulator сценарий, stdin и exit codes.
+- [x] 3.1 Implement worker through queue api and process/wait ports; unit-test heartbeat, lease loss, and failure without real processes.
+- [x] 3.2 Implement CLI, JSON presenters, and POSIX process adapter; document/test manual and automatic build → emulator scenarios, stdin, and exit codes.
 
-## 4. Интеграция
+## 4. Integration
 
-- [x] 4.1 Пройти fmt, clippy, cargo tests, architecture checker, строгую OpenSpec-валидацию и сквозные проверки; создать приватный GitHub, отправить bootstrap и проверить CI.
+- [x] 4.1 Pass fmt, clippy, cargo tests, architecture checker, strict OpenSpec validation, and end-to-end checks; create a private GitHub repository, push bootstrap, and verify CI.
 
 ## Workflow follow-up
 
-- После ревью архивировать change средствами OpenSpec; незавершённые требования не переносить в базовые specs.
+- Archive through OpenSpec after review; do not move unfinished requirements into baseline specs.

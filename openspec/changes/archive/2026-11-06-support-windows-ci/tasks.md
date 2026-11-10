@@ -1,16 +1,16 @@
 # Tasks
 
-## 1. Платформенный адаптер
+## 1. Platform adapter
 
-- [x] 1.1 Выделить Unix и Windows детали worker, реализовать Job Object с безопасным suspended launch, cleanup и console cancellation; проверить компиляцию, нативные fixtures дерева процессов и прерывания на соответствующих ОС; обновить архитектурное описание.
-- [x] 1.2 Добавить LOCALAPPDATA как стандартную базу Windows, проверить изолированным CLI-тестом и документировать приоритет явного пути.
-- [x] 1.3 Исправить Unix cleanup assertion: завершённый, но ещё не reaped child считать завершённым, ошибки наблюдения не маскировать; проверить живой процесс и регрессионный сценарий zombie до wait().
+- [x] 1.1 Separate Unix/Windows worker details; implement Job Object with safe suspended launch, cleanup, and console cancellation; verify compilation, native process-tree/interruption fixtures on relevant operating systems; update architecture documentation.
+- [x] 1.2 Add LOCALAPPDATA as the Windows database default; verify with an isolated CLI test and document explicit-path precedence.
+- [x] 1.3 Fix Unix cleanup assertions: exited but unreaped children count as terminated; do not mask observation errors; test a live process and zombie regression before wait().
 
-## 2. Переносимые проверки
+## 2. Portable checks
 
-- [x] 2.1 Перевести общие CLI integration-тесты и demo на переносимые fixtures, сохранить проверки stdin, handoff, heartbeat и failure; выполнить cargo tests и demo, добавить Windows-пример в README.
-- [x] 2.2 Добавить Windows в CI, нормализовать пути architecture checker, выполнить fmt/clippy/tests/OpenSpec/architecture и дождаться зелёной матрицы macOS/Windows/Linux в PR.
+- [x] 2.1 Move shared CLI integration tests/demo to portable fixtures, retaining stdin, handoff, heartbeat, and failure checks; run cargo tests/demo and add a Windows README example.
+- [x] 2.2 Add Windows CI, normalize architecture-checker paths, run fmt/clippy/tests/OpenSpec/architecture, and wait for green macOS/Windows/Linux PR matrices.
 
 ## Workflow follow-up
 
-- После ревью и merge архивировать завершённый change. Не сливать PR без просьбы пользователя.
+- Archive the completed change after review and merge. Do not merge without a user request.

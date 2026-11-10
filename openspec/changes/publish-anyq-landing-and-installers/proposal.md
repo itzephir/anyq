@@ -2,28 +2,28 @@
 
 ## Why
 
-Для знакомства с anyq нужен отдельный лендинг и установка готового бинарника без Rust toolchain. Проект должен появиться в каталоге itzephir.com, а редактируемый макет — в существующем OpenDesign.
+anyq needs a dedicated introductory landing page and prebuilt binary installation without a Rust toolchain. The project should appear in the itzephir.com catalog, with an editable layout in the existing OpenDesign.
 
 ## What Changes
 
-- Статический лендинг anyq.itzephir.com в этом репозитории, с основой itzephir, двумя темами и мобильной композицией.
-- Shell и PowerShell установщики с определением платформы, SHA-256 и системной установкой по умолчанию; явный пользовательский режим сохраняется.
-- Нативная сборка release-артефактов для macOS/Linux/Windows и публикация полных релизов через GitHub Releases.
-- Воспроизводимый пакет для OpenDesign и контейнер лендинга для существующего project gateway.
-- Запись anyq в каталоге через /dev, без изменения кода портфолио.
-- Автоматический dev-стенд dev.anyq.itzephir.com из PR и production из main; проектный ingress самостоятельно выбирает стенд по Host.
+- Static anyq.itzephir.com landing page in this repository, using the itzephir foundation, two themes, and a mobile layout.
+- Shell and PowerShell installers with platform detection, SHA-256, and default system installation; explicit user mode remains available.
+- Native release builds for macOS/Linux/Windows and complete publication through GitHub Releases.
+- Reproducible OpenDesign package and landing container for the existing project gateway.
+- anyq catalog entry through /dev without portfolio code changes.
+- Automatic dev.anyq.itzephir.com deployment from PRs and production from main; project ingress independently selects the environment by Host.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `binary-distribution`: выпуск и проверенная установка готовых бинарников.
-- `project-website`: лендинг, редактируемый макет и публикация через существующий gateway.
+- `binary-distribution`: release and verified installation of prebuilt binaries.
+- `project-website`: landing page, editable layout, and publication through the existing gateway.
 
 ### Modified Capabilities
 
-Нет. Доменные контракты очереди и обязательный CI остаются прежними.
+None. Queue domain contracts and required CI remain unchanged.
 
 ## Impact
 
-Новые website/, install/, release/deploy tooling и GitHub workflows. Runtime anyq не получает новых зависимостей. Дизайн использует лицензированные локальные IBM Plex Sans/Mono. Публичные файлы не содержат операторских адресов и credentials. Слияние PR и выпуск версии остаются отдельными явными действиями.
+New website/, install/, release/deploy tooling, and GitHub workflows. anyq runtime gains no dependencies. Design uses licensed self-hosted IBM Plex Sans/Mono. Public files contain no operator addresses or credentials. PR merging and version releases remain separate explicit actions.

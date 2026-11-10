@@ -1,30 +1,42 @@
 <!doctype html>
-<html lang="ru" data-theme="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="anyq — локальная очередь допуска для сборок, агентов и эмуляторов. Все нужные ресурсы одновременно. Rust, SQLite, без сервера."
+      content="anyq — a local admission queue for builds, agents, and emulators. All the resources you need, at once. Rust, SQLite, no server."
+      data-i18n-content="description"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta property="og:title" content="anyq — у каждой задачи своя очередь" />
+    <meta
+      property="og:title"
+      content="anyq — every task has its queue"
+      data-i18n-content="title"
+    />
     <meta
       property="og:description"
-      content="Координируйте локальные задачи. Получайте все нужные ресурсы атомарно и освобождайте их явно."
+      content="Coordinate local tasks. Acquire all required resources atomically and release them explicitly."
+      data-i18n-content="socialDescription"
     />
     <meta property="og:url" content="https://anyq.itzephir.com/" />
     <link rel="canonical" href="https://anyq.itzephir.com/" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <title>anyq — у каждой задачи своя очередь</title>
+    <title data-i18n="title">anyq — every task has its queue</title>
     <script src="theme.js"></script>
     <link rel="stylesheet" href="style.css" />
     <script src="site.js" defer></script>
   </head>
   <body>
-    <a class="skip" href="#main">К содержимому</a>
+    <a class="skip" href="#main"
+      ><span data-i18n="skip">Skip to content</span></a
+    >
     <header class="header wrap">
-      <a class="brand" href="#" aria-label="anyq — главная"
+      <a
+        class="brand"
+        href="#"
+        aria-label="anyq — home"
+        data-i18n-aria-label="home"
         ><svg
           width="28"
           height="28"
@@ -53,15 +65,26 @@
           /></svg
         ><span>anyq</span></a
       >
-      <nav aria-label="Основная навигация">
-        <a href="#usage">Как работает</a><a href="#install">Установка</a
+      <nav aria-label="Main navigation" data-i18n-aria-label="navigation">
+        <a href="#usage"><span data-i18n="how">How it works</span></a
+        ><a href="#install"><span data-i18n="install">Install</span></a
         ><a class="github" href="https://github.com/itzephir/anyq"
           >GitHub <span aria-hidden="true">↗</span></a
+        ><button
+          id="language"
+          class="language"
+          type="button"
+          aria-label="Switch to Russian"
+          lang="ru"
+          hidden
+        >
+          RU</button
         ><button
           id="theme"
           class="theme"
           type="button"
-          aria-label="Сменить тему"
+          aria-label="Change theme"
+          data-i18n-aria-label="theme"
           hidden
         >
           <svg
@@ -81,20 +104,22 @@
     <main id="main" class="wrap">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <h1 id="hero-title">
-            У каждой задачи <br />своя <span>очередь.</span>
+          <h1 id="hero-title" data-i18n="heroTitle">
+            Every task <br />has its <span>queue.</span>
           </h1>
-          <p class="lead">
-            Сборки, агенты и эмуляторы делят ресурсы.<br
+          <p class="lead" data-i18n="lead">
+            Builds, agents, and emulators share resources.<br
               class="desktop-break"
             />
-            anyq помогает им договориться.
+            anyq helps them take turns.
           </p>
           <div class="actions">
             <a class="button primary" href="#install"
-              >Установить anyq <span aria-hidden="true">↓</span></a
+              ><span data-i18n="installAnyq">Install anyq</span>
+              <span aria-hidden="true">↓</span></a
             ><a class="text-link" href="https://github.com/itzephir/anyq#readme"
-              >Документация <span aria-hidden="true">↗</span></a
+              ><span data-i18n="documentation">Documentation</span>
+              <span aria-hidden="true">↗</span></a
             >
           </div>
           <p class="platforms mono">
@@ -106,7 +131,8 @@
             <span class="mono">queue / local</span>
           </div>
           <div class="resource-row">
-            <span class="mono">РЕСУРС</span><span class="mono">СЛОТЫ</span>
+            <span class="mono"><span data-i18n="resource">RESOURCE</span></span
+            ><span class="mono"><span data-i18n="slots">SLOTS</span></span>
           </div>
           <div class="resource">
             <span class="resource-name"
@@ -115,7 +141,7 @@
             >
             <div class="slots">
               <span class="slot occupied">build-01</span
-              ><span class="slot free">свободен</span>
+              ><span class="slot free"><span data-i18n="free">free</span></span>
             </div>
             <span class="capacity mono">1 / 2</span>
           </div>
@@ -144,19 +170,24 @@
             </div>
             <span class="status">queued</span>
           </div>
-          <figcaption id="queue-caption">
-            build-02 ждёт оба ресурса. <br /><span
-              >Свободный слот build пока не занимает.</span
+          <figcaption id="queue-caption" data-i18n="queueCaption">
+            build-02 is waiting for both resources. <br /><span
+              >It leaves the free build slot available.</span
             >
           </figcaption>
         </figure>
       </section>
       <section id="usage" class="usage section" aria-labelledby="usage-title">
         <div class="section-intro">
-          <h2 id="usage-title">Дождаться. <br />Сделать. Завершить.</h2>
-          <p>anyq управляет допуском. <br />Работу запускаете вы.</p>
-          <a class="text-link" href="https://github.com/itzephir/anyq#команды"
-            >Все команды <span aria-hidden="true">↗</span></a
+          <h2 id="usage-title" data-i18n="usageTitle">
+            Wait. <br />Work. Complete.
+          </h2>
+          <p data-i18n="usageDescription">
+            anyq manages admission. <br />You run the work.
+          </p>
+          <a class="text-link" href="https://github.com/itzephir/anyq#commands"
+            ><span data-i18n="allCommands">All commands</span>
+            <span aria-hidden="true">↗</span></a
           >
         </div>
         <div class="code-panel">
@@ -164,23 +195,23 @@
             <span class="mono">example.sh</span
             ><span class="mono">bash / zsh</span>
           </div>
-          <pre><code><span class="comment"># Подготовьте общие ресурсы</span>
+          <pre><code><span class="comment"><span data-i18n="prepare"># Set up shared resources</span></span>
 anyq topic create build -c 2
 anyq topic create emulator
 
-<span class="comment"># Дождитесь допуска ко всем топикам</span>
+<span class="comment"><span data-i18n="wait"># Wait for admission to all topics</span></span>
 anyq task create build-01 -t build -t emulator -w
 
-<span class="comment"># Выполните свою работу</span>
+<span class="comment"><span data-i18n="work"># Run your work</span></span>
 npm run build
 
-<span class="comment"># Освободите все ресурсы задачи</span>
+<span class="comment"><span data-i18n="release"># Release all task resources</span></span>
 anyq task complete build-01</code></pre>
           <div class="code-note">
             <span class="note-mark" aria-hidden="true">i</span>
-            <p>
-              Задайте уникальное имя для каждого запуска. <br />Все участники
-              используют одну локальную базу.
+            <p data-i18n="codeNote">
+              Use a unique name for each run. <br />All participants share one
+              local database.
             </p>
           </div>
         </div>
@@ -191,7 +222,9 @@ anyq task complete build-01</code></pre>
         aria-labelledby="install-title"
       >
         <div class="section-intro">
-          <h2 id="install-title">Пара команд. <br />И можно в очередь.</h2>
+          <h2 id="install-title" data-i18n="installTitle">
+            A few commands. <br />You’re in the queue.
+          </h2>
         </div>
         <div class="install-options">
           <details class="installer" open>
@@ -205,13 +238,13 @@ anyq task complete build-01</code></pre>
                   data-copy="unix-command"
                   hidden
                 >
-                  Копировать
+                  <span data-i18n="copy">Copy</span>
                 </button>
               </div>
               <pre><code id="unix-command">curl -fsSL https://anyq.itzephir.com/install.sh -o install-anyq &amp;&amp; chmod +x install-anyq &amp;&amp; ./install-anyq</code></pre>
-              <p>
-                Установка в <code>/usr/local/bin</code>. При необходимости
-                скрипт запросит sudo.
+              <p data-i18n="unixInstall">
+                Installs to <code>/usr/local/bin</code>. The script requests
+                sudo if needed.
               </p>
             </div>
           </details>
@@ -226,13 +259,13 @@ anyq task complete build-01</code></pre>
                   data-copy="windows-command"
                   hidden
                 >
-                  Копировать
+                  <span data-i18n="copy">Copy</span>
                 </button>
               </div>
               <pre><code id="windows-command">curl.exe -fL https://anyq.itzephir.com/install.ps1 -o install-anyq.ps1; if ($?) { powershell -NoProfile -ExecutionPolicy Bypass -File .\install-anyq.ps1 }</code></pre>
-              <p>
-                Установка в <code>%ProgramFiles%\anyq</code> для всех пользователей.
-                После установки перезапустите терминал.
+              <p data-i18n="windowsInstall">
+                Installs to <code>%ProgramFiles%\anyq</code> for all users.
+                Restart your terminal afterward.
               </p>
             </div>
           </details>
@@ -243,7 +276,8 @@ anyq task complete build-01</code></pre>
       <a href="https://itzephir.com/" class="mono">~/itzephir</a
       ><span>anyq · open source · MIT</span
       ><a href="https://github.com/itzephir/anyq"
-        >Исходный код <span aria-hidden="true">↗</span></a
+        ><span data-i18n="source">Source code</span>
+        <span aria-hidden="true">↗</span></a
       >
     </footer>
   </body>

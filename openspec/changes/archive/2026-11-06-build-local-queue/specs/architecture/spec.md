@@ -2,20 +2,20 @@
 
 ## Purpose
 
-Чистая архитектура вокруг доменных правил сохраняет независимость очереди от SQLite, CLI и запуска процессов и делает границы проверяемыми сборкой.
+Clean Architecture centered on domain rules keeps the queue independent of SQLite, CLI, and process execution, with build-verifiable boundaries.
 
 ## ADDED Requirements
 
-### Requirement: Доменные границы и DI
-Фичи SHALL иметь отдельные модули api/impl. Межфичевые зависимости SHALL идти только через api; домен и интеракторы SHALL не зависеть от IO и инфраструктуры. Реализации SHALL передаваться явно через порты, а фабрики impl SHALL вызываться только обозначенными composition roots.
+### Requirement: Domain boundaries and DI
+Features SHALL have separate api/impl modules. Cross-feature dependencies SHALL target api only; the domain and interactors SHALL NOT depend on IO or infrastructure. Implementations SHALL be injected explicitly through ports, and impl factories SHALL be called only by designated composition roots.
 
-#### Scenario: Запрещённая зависимость
-- **WHEN** архитектурной проверке передаётся зависимость внутреннего сценария на SQLite или чужой impl
-- **THEN** проверка завершается ошибкой
+#### Scenario: Forbidden dependency
+- **WHEN** an architecture check receives a dependency from an inner use case to SQLite or another feature's impl
+- **THEN** the check fails
 
-### Requirement: Независимая проверка правил
-Инварианты и сценарии SHALL проверяться без SQLite и процессов. Адаптеры SHALL проверяться отдельно, включая реальную конкурентную выдачу и rollback.
+### Requirement: Independent rule verification
+Invariants/use cases SHALL be tested without SQLite or processes. Adapters SHALL be tested separately, including real concurrent claims and rollback.
 
-#### Scenario: Lease без базы
-- **WHEN** unit test проверяет истёкший token с подставленным временем
-- **THEN** отказ определяется доменом без запуска инфраструктуры
+#### Scenario: Lease without database
+- **WHEN** a unit test checks an expired token with injected time
+- **THEN** the domain decides rejection without infrastructure

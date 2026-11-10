@@ -2,38 +2,38 @@
 
 ## Purpose
 
-Публичное знакомство с anyq, его моделью допуска и установкой, с отдельным редактируемым макетом в личном OpenDesign.
+Introduce anyq, its admission model, and installation publicly, with a separate editable layout in personal OpenDesign.
 
 ## ADDED Requirements
 
-### Requirement: Лендинг anyq
-Лендинг SHALL храниться в репозитории anyq, объяснять атомарное получение всех топиков и явный complete, содержать команды установки для трёх ОС и ссылку на исходники. Он SHALL использовать визуальную основу itzephir с двумя темами, клавиатурной навигацией и мобильным отображением от 320 px.
+### Requirement: anyq landing page
+The landing page SHALL live in the anyq repository, explain atomic acquisition across all topics and explicit complete, provide installation commands for three operating systems and source links. It SHALL use the itzephir visual foundation with two themes, keyboard navigation, and mobile layouts from 320 px.
 
-#### Scenario: Узкий экран
-- **WHEN** страница открыта на экране 320 px в любой теме
-- **THEN** содержание читается без горизонтального переполнения страницы, а команды прокручиваются внутри блока
+#### Scenario: Narrow screen
+- **WHEN** the page opens at 320 px in either theme
+- **THEN** content is readable without page-level horizontal overflow and commands scroll inside their blocks
 
-### Requirement: Макет и каталог
-Редактируемая версия лендинга SHALL быть загружена отдельным проектом anyq в существующий OpenDesign с дизайн-системой itzephir. Каталог itzephir.com SHALL содержать anyq с будущим адресом anyq.itzephir.com и правдивой готовностью.
+### Requirement: Layout and catalog
+An editable landing page SHALL be uploaded as a separate anyq project to existing OpenDesign with the itzephir design system. The itzephir.com catalog SHALL include anyq, its future anyq.itzephir.com address, and truthful readiness.
 
-#### Scenario: До запуска
-- **WHEN** лендинг ещё не опубликован
-- **THEN** каталог показывает проектирование без неработающей кнопки запуска
+#### Scenario: Before launch
+- **WHEN** the landing page is not yet published
+- **THEN** the catalog shows design-in-progress without a broken launch button
 
-### Requirement: Самостоятельная публикация
-Лендинг SHALL собираться без приложения очереди и публиковаться на anyq.itzephir.com через существующий project gateway. Неуспешное обновление SHALL сохранять предыдущую работоспособную версию. Credentials и частные адреса SHALL не входить в артефакты.
+### Requirement: Independent publication
+The landing page SHALL build independently of the queue application and publish at anyq.itzephir.com through the existing project gateway. Failed updates SHALL preserve the previous working version. Credentials/private addresses SHALL NOT enter artifacts.
 
-#### Scenario: Проверка обновления
-- **WHEN** новая версия контейнера не проходит HTTP health check
-- **THEN** операторский сценарий возвращает прежний контейнер
+#### Scenario: Update verification
+- **WHEN** a new container version fails its HTTP health check
+- **THEN** the operator script restores the previous container
 
-### Requirement: Проектные dev и production
-Успешный PR из этого репозитория SHALL публиковать проверенный лендинг на dev.anyq.itzephir.com. Успешный push в main SHALL публиковать anyq.itzephir.com. Проект SHALL сам выбирать стенд по публичному Host, сохранять предыдущую версию при ошибке и использовать отдельные ограниченные credentials для dev/prod.
+### Requirement: Project dev and production
+Successful same-repository PRs SHALL publish the verified landing page at dev.anyq.itzephir.com. Successful main pushes SHALL publish at anyq.itzephir.com. The project SHALL select environments by public Host, preserve the previous version on errors, and use separate restricted dev/prod credentials.
 
-#### Scenario: Preview без слияния
-- **WHEN** текущий commit PR успешно проходит обязательный CI
-- **THEN** dev отвечает страницей этой версии по HTTPS, а production не изменяется
+#### Scenario: Preview without merge
+- **WHEN** the current PR commit passes required CI
+- **THEN** dev serves this version over HTTPS while production stays unchanged
 
 #### Scenario: Merge
-- **WHEN** проверенное изменение слито в main и его CI успешен
-- **THEN** production публикует эту версию через тот же проектный маршрутизатор
+- **WHEN** a verified change is merged into main and its CI succeeds
+- **THEN** production publishes this version through the same project router

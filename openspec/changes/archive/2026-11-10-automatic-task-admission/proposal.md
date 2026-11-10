@@ -2,29 +2,29 @@
 
 ## Why
 
-Сейчас свободная задача остаётся queued до вызова wait, а завершение владельца само не передаёт слот следующей задаче. Допуск должен быть свойством очереди, а wait — ожиданием уже сохраняемого состояния.
+Currently free tasks stay queued until wait, and completing an owner does not transfer slots automatically. Admission should be a queue property; wait should observe persisted state.
 
 ## What Changes
 
-- **BREAKING**: регистрация с топиками и link автоматически допускают доступные задачи; к уже running-задаче нельзя добавить новый топик, поэтому весь набор ресурсов следует указывать при регистрации.
-- Завершение, force и увеличение capacity продвигают очередь в той же транзакции, без фонового процесса и активных wait.
-- Добавляются атомарные пакетные формы topic link TOPIC NAME... и task link NAME TOPIC...; все связи сохраняются до допуска.
-- Wait только проверяет состояние: queued ожидается, running немедленно даёт успех, registered/completed остаются ошибками. Несколько wait одного имени могут успешно наблюдать один допуск.
-- task.autostart (default true), приоритет nullable-настройки топика, постоянный --stop, --start и -s, команда task start с -w/-c и компактная форма create -tswc.
-- Сохраняются общий порядок, полный атомарный захват и владение до явного complete.
+- **BREAKING**: registration with topics and link automatically admit eligible tasks; running tasks cannot add topics, so specify the entire resource set at registration.
+- Completion, force, and capacity increases advance the queue in the same transaction without a background process or active waits.
+- Add atomic batch topic link TOPIC NAME... and task link NAME TOPIC...; save all links before admission.
+- Wait only checks state: queued waits, running succeeds immediately, and registered/completed remain errors. Several waits for one name may successfully observe one admission.
+- task.autostart (default true), nullable topic override, persistent --stop, --start/-s, task start with -w/-c, and compact create -tswc.
+- Preserve global order, full atomic acquisition, and ownership until explicit complete.
 
 ## Capabilities
 
 ### New Capabilities
 
-Нет.
+None.
 
 ### Modified Capabilities
 
-- `task-queue`: автоматический допуск при изменениях очереди и наблюдающий wait.
-- `local-config`: типизированный task.autostart и defaults новых задач.
-- `architecture`: общий внутренний проход допуска и отдельный контракт проверки running вместо TryStartTask.
+- `task-queue`: automatic admission on queue mutations and observing wait.
+- `local-config`: typed task.autostart and new-task defaults.
+- `architecture`: shared internal admission pass and a separate running-check contract replacing TryStartTask.
 
 ## Impact
 
-Queue domain/dispatch, persistence-фильтр и SQLite, composition и CLI; тесты домена, сценариев, реальной конкуренции и Ctrl+C; README, архитектура, справка и инструкция прерываний. Новые runtime-зависимости и демон не требуются; схема SQLite 2 обновляется до 3 атомарно с сохранением задач и владения.
+Queue domain/dispatch, persistence filter/SQLite, composition/CLI; domain/use-case/concurrency/Ctrl+C tests; README, architecture, help, and interruption instructions. No new runtime dependencies or daemon; SQLite schema 2 upgrades atomically to 3 while preserving tasks/ownership.

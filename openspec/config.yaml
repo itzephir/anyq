@@ -1,8 +1,12 @@
 schema: spec-driven
 
 context: |
-  Language: Russian
-  All artifacts must be written in Russian.
+  Language: English
+  All repository content, documentation, comments, and OpenSpec artifacts must be written in English.
+  User interfaces must support English (en) and Russian (ru).
+  Russian is allowed in localization resources and language-specific test fixtures.
+  Website language selection: valid URL override, saved preference, browser languages, then English.
+  Expose the selected website language through the HTML lang attribute for layout and accessibility.
   Keep OpenSpec structural headings and SHALL/MUST keywords in English.
   anyq is a Rust local admission queue for named tasks and resource topics.
   A task requires one slot of every attached topic, acquired atomically.

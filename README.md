@@ -1,60 +1,64 @@
 # anyq
 
-Локальная очередь допуска к ресурсам для именованных задач: сборок, агентов, людей и эмуляторов. Rust, без сервера; все участники используют один SQLite-файл на локальном диске.
+A local resource admission queue for named tasks: builds, agents, people, and emulators. Written in Rust, without a server; all participants share one SQLite file on a local disk.
 
-Задача требует несколько топиков одновременно. При разрешённом автозапуске очередь сама атомарно выделяет по одному слоту каждого топика. Wait только ждёт состояния running и немедленно успешен, если задача уже running. Вызывающая сторона выполняет работу и освобождает владение через complete.
+A task requires several topics at once. When autostart is enabled, the queue automatically acquires one slot from every topic atomically. Wait only waits for running and succeeds immediately if the task is already running. The caller performs the work and releases ownership with complete.
 
-## Установка
+## Installation
 
-Готовые бинарники для macOS, Linux и Windows устанавливаются короткими
-[Shell/PowerShell скриптами](install/README.md), без Rust и с проверкой SHA-256.
-До первого GitHub Release доступна установка из исходников ниже.
-Лендинг и его доставка находятся в [website/](website/README.md).
+Prebuilt binaries for macOS, Linux, and Windows are installed with short
+[Shell/PowerShell scripts](install/README.md), without Rust and with SHA-256 verification.
+Until the first GitHub Release, use the source installation below.
+The landing page and its delivery workflow live in [website/](website/README.md).
+The website supports English and Russian, detects browser language, and remembers
+your EN/RU choice. Use `?lang=en` or `?lang=ru` for an explicit language override.
+Repository documentation, specifications, and comments are maintained in English;
+interface work supports both languages.
 
-Rust 1.85+ и инструменты C-сборки для встроенного SQLite. Поддерживаются Linux, macOS и Windows MSVC с Visual Studio Build Tools C++.
+Rust 1.85+ and C build tools for bundled SQLite are required. Linux, macOS, and Windows MSVC with Visual Studio Build Tools C++ are supported.
 
 ```bash
 cargo install --path apps/cli --locked
 anyq --help
 ```
 
-Приоритет базы: --db PATH > ANYQ_DB > db.path в config > системный default. Default: $XDG_DATA_HOME/anyq/queue.db или ~/.local/share/anyq/queue.db на Unix; %LOCALAPPDATA%\anyq\queue.db на Windows.
+Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default. Default: $XDG_DATA_HOME/anyq/queue.db or ~/.local/share/anyq/queue.db on Unix; %LOCALAPPDATA%\anyq\queue.db on Windows.
 
-## Команды
+## Commands
 
-| Команда | Действие |
+| Command | Action |
 | --- | --- |
-| `anyq topic list` / `topic --list` / `topic -l` | Список топиков |
-| `anyq topic create TOPIC [-c N]` | Создать топик; -c = --capacity, default 1 |
-| `anyq topic TOPIC` | Текущие running/queued по регистрации и capacity |
-| `anyq topic capacity TOPIC [N]` | Прочитать вместимость или изменить на N |
-| `anyq topic TOPIC autostart [on/off]` | Переопределить автозапуск топика; без значения — on |
-| `anyq topic link TOPIC NAME... [-w] [-c]` | Атомарно связать задачи, затем опционально ждать/завершать по регистрации |
-| `anyq task list` / `task --list` / `task -l` | Все имена по алфавиту, включая completed |
-| `anyq task NAME` | Состояние и сохранённые топики |
-| `anyq task create NAME [-t TOPIC] [-w] [-c]` | Зарегистрировать с начальными связями и следующими шагами |
-| `anyq task link NAME TOPIC... [-w] [-c]` | Атомарно связать задачу со всеми топиками |
-| `anyq task start NAME [-w] [-c]` | Запустить сейчас; -w ждёт возможности, -c затем завершает |
-| `anyq task wait NAME [-c]` | Наблюдать running; -c затем завершает |
-| `anyq task complete NAME [-f]` | Завершить; -f = --force |
-| `anyq config KEY [VALUE]` | Прочитать или записать настройку |
-| `anyq config --get KEY` / `--unset KEY` | Прочитать или сбросить настройку |
-| `anyq config list` / `--list` / `-l` | Действующие настройки |
-| `anyq help [command]` | Справка, например help task link |
+| `anyq topic list` / `topic --list` / `topic -l` | List topics |
+| `anyq topic create TOPIC [-c N]` | Create a topic; -c = --capacity, default 1 |
+| `anyq topic TOPIC` | Current running/queued tasks in registration order and capacity |
+| `anyq topic capacity TOPIC [N]` | Read capacity or change it to N |
+| `anyq topic TOPIC autostart [on/off]` | Override topic autostart; on when omitted |
+| `anyq topic link TOPIC NAME... [-w] [-c]` | Atomically link tasks, then optionally wait/complete in registration order |
+| `anyq task list` / `task --list` / `task -l` | All names alphabetically, including completed tasks |
+| `anyq task NAME` | State and stored topics |
+| `anyq task create NAME [-t TOPIC] [-w] [-c]` | Register with initial links and follow-up steps |
+| `anyq task link NAME TOPIC... [-w] [-c]` | Atomically link a task to all topics |
+| `anyq task start NAME [-w] [-c]` | Start now; -w waits for admission, -c completes afterward |
+| `anyq task wait NAME [-c]` | Observe running; -c completes afterward |
+| `anyq task complete NAME [-f]` | Complete; -f = --force |
+| `anyq config KEY [VALUE]` | Read or write a setting |
+| `anyq config --get KEY` / `--unset KEY` | Read or reset a setting |
+| `anyq config list` / `--list` / `-l` | Effective settings |
+| `anyq help [command]` | Help, for example help task link |
 
--v = --version, -h = --help, -w = --wait, -c = --complete у задач. --db PATH доступен на любом уровне.
+-v = --version, -h = --help, -w = --wait, -c = --complete for tasks. --db PATH is available at every level.
 
-Для всех действий есть name-first форма: topic link cpu job = topic cpu link job; task link job cpu = task job link cpu; topic cpu capacity [N]; topic cpu create [-c N]; task job create/wait/complete. Имена и глобальные параметры сохраняются при нормализации.
+All actions support a name-first form: topic link cpu job = topic cpu link job; task link job cpu = task job link cpu; topic cpu capacity [N]; topic cpu create [-c N]; task job create/wait/complete. Normalization preserves names and global options.
 
-Create принимает повторяемый --topic/-t. Все начальные связи и задача сохраняются одной транзакцией. Wait требует хотя бы один topic; complete требует wait. У link complete тоже требует wait. Ошибки сочетаний отклоняются до открытия базы. Все связи пакетного link сохраняются до проверки допуска; ошибка любого участника откатывает всю пачку, включая autocreate. Для topic link -wc задачи ожидаются и завершаются по порядку регистрации, независимо от порядка аргументов.
+Create accepts repeated --topic/-t. The task and all initial links are saved in one transaction. Wait requires at least one topic; complete requires wait. Complete on link also requires wait. Invalid flag combinations are rejected before opening the database. All batch links are saved before checking admission; any participant's error rolls back the entire batch, including autocreate. For topic link -wc, tasks are awaited and completed in registration order, regardless of argument order.
 
 ```bash
 anyq task create build-001 -t itzdesign-commands -t itzdesign-repo-lock
-# queued, без владения
+# running when autostart and resources allow; otherwise queued without ownership
 anyq task complete build-001 -f
 
 anyq task create build-002 -tw itzdesign-commands -t itzdesign-repo-lock
-# running после допуска, до явного complete
+# running after admission, until explicit complete
 npm run build
 anyq task complete build-002
 
@@ -62,27 +66,27 @@ anyq task create probe-001 -twc pixel-10-emulator
 # queued → running → completed
 ```
 
--twc TOPIC = --topic TOPIC --wait --complete. Шаги цепочки имеют отдельные commits. Ошибка прекращает последующие шаги. Complete не запускает внешнюю команду между допуском и завершением.
+-twc TOPIC = --topic TOPIC --wait --complete. Each step in the chain has a separate commit. An error stops subsequent steps. Complete does not run an external command between admission and completion.
 
-## Имена
+## Names
 
-У задач и топиков общая доменная схема. Bare-имя начинается с латинской a-z/A-Z; остальные символы произвольны, включая пробелы, Unicode и обратные слеши. Bare-слова list/create/capacity/link/add/wait/complete/config/help зарезервированы. Начальный дефис без обёртки запрещён.
+Tasks and topics share domain naming rules. A bare name starts with Latin a-z/A-Z; remaining characters are unrestricted, including spaces, Unicode, and backslashes. The bare words list/create/capacity/link/add/start/autostart/wait/complete/config/help are reserved. A leading hyphen requires a wrapper.
 
-Одна буквальная внешняя пара обратных кавычек разрешает любое содержимое: пустое, Unicode, слова команд, начальные дефисы и вложенные кавычки. Она снимается ровно один раз: build и `build` — одна сущность. Внутренние escapes не интерпретируются. Вывод даёт обратимое написание канонического имени.
+One literal outer pair of backticks allows any content: an empty string, Unicode, command words, leading hyphens, and nested backticks. It is removed exactly once: build and `build` identify the same entity. Inner escapes are not interpreted. Output provides a reversible spelling of the canonical name.
 
-Shell должен передать обратные кавычки как текст. Примеры bash/zsh:
+The shell must pass backticks as literal text. Examples for bash/zsh:
 
 ```bash
 anyq topic create '`list`'
-anyq task create '`--задача`' -twc '`list`'
+anyq task create '`--task`' -twc '`list`'
 anyq task create build\ with\ spaces -t '`list`'
 ```
 
-В PowerShell буквальную обёртку тоже можно передать в одинарных кавычках. Shell-кавычки и буквальные обратные кавычки — разные уровни. Разделитель -- сам по себе не обходит доменные ограничения.
+PowerShell also accepts the literal wrapper inside single quotes. Shell quoting and literal backticks are separate layers. The -- separator alone does not bypass domain restrictions.
 
-## Настройки
+## Configuration
 
-Файл ~/.anyq/config.toml. На Unix home — $HOME, на Windows — %USERPROFILE%. Без файла оба autocreate выключены, task.autostart=true; чтение defaults не создаёт файл.
+File: ~/.anyq/config.toml. Home is $HOME on Unix and %USERPROFILE% on Windows. Without a file, both autocreate settings are off and task.autostart=true; reading defaults does not create the file.
 
 ```bash
 anyq config task.autostart false
@@ -94,15 +98,15 @@ anyq config --get task.autocreate
 anyq config --unset db.path
 ```
 
-task.autocreate и topic.autocreate принимают true/false, default false. task.autostart принимает true/false, default true; его значение сохраняется как настройка по умолчанию при создании новой задачи (включая autocreate). Изменение config не открывает очередь и не меняет уже существующие задачи. db.path — непустая строка; ~/ раскрывается относительно home, относительный путь — относительно рабочего каталога. Unset возвращает default. Неизвестные ключи и неверные значения дают ошибку. list — подкоманда, ключом быть не может.
+task.autocreate and topic.autocreate accept true/false, default false. task.autostart accepts true/false, default true; its value is saved as the default when creating a new task (including autocreate). Changing config does not open the queue or alter existing tasks. db.path is a nonempty string; ~/ expands relative to home, and a relative path resolves against the working directory. Unset restores the default. Unknown keys and invalid values are errors. list is a subcommand and cannot be a key.
 
-Autocreate создаёт отсутствующий именованный объект внутри транзакции основной операции; новый топик capacity 1. Link может создать обе сущности и связь вместе. Успешный просмотр тоже может создать отсутствующую сущность. Ошибка откатывает автоматические создания: обычный task complete missing даёт was not run и не оставляет missing; --force может успешно создать и завершить его. Существующие состояния и правила имён сохраняются.
+Autocreate creates a missing named object inside the main operation's transaction; a new topic has capacity 1. Link can create both entities and their link together. A successful lookup may also create a missing entity. Errors roll back automatic creations: ordinary task complete missing reports was not run and leaves no missing task; --force may successfully create and complete it. Existing states and naming rules are preserved.
 
-Запись config атомарна и защищена системным файловым lock. Конкурентные изменения перечитывают актуальные значения. Config/help/version не открывают базу; help/version работают при повреждённом config. Чтение отсутствующего db.path возвращает 1 без сообщения; остальные ошибки — 2.
+Config writes are atomic and protected by an OS file lock. Concurrent changes reread current values. Config/help/version do not open the database; help/version work with damaged config. Reading an absent db.path returns 1 without a message; other errors return 2.
 
-Пустые разделы task/topic/db допустимы и используют defaults. Таблица вместо конечного bool/string, неизвестный раздел или list = {} дают ошибку; чтение и set/unset сохраняют исходные байты файла.
+Empty task/topic/db sections are valid and use defaults. A table instead of a terminal bool/string, an unknown section, or list = {} is an error; reads and set/unset preserve the original file bytes.
 
-## Регистрация и допуск
+## Registration and admission
 
 ```bash
 export ANYQ_DB="$HOME/.local/share/anyq/tasks-v2.db"
@@ -119,37 +123,37 @@ anyq task complete build-revision-001
 anyq task build-revision-001
 ```
 
-В PowerShell путь задаётся через $env:ANYQ_DB. Код 0 у wait означает, что running уже сохранён. Waiting появляется при занятых ресурсах. Вызывающая сторона решает, как обработать результат внешней команды и когда завершать владение.
+In PowerShell, set the path through $env:ANYQ_DB. Wait exit code 0 means running is already persisted. Waiting appears when resources are busy. The caller decides how to handle the external command's result and when to release ownership.
 
-## Управление запуском
+## Start control
 
-Без явного переопределения топик наследует task.autostart, сохранённый при создании задачи. `topic TOPIC autostart on/off` задаёт собственное значение с приоритетом над config. Для автоматического запуска многотопиковой задачи все её топики должны разрешать автозапуск. Изменение настройки топика не останавливает running-задачи.
+Without an explicit override, a topic inherits task.autostart saved when the task was created. `topic TOPIC autostart on/off` sets its own value, taking precedence over config. For automatic admission of a task with multiple topics, every topic must allow autostart. Changing a topic setting does not stop running tasks.
 
-При create `--stop` запрещает автоматический запуск этой задачи до явного start, включая после освобождения ресурсов или включения автозапуска топика. `--start` при разрешённом автозапуске ничего дополнительно не делает; при выключенном требует немедленного полного допуска, иначе вся регистрация откатывается. Короткий `-s` инвертирует эффективный автозапуск: при on действует как --stop, при off — как --start. Эти три флага взаимоисключающие.
+On create, `--stop` prevents automatic admission of this task until explicit start, even after resources are released or topic autostart is enabled. `--start` does nothing extra when autostart is allowed; when disabled, it requires immediate full admission or rolls back the entire registration. Short `-s` inverts effective autostart: it acts as --stop when on and --start when off. These three flags are mutually exclusive.
 
 ```bash
 anyq task create staged -t cpu --stop
-anyq task staged start              # ошибка, если запуск сейчас невозможен
-anyq task staged start -w           # дождаться и запустить
-anyq task staged start -wc          # дождаться, запустить и завершить
+anyq task staged start              # error if admission is unavailable now
+anyq task staged start -w           # wait and start
+anyq task staged start -wc          # wait, start, and complete
 anyq topic cpu autostart off
 anyq task create manual -t cpu --start
 ```
 
-`task start` соблюдает общий порядок и все ограничения ресурсов. Без -w занятые ресурсы или очередь дают ошибку без изменений; с -w повторяются попытки полного допуска. Running-задача сообщает `is already running` и возвращает успех. Для registered без топиков и completed start ошибочен. У start -c требует -w; wait по-прежнему только наблюдает, в том числе при --stop.
+`task start` respects global order and all resource constraints. Without -w, busy resources or queue order cause an error without changes; with -w, full admission is retried. A running task reports `is already running` and succeeds. Start is invalid for registered tasks without topics and completed tasks. On start, -c requires -w; wait continues to observe only, including with --stop.
 
-Все короткие флаги create объединяются: `anyq task create NAME -tswc TOPIC`. При включённом автозапуске -s оставит задачу queued, -w дождётся явного start из другого вызова, затем -c завершит её. При выключенном -s запросит немедленный запуск. Для нескольких ресурсов используйте повторяющиеся -t либо один пакетный task link: после допуска менять членство нельзя. Остановленная queued-задача сохраняет своё место и может задерживать следующих участников.
+All short create flags can be combined: `anyq task create NAME -tswc TOPIC`. With autostart on, -s leaves the task queued, -w waits for explicit start from another invocation, then -c completes it. With autostart off, -s requests immediate admission. For several resources, use repeated -t or one batch task link: membership cannot change after admission. A stopped queued task keeps its place and may delay later participants.
 
-## Состояния, порядок и ошибки
+## States, ordering, and errors
 
-| Состояние | Значение |
+| State | Meaning |
 | --- | --- |
-| registered | Имя есть, топиков нет |
-| queued | Есть топики без допуска |
-| running | По одному слоту всех топиков |
-| completed | Владение завершено, история сохраняется |
+| registered | Name exists, no topics |
+| queued | Has topics, not admitted |
+| running | One slot from every topic |
+| completed | Ownership released, history retained |
 
-Имя уникально и не переиспользуется после complete. Повтор queued-связи идемпотентен. Running/completed не меняют членство. Обычный complete допустим только для running; force также завершает registered/queued. Повторный и одновременные wait для running успешны и не меняют владение. Wait для completed и повторное завершение дают ошибку.
+Names are unique and cannot be reused after complete. Repeating a queued link is idempotent. Running/completed tasks cannot change membership. Ordinary complete is valid only for running; force also completes registered/queued. Repeated and concurrent waits for running succeed without changing ownership. Wait for completed and repeated completion are errors.
 
 ```bash
 anyq task create unfinished
@@ -161,25 +165,25 @@ anyq task complete --force unfinished
 # 'unfinished' successfully completed
 ```
 
-Capacity положительна, default 1; уменьшение ниже текущего использования отклоняется. Во всех топиках один номер регистрации задачи. Допуск возможен, когда она входит в первые queued-задачи по числу свободных слотов каждого топика. Частичного захвата нет. Queued без активного wait сохраняет место. Регистрация, link, complete, изменение capacity и autostart топика продвигают всю доступную очередь в той же транзакции. Ненужную задачу снимают через complete --force.
+Capacity is positive, default 1; reducing it below current usage is rejected. A task has one registration sequence across all topics. Admission is possible when the task is among the first queued tasks within the number of free slots in every topic. No partial acquisition occurs. Queued tasks keep their place without an active wait. Registration, link, complete, and changes to topic capacity or autostart advance all eligible queued tasks in the same transaction. Remove an unwanted task with complete --force.
 
-Просмотр не меняет существующее владение; completed сохраняет связи, но не входит в текущую очередь. Неизвестное имя даёт ошибку, если соответствующий autocreate выключен.
+Lookups do not change existing ownership; completed tasks retain links but leave the current queue. An unknown name is an error when the corresponding autocreate setting is off.
 
-Успех CLI — 0, ошибки входа/состояния — 2 в stderr, первый Ctrl+C — 130. После commit состояние сохраняется даже при прерывании до успешного сообщения.
+CLI success is 0, input/state errors return 2 with stderr, and the first Ctrl+C returns 130. Committed state survives interruption before the success message.
 
-## Постоянное владение и прерывания
+## Persistent ownership and interruptions
 
-Выход wait, падение вызывающего процесса и время не освобождают слоты. После аварии проверьте внешнюю работу, затем явно завершите известную задачу.
+Returning from wait, a caller crash, and elapsed time do not release slots. After a crash, inspect the external work, then explicitly complete the known task.
 
-Ctrl+C до commit откатывает текущую транзакцию; после commit сохраняет результат. В цепочке -twc регистрация уже может сохранить running; wait лишь наблюдает его, затем complete сохраняет completed. У -tswc возможна остановленная queued-задача. При коде 130 проверьте task NAME: сохранённое running требует complete. Таблица исходов и native integration suite — [INTERRUPTIONS.md](docs/INTERRUPTIONS.md).
+Ctrl+C before commit rolls back the current transaction; after commit it preserves the result. In a -twc chain, registration may already persist running; wait only observes it, then complete persists completed. -tswc may leave a stopped queued task. After exit 130, inspect task NAME: persisted running requires complete. The outcome table and native integration suite are in [INTERRUPTIONS.md](docs/INTERRUPTIONS.md).
 
-Первый Ctrl+C работает и при заполненном stdout/stderr, когда потребитель не читает вывод. При таком прерывании вывод может быть неполным; сохранённые состояния и владение не меняются.
+The first Ctrl+C also works when stdout/stderr is full and the consumer is not reading. Output may be incomplete after such an interruption; persisted states and ownership do not change.
 
-Схема базы обновляется с версии 2 до 3 одной транзакцией: задачи, порядок, связи, состояния и владение сохраняются; топики наследуют defaults, задачи получают autostart=true без принудительного допуска при открытии. Неподдерживаемые версии (включая 1) отклоняются без изменения данных.
+Database schema 2 upgrades to 3 in one transaction: tasks, ordering, links, states, and ownership are preserved; topics inherit defaults and tasks receive autostart=true without forced admission on open. Unsupported versions (including 1) are rejected without changing data.
 
-История не очищается автоматически. База — на локальном диске; SQLite использует WAL, synchronous FULL, короткие IMMEDIATE-транзакции. Резервную копию активной базы создавайте SQLite backup.
+History is not cleaned up automatically. Keep the database on a local disk; SQLite uses WAL, synchronous FULL, and short IMMEDIATE transactions. Use SQLite backup for a live database.
 
-## Проверки
+## Checks
 
 ```bash
 cargo build --locked -p anyq
@@ -197,6 +201,6 @@ cargo test --workspace --locked
 cargo test --locked -p anyq --test interruptions --features integration-test-hooks
 ```
 
-Python нужен для tooling/демонстрации, Node — для закреплённого OpenSpec. Runtime anyq их не требует.
+Python is needed for tooling/demos, and Node for pinned OpenSpec tooling. The anyq runtime requires neither.
 
-[Правила кода](docs/CODE-RULES.md), [архитектура](docs/ARCHITECTURE.md), [CI и защита main](docs/CI.md). [Базовые specs](openspec/specs/), [изменения](openspec/changes/), [архив](openspec/changes/archive/).
+[Code rules](docs/CODE-RULES.md), [architecture](docs/ARCHITECTURE.md), [CI and main protection](docs/CI.md). [Baseline specs](openspec/specs/), [changes](openspec/changes/), [archive](openspec/changes/archive/).

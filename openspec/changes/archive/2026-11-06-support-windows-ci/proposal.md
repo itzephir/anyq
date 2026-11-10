@@ -2,25 +2,25 @@
 
 ## Why
 
-CI уже проверяет macOS и Linux, но Unix-зависимый адаптер worker не собирается на Windows. Нужны нативные сборка и тесты Windows с сохранением управления деревом процессов и независимости домена от ОС.
+CI already checks macOS/Linux, but the Unix-dependent worker adapter does not build on Windows. Native Windows builds/tests must preserve process-tree management and an OS-independent domain.
 
 ## What Changes
 
-- Добавить Windows в обязательную матрицу CI вместе с macOS и Linux.
-- Реализовать Windows-адаптер запуска/остановки дерева процессов и обработки консольного прерывания.
-- Сделать сквозные тесты и демонстрацию переносимыми, проверять завершение потомков на Windows.
-- Выбирать стандартное расположение базы Windows и документировать нативные команды.
+- Add Windows to the required CI matrix alongside macOS/Linux.
+- Implement Windows process-tree launch/termination and console interruption adapter.
+- Make end-to-end tests/demo portable and verify descendant termination on Windows.
+- Select a default Windows database location and document native commands.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `platform-support`: нативный CLI/worker, выбор локальной базы и CI на macOS, Windows и Linux.
+- `platform-support`: native CLI/worker, local database selection, and macOS/Windows/Linux CI.
 
 ### Modified Capabilities
 
-Нет базовых specs: исходные требования очереди находятся в завершённом, ещё не архивированном change build-local-queue. Новые платформенные гарантии дополняют его и не меняют семантику очереди.
+No baseline specs: initial queue requirements remain in the completed, unarchived build-local-queue change. New platform guarantees supplement it without changing queue semantics.
 
 ## Impact
 
-Изменения ограничены внешним адаптером процессов, CLI-контроллером пути базы, тестами, CI и документацией. Модель сообщений, групп, leases и SQLite-схема сохраняются.
+Changes are limited to the external process adapter, CLI database-path controller, tests, CI, and documentation. Message/group/lease models and SQLite schema remain unchanged.
