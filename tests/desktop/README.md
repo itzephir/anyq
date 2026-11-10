@@ -40,7 +40,10 @@ results, source generations, preference restart/reset and close/reopen/quit.
 PNG goldens are tracked in `goldens/linux`, `goldens/macos` and `goldens/windows`.
 Only configured source-path regions are masked; the fixed update time remains
 visible and comparable. Other content remains visible and comparable. The
-visual configuration disables native window decorations to exclude the macOS
+product uses an explicit kerning policy to keep word-boundary glyph advances
+stable across native sessions; capture metadata retains measured line rectangles
+and loaded font faces as well as asserting the configured policy.
+The visual configuration disables native window decorations to exclude the macOS
 translucent rounded frame and its dependency on desktop pixels. Integration
 scenarios retain ordinary decorated windows; the production window is unchanged.
 The cursor is moved outside the client to exclude ambient hover state. Windows

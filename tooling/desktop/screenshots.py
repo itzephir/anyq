@@ -74,8 +74,8 @@ class Screenshots:
             )
             + "const typography=[...document.querySelectorAll('.empty p')].map(element=>{"
             "const css=getComputedStyle(element);const range=document.createRange();range.selectNodeContents(element);"
-            "return {font:css.font,smoothing:css.webkitFontSmoothing,lines:[...range.getClientRects()].map(rect=>[rect.x,rect.y,rect.width,rect.height])};});"
-            "return {width:innerWidth,height:innerHeight,text:document.body.innerText,typography,"
+            "return {font:css.font,kerning:css.fontKerning,smoothing:css.webkitFontSmoothing,lines:[...range.getClientRects()].map(rect=>[rect.x,rect.y,rect.width,rect.height])};});"
+            "return {width:innerWidth,height:innerHeight,text:document.body.innerText,typography,kerning:getComputedStyle(document.documentElement).fontKerning,"
             "fonts:[...document.fonts].map(font=>({family:font.family,weight:font.weight,status:font.status}))};",
             window,
             native="cursor",
@@ -84,6 +84,7 @@ class Screenshots:
         )
         viewport = result["payload"]["value"]
         assert [viewport["width"], viewport["height"]] == case["viewport"]
+        assert viewport["kerning"] == case["font_kerning"]
         outer, scale = result["outer"], result["rect"]["scale"]
         width, height = (int(value * scale) for value in case["viewport"])
         border = max(0, (outer["width"] - width) // 2)

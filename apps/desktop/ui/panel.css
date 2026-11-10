@@ -31,6 +31,8 @@
   --good-bg: #e6efe9;
   --warn-bg: #f5ecda;
   font-family: Plex, system-ui, sans-serif;
+  /* Keep word-boundary glyph advances stable across native renderer sessions. */
+  font-kerning: none;
   -webkit-font-smoothing: antialiased;
   font-size: 14px;
   line-height: 1.5;

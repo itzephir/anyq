@@ -293,6 +293,7 @@
     "language": "en",
     "viewport": [1000, 620],
     "decorations": false,
+    "font_kerning": "none",
     "cursor": [0, 0],
     "windows_browser_arguments": "--disable-gpu --disable-lcd-text --force-color-profile=srgb",
     "source": "automatic",
