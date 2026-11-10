@@ -70,8 +70,17 @@ for later execution context. Metadata values use typed envelopes with exact
 decimal text and duplicate-checked object pairs. Physical JSON nesting is
 bounded before deserialization while admitting 64 logical metadata levels.
 
-The owner accepts at most 64 concurrent sessions. Incoming frames have a 30-second
-deadline; response writes have a five-second inactivity deadline and a two-minute
+The owner has separate quotas of 64 command sessions and 64 wait/start-poll
+sessions. Wait moves to waiting capacity after a not-running result; start moves
+there after Busy, so immediate wait/start success remains available. Other queue
+operations acquire command capacity before executing. Connections move between
+these quotas, so waiters do not occupy capacity needed to complete their owner.
+Eight additional connections are reserved for Ping/Stop when command capacity is
+full; Open must obtain command capacity before initializing SQLite. Exhausted
+quotas return an explicit capacity error without releasing task ownership.
+Permits are released when sessions close, bounding the owner to 136 sessions.
+Incoming frames have a 30-second deadline; response writes have a five-second
+inactivity deadline and a two-minute
 total transfer limit. Progress renews the inactivity deadline so a consuming
 client can receive a large result under contention. IO is nonblocking with
 cancellation checks. Native asynchronous IO drives both Unix sockets and Windows

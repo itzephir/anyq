@@ -1,6 +1,6 @@
 # anyq
 
-A local resource admission queue for named tasks: builds, agents, people, and emulators. A bundled Rust daemon owns each SQLite database on local disk; CLI commands send it local messages. Queue commands start the owner automatically, and it keeps running after clients exit.
+A local resource admission queue for named tasks: builds, agents, people, and emulators. A bundled Rust daemon owns the selected anyq queue database; CLI commands communicate with that daemon. Queue commands start the owner automatically, and it keeps running after clients exit.
 
 A task requires several topics at once. When autostart is enabled, the queue automatically acquires one slot from every topic atomically. Wait only waits for running and succeeds immediately if the task is already running. The caller performs the work and releases ownership with complete.
 
