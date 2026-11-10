@@ -96,3 +96,12 @@ mod set_topic_autostart;
 pub use set_topic_autostart::SetTopicAutostart;
 mod queue_services;
 pub use queue_services::QueueServices;
+
+mod observe_queue;
+pub use observe_queue::ObserveQueue;
+
+mod observe_queue_request;
+pub use observe_queue_request::ObserveQueueRequest;
+
+mod queue_snapshot;
+pub use queue_snapshot::QueueSnapshot;

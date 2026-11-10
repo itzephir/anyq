@@ -23,6 +23,43 @@ pub(crate) struct Session {
 }
 
 impl Session {
+    fn observation_loop(&self, receiver: &Receiver<RequestFrame>, id: u64) -> Result<()> {
+        let mut observer = match self
+            .factory
+            .observe(&self.endpoint.database, self.signals.cancelled.clone())
+        {
+            Ok(observer) => observer,
+            Err(error) => return self.reply(id, QueueResponse::Error(error.into())),
+        };
+        self.reply(id, self.ready())?;
+
+        loop {
+            let frame = self.next(receiver)?;
+            let response = match frame.request {
+                QueueRequest::ObserveQueue {
+                    max_entities,
+                    max_text_bytes,
+                } => {
+                    match observer.observe(anyq_queue_api::ObserveQueueRequest {
+                        max_entities,
+                        max_text_bytes,
+                    }) {
+                        Ok(snapshot) => QueueResponse::Observation {
+                            database_id: self.endpoint.identity.clone(),
+                            snapshot: snapshot.into(),
+                        },
+                        Err(error) => QueueResponse::Error(error.into()),
+                    }
+                }
+                _ => QueueResponse::Error(
+                    Error::Invalid("observation sessions accept read-only snapshots only".into())
+                        .into(),
+                ),
+            };
+            self.reply(frame.id, response)?;
+        }
+    }
+
     fn reply(&self, id: u64, response: QueueResponse) -> Result<()> {
         send_frame(
             &self.stream,
@@ -96,6 +133,18 @@ impl Session {
     fn handle(&self, receiver: &Receiver<RequestFrame>) -> Result<()> {
         let frame = self.next(receiver)?;
         match frame.request {
+            QueueRequest::OpenObservation { database_id } => {
+                if database_id != self.endpoint.identity {
+                    return self.reply(
+                        frame.id,
+                        QueueResponse::Error(
+                            Error::Invalid("daemon database identity mismatch".into()).into(),
+                        ),
+                    );
+                }
+
+                self.observation_loop(receiver, frame.id)
+            }
             QueueRequest::Ping => self.reply(frame.id, self.ready()),
             QueueRequest::Stop => {
                 self.reply(frame.id, QueueResponse::Stopped)?;

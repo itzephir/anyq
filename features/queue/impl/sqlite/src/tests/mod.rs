@@ -799,3 +799,4 @@ fn read_only_running_check_never_admits_a_legacy_queued_task_on_a_free_resource(
     assert_eq!(task(&store, "legacy").state(), TaskState::Queued);
     assert_eq!(usage(&store, "cpu"), 0);
 }
+mod observation;

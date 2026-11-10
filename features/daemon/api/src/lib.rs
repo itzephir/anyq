@@ -1,5 +1,5 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 mod task_dto;
@@ -22,6 +22,9 @@ pub use queue_error::QueueError;
 
 mod queue_request;
 pub use queue_request::QueueRequest;
+
+mod queue_snapshot_dto;
+pub use queue_snapshot_dto::QueueSnapshotDto;
 
 mod queue_response;
 pub use queue_response::QueueResponse;

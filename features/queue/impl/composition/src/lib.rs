@@ -15,6 +15,15 @@ pub fn open(path: &Path) -> Result<QueueModule> {
     )
 }
 
+pub fn observe_existing(
+    path: &Path,
+    cancelled: Arc<AtomicBool>,
+) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
+    Ok(Box::new(ObserveQueueInteractor::new(
+        Sqlite::open_existing(path, cancelled)?,
+    )))
+}
+
 pub fn open_with_options(
     path: &Path,
     policy: QueuePolicy,
