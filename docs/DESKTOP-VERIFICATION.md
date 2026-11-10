@@ -29,13 +29,20 @@ Daemon prerequisite: commit `068ac48` passed [CI run 42804237207](https://github
 
 ## Native screenshot acceptance
 
-The Linux and Windows jobs in [generator run 42882733857](https://github.com/itzephir/anyq/actions/runs/42882733857)
+The Linux, macOS and Windows jobs in [generator run 42888007910](https://github.com/itzephir/anyq/actions/runs/42888007910)
 passed real native application/daemon integration and 15 configured visual states,
-each repeated in two independent clean processes and databases. Their 30 reviewed
-PNG files are recorded in [the golden directories](../tests/desktop/goldens).
-macOS accepted the integration scenarios but rejected one independently repeated
-text-rendering state; its baseline and the required current-head verify pass
-remain pending. Candidate generation does not satisfy the required `CI passed` gate.
+each repeated in two independent clean processes and databases. All 45 reviewed
+PNG files are recorded in [the golden directories](../tests/desktop/goldens);
+downloaded ZIP digests matched GitHub's artifact digests. Required verification
+against these committed files remains pending until a current full PR CI pass.
+Candidate generation does not satisfy the required `CI passed` gate.
+
+Native checks found and fixed Windows file-sharing races in test transport and
+fixture cleanup, GTK's incompatible ephemeral-context protocol registration,
+macOS native scrollbar animation, and WebKit's inconsistent word-boundary kerning.
+The kerning failure changed a line's advance by 13 font units despite identical
+text and loaded fonts. The product now sets its text policy explicitly; tests
+assert that policy and retain measured line rectangles and font metadata.
 
 Observation prerequisite: `01705d8` passed [CI run 42866310020](https://github.com/itzephir/anyq/actions/runs/42866310020)
 on Linux/macOS/Windows, including native process and interruption suites. Its

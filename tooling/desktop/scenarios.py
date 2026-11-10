@@ -111,6 +111,29 @@ def run(cli, panel, home, output, configuration):
             "compact",
         )["payload"]["value"] == [2, 3]
         driver.click("#open-main", "compact")
+        driver.call(window="compact", native="compact")
+        assert (
+            driver.call(
+                "return document.querySelectorAll('[data-open-topic]').length;",
+                "compact",
+            )["payload"]["value"]
+            == 4
+        )
+        driver.call(
+            "[...document.querySelectorAll('[data-open-topic]')].find(button=>button.querySelector('.mono').textContent==='emulator').click();",
+            "compact",
+        )
+        driver.wait(
+            "return document.querySelector('.content-header h1')?.textContent==='emulator';"
+        )
+        assert ui("return document.querySelectorAll('[data-task]').length;") == 2
+        ui(
+            "[...document.querySelectorAll('[data-topic]')].find(button=>button.querySelector('.topic-name').textContent==='repo').click();"
+        )
+        driver.wait(
+            "return document.querySelector('.content-header h1')?.textContent==='repo';"
+        )
+        assert ui("return document.querySelectorAll('[data-task]').length;") == 2
         source(None, language="ru", theme="light")
         driver.wait(
             "return document.documentElement.lang==='ru' && document.documentElement.dataset.theme==='light';"
