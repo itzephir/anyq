@@ -135,10 +135,12 @@ fn real_owner_observation_is_current_consistent_and_cannot_mutate_even_with_auto
 #[test]
 fn owner_refuses_missing_existing_only_target_after_discovery() {
     let queue = Queue::new();
+    let initial_owner = queue.spawn_owner();
     queue.topic("cpu");
-    queue.call(&["daemon", "stop"]);
+    initial_owner.stop();
     // Discovery can precede opening any SQLite session. Keep the owner alive
-    // without a session so Windows file sharing does not race client cleanup.
+    // without a session, after joining the old process, so neither owner-lock
+    // release nor Windows SQLite sharing can race the intended removal.
     let _owner = queue.spawn_owner();
     let endpoint = Endpoint::resolve(&queue.db).unwrap();
     std::fs::remove_file(&queue.db).unwrap();
