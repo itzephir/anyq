@@ -25,6 +25,9 @@ remote clients are not installed. CLI messages and help are English-only, with
 no language setting. `status` and `stop` accept an explicit --db/ANYQ_DB
 even when config is damaged, allowing cleanup without reading that file.
 
+An ordinary protocol stop lets a foreground owner return 0; native Ctrl+C returns
+130. Both preserve committed task ownership.
+
 Background Windows startup uses an explicit handle allowlist through the
 `windows-spawn` adapter. Only its null standard streams are transferred; the
 caller's output pipes and other inherited handles are excluded, so capturing

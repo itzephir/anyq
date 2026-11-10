@@ -118,6 +118,10 @@ pipes. Lifecycle messages and help remain English-only, without language setting
 wire error kinds stay separate from presentation. Preserve existing
 text and exit codes, including first Ctrl+C = 130 and forced second interruption.
 
+Protocol Stop uses an internal shutdown flag separate from the CLI's native
+interrupt token. Both drain the same sessions, but ordinary foreground shutdown
+returns 0 and native Ctrl+C retains exit 130.
+
 ## Risks / Trade-offs
 
 - [Client cancellation races commit] -> inspect durable state after uncertain

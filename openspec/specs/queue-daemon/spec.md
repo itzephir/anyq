@@ -28,6 +28,10 @@ Queue commands SHALL ensure a daemon is available. `daemon start` SHALL start or
 - **WHEN** the daemon stops and a later queue command restarts it
 - **THEN** existing task states, links, order and running ownership are preserved
 
+#### Scenario: Foreground protocol stop
+- **WHEN** a foreground daemon receives a protocol stop without a native interrupt
+- **THEN** it exits successfully with code 0 while committed task ownership is preserved
+
 ### Requirement: Private bounded local protocol
 Daemon communication SHALL be restricted to the invoking account and local machine, use an explicit protocol version and bounded messages, and reject invalid or incompatible requests without executing queue operations. Endpoint discovery SHALL NOT expose access secrets through ordinary output or logs.
 

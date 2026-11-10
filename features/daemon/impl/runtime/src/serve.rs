@@ -13,8 +13,9 @@ use std::{
 pub fn serve(
     endpoint: Endpoint,
     factory: Arc<dyn QueueFactory>,
-    shutdown: Arc<AtomicBool>,
+    cancelled: Arc<AtomicBool>,
 ) -> Result<()> {
+    let shutdown = Arc::new(AtomicBool::new(false));
     let _owner = OwnerLock::acquire(&endpoint)
         .map_err(|error| Error::Storage(format!("queue owner lock: {error}")))?;
     let listener = endpoint
@@ -25,6 +26,11 @@ pub fn serve(
     let mut failure = None;
 
     while !shutdown.load(Ordering::SeqCst) {
+        if cancelled.load(Ordering::SeqCst) {
+            shutdown.store(true, Ordering::SeqCst);
+            break;
+        }
+
         sessions.retain(
             |(signals, handle): &(Arc<SessionSignals>, thread::JoinHandle<()>)| {
                 !signals.closed.load(Ordering::SeqCst) || !handle.is_finished()
@@ -62,6 +68,7 @@ pub fn serve(
         }
     }
 
+    shutdown.store(true, Ordering::SeqCst);
     drop(listener);
     for (signals, _) in &sessions {
         signals.close();
