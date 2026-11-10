@@ -35,9 +35,10 @@ transport, cancellation, and recovery. The panel never falls back to direct
 SQLite access. Metadata, hooks, timeout, and shell-plugin changes are not
 prerequisites, and their delivery order is unchanged.
 
-This capture contains planning only. It does not implement the panel or daemon,
-and no implementation task or baseline capability is complete because these
-artifacts exist.
+Implementation is stacked as daemon PR #14, observation PR #16, and desktop
+PR #15. The daemon prerequisite is implemented and verified; desktop native
+acceptance is tracked separately. Planning artifacts do not establish completed
+behavior, and unfinished desktop capabilities are not synced to baseline specs.
 
 ## Capabilities
 
@@ -56,11 +57,10 @@ and its observation contract.
 
 ## Impact
 
-Future implementation adds an optional desktop application and panel settings,
+Implementation adds an optional desktop application and panel settings,
 extends queue API/dispatch/persistence ports with one observation use case, and
 extends daemon protocol/client/runtime adapters with its typed operation. Desktop
 composition, architecture checks, UI resources, packaging, installation guidance,
-and native verification will need corresponding changes. GUI dependencies stay
-outside inner crates and the ordinary CLI installation; the toolkit and platform
-adapters must be selected and documented before implementation, as described in
-[design.md](design.md).
+and native verification receive corresponding changes. GUI dependencies stay
+outside inner crates and the ordinary CLI installation; the selected toolkit and platform
+adapters are documented in [design.md](design.md) and docs/DESKTOP.md.

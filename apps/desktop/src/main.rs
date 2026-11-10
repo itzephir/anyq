@@ -88,7 +88,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             commands::refresh_panel,
             commands::save_preferences,
             commands::choose_database,
-            commands::show_main
+            commands::show_main,
+            commands::dismiss_compact
         ])
         .setup(|app| {
             let handle = app.handle().clone();

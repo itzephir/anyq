@@ -97,7 +97,7 @@ function topicContent(topic) {
   return `<header class="content-header"><div><h1 class="mono">${escape(name(topic.name))}</h1><span class="muted small">${strings.autoTopic}: ${topic.autostart === null ? strings.inherited : topic.autostart ? strings.yes : strings.no}</span></div>
     <div class="header-actions">${iconButton("refresh", "refresh", strings.refresh)}${iconButton("settings", "settings", strings.settings)}</div></header>
     ${banner()}<div class="overview"><div class="stat"><p class="stat-label">${strings.running}</p><strong>${topic.running}<span class="muted" style="font-size:18px"> / ${topic.capacity}</span></strong><span class="unit">${strings.slots}</span></div>
-    <div class="stat"><p class="stat-label">${strings.queued}</p><strong>${topic.queued}</strong><span class="unit">${strings.queued}</span></div></div>
+    <div class="stat"><p class="stat-label">${strings.queued}</p><strong>${topic.queued}</strong></div></div>
     <div class="queue-header row"><h2>${strings.tasks}</h2><span class="pill">${tasks.length}</span><input type="search" id="task-search" aria-label="${strings.searchTasks}" placeholder="${strings.searchTasks}" value="${escape(taskFilter)}"></div>
     ${tasks.length === 0 ? empty(strings.emptyQueue, strings.emptyQueueHelp) : `<div class="task-table">${visible.map((task) => `<button class="task-row" data-task="${task.sequence}" data-focus="task:${task.sequence}" aria-pressed="${task.sequence === selectedTask}"><span class="task-icon">${icon("task")}</span><span><span class="task-name">${escape(name(task.name))}</span><span class="task-sub">${escape(task.topics.map(name).join(" · "))}${task.stopped ? ` · ${strings.stopped}` : ""}</span></span>${pill(task.state)}</button>`).join("") || empty(strings.noMatches, "")}</div>`}
     ${selected ? details(selected) : ""}`;
@@ -117,7 +117,7 @@ function mainWindow() {
         { hour: "2-digit", minute: "2-digit" },
       )
     : "—";
-  return `<main class="workspace"><aside class="sidebar"><div class="brand"><span class="brand-mark">${icon("logo")}</span><strong>anyq</strong><span class="small muted">${state.snapshot ? topics.length : "—"} ${strings.topics.toLowerCase()}</span></div>
+  return `<main class="workspace"><aside class="sidebar"><div class="brand"><span class="brand-mark">${icon("logo")}</span><strong>anyq</strong><span class="small muted">${strings.topics} · ${state.snapshot ? topics.length : "—"}</span></div>
     <div class="side-label row"><h2>${strings.topics}</h2></div><div class="search-wrap"><input type="search" id="topic-search" placeholder="${strings.searchTopics}" aria-label="${strings.searchTopics}" value="${escape(topicFilter)}"></div>
     <div class="topic-list" role="group" aria-label="${strings.topics}">${matches.map(({ topic, index }) => topicButton(topic, index)).join("") || `<p class="muted small" style="padding:12px">${state.snapshot ? (topics.length ? strings.noMatches : strings.emptyTopics) : strings[state.status] || strings.error}</p>`}</div></aside>
     <section class="content">${topic ? topicContent(topic) : `<div class="row"><span class="spacer"></span>${iconButton("refresh", "refresh", strings.refresh)}${iconButton("settings", "settings", strings.settings)}</div>${empty(state.status === "error" ? strings.error : state.status === "loading" ? strings.loading : strings.emptyTopics, state.status === "error" ? strings[state.error_kind] || strings.errorHelp : strings.emptyTopicsHelp)}`}</section>
@@ -347,6 +347,9 @@ function accept(next) {
 }
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && surface === "compact" && invoke) {
+    command("dismiss_compact");
+  }
   if (event.key === "Escape" && settingsOpen) {
     settingsOpen = false;
     draft = null;
@@ -363,6 +366,7 @@ if (invoke) {
       selectedTopic = payload.topic;
       selectedTask = null;
       taskFilter = "";
+      topicFilter = "";
     }
     if (payload.settings) {
       settingsOpen = true;

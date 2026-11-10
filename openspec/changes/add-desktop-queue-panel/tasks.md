@@ -16,11 +16,11 @@
 
 ## 3. Panel settings and application state
 
-- [ ] 3.1 Share database path-selection policy between external clients and add the panel override ahead of ANYQ_DB/shared db.path/default; verify all precedence combinations, CLI behavior preservation, source reporting, canonical aliases, and stable absolute panel overrides.
+- [x] 3.1 Share database path-selection policy between external clients and add the panel override ahead of ANYQ_DB/shared db.path/default; verify all precedence combinations, CLI behavior preservation, source reporting, canonical aliases, and stable absolute panel overrides.
 - [x] 3.2 Add typed panel-local preferences with atomic coordinated persistence; verify save/restart/reset behavior, persistence failure preserving the old active selection, and unchanged shared config/environment/CLI selection.
 - [ ] 3.3 Implement one observation controller with bounded nonoverlapping polling, refresh coalescing, request deadlines, and stale/recovery states; verify both surfaces consume the same accepted snapshot and connection errors cannot look like an empty live queue.
 - [x] 3.4 Implement source generations and selection invalidation; verify switching A to B discards a late A response even when both contain the same names, clears old rows/details, and leaves the old owner running.
-- [ ] 3.5 Document Automatic, file override, effective source/path, reset, preference location, inherited environment, and refresh behavior; verify the examples reproduce the intended CLI/panel selection and failure states.
+- [x] 3.5 Document Automatic, file override, effective source/path, reset, preference location, inherited environment, and refresh behavior; verify the examples reproduce the intended CLI/panel selection and failure states.
 
 ## 4. Main window and shared presentation
 

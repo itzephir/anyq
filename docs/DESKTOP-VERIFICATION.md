@@ -27,11 +27,25 @@ Daemon prerequisite: commit `068ac48` passed [CI run 42804237207](https://github
 
 ## Manual native acceptance
 
-macOS is exercised locally on an isolated queue with multi-topic running and
-queued tasks. Keep evidence for window launch, details, search, settings/reset,
-missing source, refresh, menu-bar opening/dismissal, close/reopen and Quit.
-Any discovered native event-loop blocking must be fixed before considering the
-smoke run successful; never hold model locks while calling native menu APIs.
+The local macOS application bundle was launched on an isolated queue with two
+running tasks, two queued tasks and three topics. Native accessibility inspection
+and screenshots verified task details/full membership, task search, settings,
+persisted English/Russian and dark/light choices, selection of a missing file,
+explicit missing-source error, source-generation clearing, reset to ANYQ_DB,
+main-window close/reopen, owner restart/reconnection and Cmd+Q. The original
+owner PID remained alive across window closure; after stopping it deliberately,
+the panel launched its own hidden owner mode and reconnected. Task states and
+slot usage were unchanged after client exit; the missing target was not created.
+
+A lock-ordering issue found during this smoke run was fixed: native menu updates
+now happen after releasing the model lock. Unchanged polling results preserve
+DOM nodes and keyboard focus. [Dark native window](images/desktop-macos-dark.jpg)
+and [Russian missing-source state](images/desktop-macos-missing-ru.jpg) retain
+reviewable screenshot evidence using synthetic queue data.
+
+The menu-bar icon click, compact panel dismissal/placement, and native file
+picker still require their own direct native smoke evidence. They are not
+inferred from the successful window or OpenDesign preview.
 
 Pending native configurations remain explicit:
 
@@ -46,3 +60,9 @@ Pending native configurations remain explicit:
 These rows require actual desktop sessions. A build, mock or headless controller
 test is not a substitute. Corresponding OpenSpec tasks remain unchecked until
 that evidence exists; the implementation PR remains a draft meanwhile.
+
+
+The initial desktop implementation passed [CI run 42829086558](https://github.com/itzephir/anyq/actions/runs/42829086558)
+on `563a74a`: native GUI packages for macOS ARM64/Intel, Windows and Linux;
+controller tests; all existing process/Ctrl+C suites and CLI installers; lint and
+website checks. Later changes require a new current-head CI pass before review.

@@ -72,3 +72,10 @@ pub fn show_main(
 
     Ok(())
 }
+
+#[tauri::command]
+pub fn dismiss_compact(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("compact") {
+        let _ = window.hide();
+    }
+}

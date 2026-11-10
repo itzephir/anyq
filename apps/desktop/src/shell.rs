@@ -139,7 +139,10 @@ impl Shell {
     }
 
     pub fn refresh_host(&self, app: &tauri::AppHandle) {
-        let available = host_available() && app.tray_by_id("queue").is_some();
+        let available = host_available()
+            && app.tray_by_id("queue").is_some_and(|tray| {
+                cfg!(target_os = "linux") || tray.rect().ok().flatten().is_some()
+            });
         let was_available = self.usable.swap(available, Ordering::SeqCst);
         if was_available && !available {
             // Restore a reachable ordinary window when a Linux status host disappears.
