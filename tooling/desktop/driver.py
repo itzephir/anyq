@@ -72,7 +72,7 @@ class Driver:
         deadline = time.monotonic() + timeout
         while True:
             result = self.call(script, window)
-            if result["payload"]["value"]:
+            if result["payload"].get("value"):
                 return result
             if time.monotonic() >= deadline:
                 raise AssertionError(f"Native UI condition timed out: {script}")
