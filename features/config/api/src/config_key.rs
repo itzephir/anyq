@@ -3,15 +3,22 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigKey {
     TaskAutocreate,
+    TaskAutostart,
     TopicAutocreate,
     DbPath,
 }
 
 impl ConfigKey {
-    pub const ALL: [Self; 3] = [Self::TaskAutocreate, Self::TopicAutocreate, Self::DbPath];
+    pub const ALL: [Self; 4] = [
+        Self::TaskAutocreate,
+        Self::TaskAutostart,
+        Self::TopicAutocreate,
+        Self::DbPath,
+    ];
 
     pub fn parse(value: &str) -> Result<Self> {
         match value {
+            "task.autostart" => Ok(Self::TaskAutostart),
             "task.autocreate" => Ok(Self::TaskAutocreate),
             "topic.autocreate" => Ok(Self::TopicAutocreate),
             "db.path" => Ok(Self::DbPath),
@@ -24,6 +31,7 @@ impl ConfigKey {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::TaskAutocreate => "task.autocreate",
+            Self::TaskAutostart => "task.autostart",
             Self::TopicAutocreate => "topic.autocreate",
             Self::DbPath => "db.path",
         }

@@ -1,3 +1,4 @@
+use crate::admit_queued_tasks::admit_queued_tasks;
 use crate::{
     lookup_topic::lookup_topic_value,
     ports::{Store, TaskFilter},
@@ -22,18 +23,20 @@ impl<S> SetTopicCapacityInteractor<S> {
 
 impl<S: Store> SetTopicCapacity for SetTopicCapacityInteractor<S> {
     fn set_capacity(&mut self, topic: Topic) -> Result<Topic> {
-        let topic = Topic::restore(topic.name, topic.capacity)?;
+        let mut topic = Topic::restore(topic.name, topic.capacity)?;
 
         self.store.transaction(|records| {
-            lookup_topic_value(records, &topic.name, self.policy)?;
+            topic.autostart = lookup_topic_value(records, &topic.name, self.policy)?.autostart;
             let running = records.tasks().count_tasks(&TaskFilter {
-                topic: topic.name.clone(),
+                topic: Some(topic.name.clone()),
                 state: TaskState::Running,
                 before_sequence: None,
             })?;
 
             topic.require_capacity_for(running)?;
             records.topics().put_topic(&topic)?;
+
+            admit_queued_tasks(records)?;
 
             Ok(topic)
         })

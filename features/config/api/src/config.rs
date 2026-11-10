@@ -3,6 +3,7 @@ use crate::{ConfigKey, ConfigValue, Error, Result};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Config {
     task_autocreate: Option<bool>,
+    task_autostart: Option<bool>,
     topic_autocreate: Option<bool>,
     db_path: Option<String>,
 }
@@ -10,6 +11,10 @@ pub struct Config {
 impl Config {
     pub fn task_autocreate(&self) -> bool {
         self.task_autocreate.unwrap_or(false)
+    }
+
+    pub fn task_autostart(&self) -> bool {
+        self.task_autostart.unwrap_or(true)
     }
 
     pub fn topic_autocreate(&self) -> bool {
@@ -23,6 +28,7 @@ impl Config {
     pub fn get(&self, key: ConfigKey) -> Option<ConfigValue> {
         match key {
             ConfigKey::TaskAutocreate => Some(ConfigValue::Boolean(self.task_autocreate())),
+            ConfigKey::TaskAutostart => Some(ConfigValue::Boolean(self.task_autostart())),
             ConfigKey::TopicAutocreate => Some(ConfigValue::Boolean(self.topic_autocreate())),
             ConfigKey::DbPath => self.db_path.clone().map(ConfigValue::Text),
         }
@@ -32,6 +38,9 @@ impl Config {
         match (key, value) {
             (ConfigKey::TaskAutocreate, ConfigValue::Boolean(value)) => {
                 self.task_autocreate = Some(value)
+            }
+            (ConfigKey::TaskAutostart, ConfigValue::Boolean(value)) => {
+                self.task_autostart = Some(value)
             }
             (ConfigKey::TopicAutocreate, ConfigValue::Boolean(value)) => {
                 self.topic_autocreate = Some(value)
@@ -54,6 +63,7 @@ impl Config {
         match key {
             ConfigKey::TaskAutocreate => self.task_autocreate = None,
             ConfigKey::TopicAutocreate => self.topic_autocreate = None,
+            ConfigKey::TaskAutostart => self.task_autostart = None,
             ConfigKey::DbPath => self.db_path = None,
         }
     }
@@ -63,6 +73,10 @@ impl Config {
 
         if let Some(value) = self.task_autocreate {
             values.push((ConfigKey::TaskAutocreate, ConfigValue::Boolean(value)));
+        }
+
+        if let Some(value) = self.task_autostart {
+            values.push((ConfigKey::TaskAutostart, ConfigValue::Boolean(value)));
         }
 
         if let Some(value) = self.topic_autocreate {

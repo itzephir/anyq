@@ -28,14 +28,31 @@ pub use register_task::RegisterTaskInteractor;
 mod add_task_to_topic;
 pub use add_task_to_topic::AddTaskToTopicInteractor;
 
-mod try_start_task;
-pub use try_start_task::TryStartTaskInteractor;
+mod check_task_running;
+pub use check_task_running::CheckTaskRunningInteractor;
 
 mod complete_task;
 pub use complete_task::CompleteTaskInteractor;
 
+mod admit_queued_tasks;
 mod lookup_task;
 mod lookup_topic;
 
 #[cfg(test)]
 mod tests;
+
+mod add_task_to_topics;
+pub use add_task_to_topics::AddTaskToTopicsInteractor;
+
+mod add_tasks_to_topic;
+pub use add_tasks_to_topic::AddTasksToTopicInteractor;
+
+mod link_tasks_to_topics;
+
+mod resource_availability;
+
+mod start_task;
+pub use start_task::StartTaskInteractor;
+
+mod set_topic_autostart;
+pub use set_topic_autostart::SetTopicAutostartInteractor;

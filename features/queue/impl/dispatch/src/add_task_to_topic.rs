@@ -1,10 +1,11 @@
-use crate::{lookup_task::lookup_task, lookup_topic::lookup_topic, ports::Store};
+use crate::{link_tasks_to_topics::link_tasks_to_topics, ports::Store};
 use anyq_queue_api::AutoCreatePolicy;
-use anyq_queue_api::{AddTaskToTopic, Result, Task};
+use anyq_queue_api::QueuePolicy;
+use anyq_queue_api::{AddTaskToTopic, Error, Result, Task};
 
 pub struct AddTaskToTopicInteractor<S> {
     store: S,
-    policy: AutoCreatePolicy,
+    policy: QueuePolicy,
 }
 
 impl<S> AddTaskToTopicInteractor<S> {
@@ -13,6 +14,16 @@ impl<S> AddTaskToTopicInteractor<S> {
     }
 
     pub fn with_policy(store: S, policy: AutoCreatePolicy) -> Self {
+        Self::with_options(
+            store,
+            QueuePolicy {
+                autocreate: policy,
+                ..QueuePolicy::default()
+            },
+        )
+    }
+
+    pub fn with_options(store: S, policy: QueuePolicy) -> Self {
         Self { store, policy }
     }
 }
@@ -20,13 +31,9 @@ impl<S> AddTaskToTopicInteractor<S> {
 impl<S: Store> AddTaskToTopic for AddTaskToTopicInteractor<S> {
     fn add(&mut self, task: &str, topic: &str) -> Result<Task> {
         self.store.transaction(|records| {
-            let mut task = lookup_task(records, task, self.policy)?;
-            let topic = lookup_topic(records, topic, self.policy)?;
-
-            task.link_topic(&topic)?;
-            records.tasks().save_task(&task)?;
-
-            Ok(task)
+            link_tasks_to_topics(records, &[task.into()], &[topic.into()], self.policy)?
+                .pop()
+                .ok_or_else(|| Error::Storage("linked task disappeared".into()))
         })
     }
 }

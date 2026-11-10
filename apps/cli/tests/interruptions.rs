@@ -74,9 +74,9 @@ fn owned(queue: &Queue, name: &str) {
 fn ctrl_c_at_each_create_wait_complete_commit_keeps_exactly_the_committed_phase() {
     for (stage, hit, expected) in [
         ("sqlite.before-commit", 1, None),
-        ("sqlite.after-commit", 1, Some("queued")),
-        ("cli.after-registration", 1, Some("queued")),
-        ("sqlite.before-commit", 2, Some("queued")),
+        ("sqlite.after-commit", 1, Some("running")),
+        ("cli.after-registration", 1, Some("running")),
+        ("sqlite.before-commit", 2, Some("running")),
         ("sqlite.after-commit", 2, Some("running")),
         ("cli.after-admission", 1, Some("running")),
         ("cli.before-completion", 1, Some("running")),
@@ -173,6 +173,9 @@ fn ctrl_c_force_completion_of_unstarted_tasks_preserves_the_last_committed_state
         ] {
             let queue = Queue::new();
             queue.topic("cpu");
+            if linked {
+                owned_on_cpu(&queue);
+            }
             queue.task("job", if linked { &["cpu"] } else { &[] });
             InterruptProcess::spawn(&queue, &["task", "job", "complete", "-f"], stage, 1)
                 .interrupt();
@@ -182,7 +185,7 @@ fn ctrl_c_force_completion_of_unstarted_tasks_preserves_the_last_committed_state
                 queue.state("job"),
                 if committed { "completed" } else { initial }
             );
-            assert_eq!(queue.usage("cpu"), 0);
+            assert_eq!(queue.usage("cpu"), i64::from(linked));
         }
     }
 }
@@ -375,13 +378,13 @@ fn ctrl_c_during_registration_rolls_back_partial_memberships_until_commit() {
             if present { "- job" } else { "" },
             "{stage}"
         );
-        assert_eq!(queue.usage("cpu"), 0);
-        assert_eq!(queue.usage("repo"), 0);
+        assert_eq!(queue.usage("cpu"), i64::from(present));
+        assert_eq!(queue.usage("repo"), i64::from(present));
 
         if present {
             assert_eq!(
                 queue.call(&["task", "job"]),
-                "task: job\nstatus: queued\ntopics:\n- cpu\n- repo"
+                "task: job\nstatus: running\ntopics:\n- cpu\n- repo"
             );
             queue.call(&["task", "complete", "job", "-f"]);
         } else {
@@ -407,6 +410,7 @@ fn ctrl_c_during_link_preserves_the_previous_or_the_whole_new_membership() {
         ] {
             let queue = Queue::new();
             resources(&queue);
+            queue.task("owner", &["repo"]);
             queue.task("job", &["repo"]);
             InterruptProcess::spawn(&queue, &command, stage, 1).interrupt();
 
@@ -421,7 +425,7 @@ fn ctrl_c_during_link_preserves_the_previous_or_the_whole_new_membership() {
                 "{command:?} {stage}"
             );
             assert_eq!(queue.usage("cpu"), 0);
-            assert_eq!(queue.usage("repo"), 0);
+            assert_eq!(queue.usage("repo"), 1);
         }
     }
 }
@@ -432,13 +436,11 @@ fn ctrl_c_admission_boundary_retains_only_committed_ownership_until_manual_compl
         vec!["task", "wait", "job"],
         vec!["task", "job", "wait", "-c"],
     ] {
-        for (stage, running) in [
-            ("sqlite.after-task-update", false),
-            ("sqlite.after-membership-write", false),
-            ("sqlite.before-commit", false),
-            ("sqlite.after-commit", true),
-            ("cli.after-admission", true),
-            ("cli.before-completion", true),
+        for stage in [
+            "sqlite.before-commit",
+            "sqlite.after-commit",
+            "cli.after-admission",
+            "cli.before-completion",
         ] {
             if stage == "cli.before-completion" && !command.contains(&"-c") {
                 continue;
@@ -448,23 +450,21 @@ fn ctrl_c_admission_boundary_retains_only_committed_ownership_until_manual_compl
             resources(&queue);
             queue.task("job", &["cpu", "repo"]);
             queue.task("next", &["cpu", "repo"]);
+
             InterruptProcess::spawn(&queue, &command, stage, 1).interrupt();
 
-            assert_eq!(
-                queue.state("job"),
-                if running { "running" } else { "queued" },
-                "{stage}"
-            );
-            assert_eq!(queue.usage("cpu"), i64::from(running));
-            assert_eq!(queue.usage("repo"), i64::from(running));
+            assert_eq!(queue.state("job"), "running", "{stage}");
+            assert_eq!(queue.state("next"), "queued");
+            assert_eq!(queue.usage("cpu"), 1);
+            assert_eq!(queue.usage("repo"), 1);
 
             let mut waiting = queue.spawn_wait("next", "next");
             queue.wait_for_log("next", "waiting for 'next'");
             waiting.assert_running();
             waiting.stop();
 
-            queue.call(&["task", "complete", "job", "-f"]);
-            queue.call(&["task", "wait", "next"]);
+            queue.call(&["task", "complete", "job"]);
+
             assert_eq!(queue.state("next"), "running");
             queue.call(&["task", "complete", "next"]);
         }
@@ -486,7 +486,7 @@ fn ctrl_c_while_waiting_never_reserves_the_other_free_resource() {
     assert_eq!(queue.usage("repo"), 1);
 
     queue.call(&["task", "complete", "owner"]);
-    assert_eq!(queue.state("job"), "queued");
+    assert_eq!(queue.state("job"), "running");
     queue.call(&["task", "job", "wait"]);
     assert_eq!(queue.usage("cpu"), 1);
     assert_eq!(queue.usage("repo"), 1);
@@ -494,31 +494,41 @@ fn ctrl_c_while_waiting_never_reserves_the_other_free_resource() {
 
 #[test]
 fn ctrl_c_completion_boundary_keeps_all_slots_or_releases_all_slots() {
-    for (stage, completed) in [
-        ("cli.before-completion", false),
-        ("sqlite.after-task-update", false),
-        ("sqlite.after-membership-write", false),
-        ("sqlite.before-commit", false),
-        ("sqlite.after-commit", true),
-        ("cli.after-completion", true),
+    for (stage, hit, completed) in [
+        ("cli.before-completion", 1, false),
+        ("sqlite.after-task-update", 1, false),
+        ("sqlite.after-task-update", 2, false),
+        ("sqlite.after-membership-write", 1, false),
+        ("sqlite.after-membership-write", 3, false),
+        ("sqlite.before-commit", 1, false),
+        ("sqlite.after-commit", 1, true),
+        ("cli.after-completion", 1, true),
     ] {
         let queue = Queue::new();
         resources(&queue);
         owned(&queue, "job");
-        InterruptProcess::spawn(&queue, &["task", "job", "complete"], stage, 1).interrupt();
+        queue.task("next", &["cpu", "repo"]);
+
+        InterruptProcess::spawn(&queue, &["task", "job", "complete"], stage, hit).interrupt();
 
         assert_eq!(
             queue.state("job"),
             if completed { "completed" } else { "running" },
-            "{stage}"
+            "{stage} #{hit}"
         );
-        assert_eq!(queue.usage("cpu"), i64::from(!completed));
-        assert_eq!(queue.usage("repo"), i64::from(!completed));
+        assert_eq!(
+            queue.state("next"),
+            if completed { "running" } else { "queued" }
+        );
+        assert_eq!(queue.usage("cpu"), 1);
+        assert_eq!(queue.usage("repo"), 1);
 
         if !completed {
             queue.call(&["task", "complete", "job"]);
         }
 
+        assert_eq!(queue.state("next"), "running");
+        queue.call(&["task", "complete", "next"]);
         assert_eq!(queue.usage("cpu"), 0);
         assert_eq!(queue.usage("repo"), 0);
     }
@@ -550,8 +560,8 @@ fn ctrl_c_during_autocreation_rolls_back_both_new_objects_until_link_commit() {
         );
 
         if present {
-            assert_eq!(queue.state("job"), "queued");
-            assert_eq!(queue.usage("cpu"), 0);
+            assert_eq!(queue.state("job"), "running");
+            assert_eq!(queue.usage("cpu"), 1);
         }
     }
 }
@@ -666,5 +676,189 @@ fn ctrl_c_while_waiting_for_sqlite_lock_leaves_the_owner_transaction_intact() {
     assert_eq!(queue.call(&["task", "list"]), "- owner");
     assert_eq!(queue.state("owner"), "registered");
     queue.task("waiting", &["cpu"]);
-    assert_eq!(queue.state("waiting"), "queued");
+    assert_eq!(queue.state("waiting"), "running");
+}
+
+#[test]
+fn ctrl_c_batch_links_never_keep_partial_tasks_or_resources() {
+    for task_batch in [false, true] {
+        for (stage, hit, committed) in [
+            ("sqlite.after-task-update", 1, false),
+            ("sqlite.after-task-update", 2, false),
+            ("sqlite.after-membership-write", 2, false),
+            ("sqlite.before-commit", 1, false),
+            ("sqlite.after-commit", 1, true),
+            ("cli.after-link", 1, true),
+        ] {
+            let queue = Queue::new();
+            resources(&queue);
+            queue.task("first", &[]);
+            queue.task("second", &[]);
+            let args = if task_batch {
+                vec!["topic", "link", "cpu", "second", "first"]
+            } else {
+                vec!["task", "link", "first", "cpu", "repo"]
+            };
+
+            InterruptProcess::spawn(&queue, &args, stage, hit).interrupt();
+
+            assert_eq!(
+                queue.state("first"),
+                if committed { "running" } else { "registered" }
+            );
+            assert_eq!(
+                queue.state("second"),
+                if committed && task_batch {
+                    "queued"
+                } else {
+                    "registered"
+                }
+            );
+            assert_eq!(queue.usage("cpu"), i64::from(committed));
+            assert_eq!(queue.usage("repo"), i64::from(committed && !task_batch));
+            let output = queue.call(&["task", "first"]);
+            assert_eq!(output.contains("- cpu"), committed);
+            assert_eq!(output.contains("- repo"), committed && !task_batch);
+        }
+    }
+}
+
+#[test]
+fn ctrl_c_capacity_change_rolls_back_all_automatic_promotions_before_commit() {
+    for (stage, hit, committed) in [
+        ("sqlite.after-topic-write", 1, false),
+        ("sqlite.after-task-update", 1, false),
+        ("sqlite.after-task-update", 2, false),
+        ("sqlite.before-commit", 1, false),
+        ("sqlite.after-commit", 1, true),
+    ] {
+        let queue = Queue::new();
+        queue.topic("cpu");
+        for name in ["owner", "second", "third"] {
+            queue.task(name, &["cpu"]);
+        }
+
+        InterruptProcess::spawn(&queue, &["topic", "capacity", "cpu", "3"], stage, hit).interrupt();
+
+        assert_eq!(
+            queue.call(&["topic", "capacity", "cpu"]),
+            if committed { "3" } else { "1" }
+        );
+        for name in ["second", "third"] {
+            assert_eq!(
+                queue.state(name),
+                if committed { "running" } else { "queued" }
+            );
+        }
+        assert_eq!(queue.usage("cpu"), if committed { 3 } else { 1 });
+    }
+}
+
+#[test]
+fn ctrl_c_explicit_start_keeps_the_stopped_task_or_commits_all_slots() {
+    for (stage, committed) in [
+        ("sqlite.after-task-update", false),
+        ("sqlite.after-membership-write", false),
+        ("sqlite.before-commit", false),
+        ("sqlite.after-commit", true),
+        ("cli.after-admission", true),
+    ] {
+        let queue = Queue::new();
+        resources(&queue);
+        queue.call(&["task", "create", "job", "-t", "cpu", "-t", "repo", "--stop"]);
+
+        InterruptProcess::spawn(&queue, &["task", "job", "start", "-wc"], stage, 1).interrupt();
+
+        assert_eq!(
+            queue.state("job"),
+            if committed { "running" } else { "queued" }
+        );
+        assert_eq!(queue.usage("cpu"), i64::from(committed));
+        assert_eq!(queue.usage("repo"), i64::from(committed));
+        if !committed {
+            queue.call(&["topic", "cpu", "autostart"]);
+            assert_eq!(queue.state("job"), "queued");
+        }
+    }
+}
+
+#[test]
+fn ctrl_c_start_wait_does_not_enable_a_stopped_task_or_release_the_owner() {
+    let queue = Queue::new();
+    resources(&queue);
+    owned(&queue, "owner");
+    queue.call(&["task", "create", "job", "-t", "cpu", "-t", "repo", "--stop"]);
+
+    InterruptProcess::spawn(&queue, &["task", "job", "start", "-wc"], "cli.waiting", 1).interrupt();
+
+    assert_eq!(queue.state("job"), "queued");
+    assert_eq!(queue.state("owner"), "running");
+    queue.call(&["task", "complete", "owner"]);
+    assert_eq!(queue.state("job"), "queued");
+    assert_eq!(queue.usage("cpu"), 0);
+    assert_eq!(queue.usage("repo"), 0);
+}
+
+#[test]
+fn ctrl_c_topic_autostart_and_its_promotions_share_one_commit() {
+    for (stage, committed) in [
+        ("sqlite.after-topic-write", false),
+        ("sqlite.after-task-update", false),
+        ("sqlite.before-commit", false),
+        ("sqlite.after-commit", true),
+    ] {
+        let queue = Queue::new();
+        queue.topic("cpu");
+        queue.call(&["topic", "cpu", "autostart", "off"]);
+        queue.task("job", &["cpu"]);
+
+        InterruptProcess::spawn(&queue, &["topic", "cpu", "autostart"], stage, 1).interrupt();
+
+        assert_eq!(
+            queue.state("job"),
+            if committed { "running" } else { "queued" }
+        );
+        assert_eq!(queue.usage("cpu"), i64::from(committed));
+        let connection = rusqlite::Connection::open(&queue.db).unwrap();
+        let enabled: bool = connection
+            .query_row("SELECT autostart FROM topics WHERE name='cpu'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(enabled, committed);
+    }
+}
+
+#[test]
+fn ctrl_c_schema_upgrade_preserves_the_old_or_whole_new_schema_and_ownership() {
+    for (stage, committed) in [
+        ("sqlite.schema.before-commit", false),
+        ("sqlite.schema.after-commit", true),
+    ] {
+        let queue = Queue::new();
+        let connection = rusqlite::Connection::open(&queue.db).unwrap();
+        connection
+            .execute_batch(include_str!(
+                "../../../features/queue/impl/sqlite/src/tests/schema_v2.sql"
+            ))
+            .unwrap();
+        drop(connection);
+
+        InterruptProcess::spawn(&queue, &["task", "list"], stage, 1).interrupt();
+
+        let connection = rusqlite::Connection::open(&queue.db).unwrap();
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, if committed { 3 } else { 2 });
+        assert_eq!(queue.state("owner"), "running");
+        assert_eq!(queue.state("next"), "queued");
+        assert_eq!(queue.usage("cpu"), 1);
+        drop(connection);
+
+        queue.call(&["task", "complete", "owner"]);
+
+        assert_eq!(queue.state("next"), "running");
+        assert_eq!(queue.usage("repo"), 1);
+    }
 }

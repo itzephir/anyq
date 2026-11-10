@@ -26,7 +26,7 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(storage)?;
 
-    if version != 0 && version != 2 {
+    if version != 0 && version != 2 && version != 3 {
         return Err(Error::Storage(format!(
             "unsupported database schema version {version}; choose a separate database with --db"
         )));
@@ -95,10 +95,18 @@ impl Sqlite {
         let tx = begin_transaction(&connection, &cancelled, LOCK_TIMEOUT)?;
 
         // Another opener may have initialized the database since the read-only check.
-        if compatible_version(&tx)? == 0 {
-            tx.execute_batch(include_str!("schema.sql"))
-                .map_err(storage)?;
-            tx.pragma_update(None, "user_version", 2).map_err(storage)?;
+        match compatible_version(&tx)? {
+            0 => {
+                tx.execute_batch(include_str!("schema.sql"))
+                    .map_err(storage)?;
+                tx.pragma_update(None, "user_version", 3).map_err(storage)?;
+            }
+            2 => {
+                tx.execute_batch(include_str!("migrate_v2.sql"))
+                    .map_err(storage)?;
+                tx.pragma_update(None, "user_version", 3).map_err(storage)?;
+            }
+            _ => {}
         }
 
         checkpoint("sqlite.schema.before-commit", &cancelled)?;

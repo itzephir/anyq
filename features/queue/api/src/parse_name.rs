@@ -19,6 +19,8 @@ pub fn parse_name(input: &str) -> Result<String> {
                 | "capacity"
                 | "link"
                 | "add"
+                | "start"
+                | "autostart"
                 | "wait"
                 | "complete"
                 | "config"

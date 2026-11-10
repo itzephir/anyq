@@ -1,7 +1,7 @@
 use super::{Commands, ConfigCommand, TaskCommand, TopicCommand, config_action::ConfigAction};
 use crate::error::{Error, Result};
 use anyq_config_api::{ConfigKey, ConfigValue, SetConfigRequest};
-use anyq_queue_api::{RegisterTaskRequest, Topic};
+use anyq_queue_api::{RegisterTaskRequest, StartPreference, Topic};
 
 /// Parsed CLI syntax, routed only in the outer composition root.
 pub enum Request {
@@ -19,6 +19,10 @@ pub enum Request {
     },
     CreateTopic(Topic),
     SetTopicCapacity(Topic),
+    SetTopicAutostart {
+        name: String,
+        enabled: bool,
+    },
     RegisterTask {
         request: RegisterTaskRequest,
         wait: bool,
@@ -26,7 +30,18 @@ pub enum Request {
     },
     LinkTask {
         name: String,
+        topics: Vec<String>,
+        wait: bool,
+        complete: bool,
+    },
+    LinkTasks {
+        names: Vec<String>,
         topic: String,
+        wait: bool,
+        complete: bool,
+    },
+    StartTask {
+        name: String,
         wait: bool,
         complete: bool,
     },
@@ -100,17 +115,23 @@ impl TryFrom<Commands> for Request {
                         capacity: None,
                     }),
                 ) => Ok(Self::GetTopicCapacity { name }),
+                (false, None, Some(TopicCommand::Autostart { name, value })) => {
+                    Ok(Self::SetTopicAutostart {
+                        name,
+                        enabled: value == "on",
+                    })
+                }
                 (
                     false,
                     None,
                     Some(TopicCommand::Link {
                         topic,
-                        name,
+                        names,
                         wait,
                         complete,
                     }),
-                ) => Ok(Self::LinkTask {
-                    name,
+                ) => Ok(Self::LinkTasks {
+                    names,
                     topic,
                     wait,
                     complete,
@@ -128,11 +149,26 @@ impl TryFrom<Commands> for Request {
                     Some(TaskCommand::Create {
                         name,
                         topics,
+                        start,
+                        stop,
+                        switch_start,
                         wait,
                         complete,
                     }),
                 ) => Ok(Self::RegisterTask {
-                    request: RegisterTaskRequest { name, topics },
+                    request: RegisterTaskRequest {
+                        name,
+                        topics,
+                        start: if start {
+                            StartPreference::Start
+                        } else if stop {
+                            StartPreference::Stop
+                        } else if switch_start {
+                            StartPreference::Toggle
+                        } else {
+                            StartPreference::Default
+                        },
+                    },
                     wait,
                     complete,
                 }),
@@ -141,13 +177,26 @@ impl TryFrom<Commands> for Request {
                     None,
                     Some(TaskCommand::Link {
                         name,
-                        topic,
+                        topics,
                         wait,
                         complete,
                     }),
                 ) => Ok(Self::LinkTask {
                     name,
-                    topic,
+                    topics,
+                    wait,
+                    complete,
+                }),
+                (
+                    false,
+                    None,
+                    Some(TaskCommand::Start {
+                        name,
+                        wait,
+                        complete,
+                    }),
+                ) => Ok(Self::StartTask {
+                    name,
                     wait,
                     complete,
                 }),

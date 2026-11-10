@@ -4,6 +4,7 @@ use crate::{Error, Result, parse_topic_name};
 pub struct Topic {
     pub name: String,
     pub capacity: u32,
+    pub autostart: Option<bool>,
 }
 
 impl Topic {
@@ -19,7 +20,11 @@ impl Topic {
             return Err(Error::Invalid("capacity must be positive".into()));
         }
 
-        Ok(Self { name, capacity })
+        Ok(Self {
+            name,
+            capacity,
+            autostart: None,
+        })
     }
 
     pub fn require_capacity_for(&self, running: u64) -> Result<()> {

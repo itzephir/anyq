@@ -9,6 +9,12 @@ mod output_regressions;
 #[path = "support/cli_extensions.rs"]
 mod cli_extensions;
 
+#[path = "support/automatic_admission.rs"]
+mod automatic_admission;
+
+#[path = "support/autostart.rs"]
+mod autostart;
+
 use rusqlite::Connection;
 use std::{
     fs,
@@ -31,7 +37,10 @@ fn bare_and_backtick_wrapped_names_share_registration_links_and_lookup() {
     assert_eq!(q.call(&["topic", "-l"]), "- cpu");
     assert_eq!(q.call(&["task", "-l"]), "- build");
     assert_eq!(q.raw(&["task", "create", "build"]).status.code(), Some(2));
-    q.call(&["task", "link", "build", "cpu"]);
+    assert_eq!(
+        q.raw(&["task", "link", "build", "cpu"]).status.code(),
+        Some(2)
+    );
     q.call(&["task", "wait", "`build`"]);
 
     assert_eq!(
@@ -120,8 +129,8 @@ fn topic_and_task_inspection_show_state_capacity_and_only_current_queue_entries(
         "capacity of 'cpu' set to 2"
     );
     assert_eq!(q.call(&["topic", "capacity", "cpu"]), "2");
-    assert_eq!(q.usage("cpu"), 1);
-    assert_eq!(q.state("a-queued"), "queued");
+    assert_eq!(q.usage("cpu"), 2);
+    assert_eq!(q.state("a-queued"), "running");
 
     for command in [
         vec!["topic", "missing"],
@@ -146,7 +155,7 @@ fn task_names_can_be_inspected_with_a_separator_and_global_database_option() {
 
     assert_eq!(
         q.call(&["task", "--", "`add`"]),
-        "task: `add`\nstatus: queued\ntopics:\n- cpu"
+        "task: `add`\nstatus: running\ntopics:\n- cpu"
     );
 
     let output = TestProcess::spawn(
@@ -164,13 +173,14 @@ fn task_names_can_be_inspected_with_a_separator_and_global_database_option() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("status: queued"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("status: running"));
 }
 
 #[test]
 fn both_link_forms_share_membership_idempotency_and_state_errors() {
     let q = Queue::new();
     q.topic("cpu");
+    q.task("owner", &["cpu"]);
     q.task("build", &[]);
     let commands = [
         ["topic", "link", "cpu", "build"],
@@ -182,7 +192,8 @@ fn both_link_forms_share_membership_idempotency_and_state_errors() {
     }
 
     assert_eq!(q.state("build"), "queued");
-    assert_eq!(q.usage("cpu"), 0);
+    assert_eq!(q.usage("cpu"), 1);
+    q.call(&["task", "complete", "owner"]);
     q.call(&["task", "wait", "build"]);
     assert_eq!(q.usage("cpu"), 1);
 
@@ -226,11 +237,11 @@ fn short_options_and_initial_topics_preserve_capacity_and_manual_ownership() {
             ]),
             format!("successfully registered task '{name}'")
         );
-        assert_eq!(q.state(name), "queued");
+        assert_eq!(q.state(name), "running");
     }
 
-    assert_eq!(q.usage("cpu"), 0);
-    assert_eq!(q.usage("repo"), 0);
+    assert_eq!(q.usage("cpu"), 2);
+    assert_eq!(q.usage("repo"), 2);
     q.call(&["task", "wait", "a"]);
     q.call(&["task", "wait", "b"]);
     assert_eq!(q.usage("cpu"), 2);
@@ -436,20 +447,22 @@ fn native_lifecycle_matches_the_user_protocol() {
     assert_eq!(unstarted.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&unstarted.stderr).contains("'my-task' was not run"));
 
-    for topic in ["itzdesign-commands", "itzdesign-repo-lock"] {
-        assert_eq!(
-            q.call(&["topic", "link", topic, "my-task"]),
-            format!("successfully added 'my-task' to topic '{topic}'")
-        );
-    }
-
-    q.call(&["topic", "link", "itzdesign-commands", "my-task"]);
-    assert_eq!(q.usage("itzdesign-commands"), 0);
+    assert_eq!(
+        q.call(&[
+            "task",
+            "link",
+            "my-task",
+            "itzdesign-commands",
+            "itzdesign-repo-lock"
+        ]),
+        "successfully added 'my-task' to topic 'itzdesign-commands'\nsuccessfully added 'my-task' to topic 'itzdesign-repo-lock'"
+    );
+    assert_eq!(q.usage("itzdesign-commands"), 1);
     assert_eq!(q.call(&["task", "wait", "my-task"]), "'my-task' started");
     assert_eq!(q.state("my-task"), "running");
     assert_eq!(q.usage("itzdesign-commands"), 1);
     assert_eq!(q.usage("itzdesign-repo-lock"), 1);
-    assert!(!q.raw(&["task", "wait", "my-task"]).status.success());
+    assert!(q.raw(&["task", "wait", "my-task"]).status.success());
     assert!(
         !q.raw(&["topic", "link", "pixel-10-emulator", "my-task"])
             .status
@@ -552,17 +565,22 @@ fn forced_completion_while_waiting_returns_error_instead_of_admission() {
 }
 
 #[test]
-fn two_processes_waiting_for_one_name_only_receive_one_permission() {
+fn two_processes_and_repeated_wait_observe_the_same_running_task() {
     let q = Queue::new();
     q.topic("cpu");
+    q.task("owner", &["cpu"]);
     q.task("build", &["cpu"]);
 
     let first = q.spawn_wait("build", "first");
     let second = q.spawn_wait("build", "second");
+    q.wait_for_log("first", "waiting for 'build'");
+    q.wait_for_log("second", "waiting for 'build'");
+    q.call(&["task", "complete", "owner"]);
     let mut codes = [first.output().status.code(), second.output().status.code()];
     codes.sort();
 
-    assert_eq!(codes, [Some(0), Some(2)]);
+    assert_eq!(codes, [Some(0), Some(0)]);
+    q.call(&["task", "wait", "build"]);
     assert_eq!(q.state("build"), "running");
     assert_eq!(q.usage("cpu"), 1);
 }
@@ -572,13 +590,14 @@ fn crossing_topic_links_use_global_task_order_across_processes() {
     let q = Queue::new();
     q.topic("cpu");
     q.topic("repo");
+    q.task("owner", &["cpu"]);
     q.task("first", &["cpu"]);
-    q.task("second", &["repo"]);
-    q.call(&["topic", "link", "repo", "first"]);
-    q.call(&["topic", "link", "cpu", "second"]);
+    q.task("second", &["cpu"]);
+    q.call(&["topic", "link", "repo", "second", "first"]);
     let mut second = q.spawn_wait("second", "second");
     q.wait_for_log("second", "waiting for 'second'");
 
+    q.call(&["task", "complete", "owner"]);
     q.call(&["task", "wait", "first"]);
 
     second.assert_running();
@@ -798,7 +817,7 @@ fn incompatible_database_returns_a_clear_error_without_modifying_it() {
     let connection = Connection::open(&q.db).unwrap();
     connection
         .execute_batch(
-            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=3",
+            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=4",
         )
         .unwrap();
     drop(connection);

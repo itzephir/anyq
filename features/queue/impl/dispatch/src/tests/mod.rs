@@ -1,3 +1,5 @@
+mod autostart;
+mod batch;
 mod memory;
 mod memory_store;
 
@@ -14,6 +16,7 @@ fn create_topic(store: &MemoryStore, name: &str, capacity: u32) {
 fn register(store: &MemoryStore, name: &str) -> Task {
     RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            start: anyq_queue_api::StartPreference::Default,
             name: name.into(),
             topics: Vec::new(),
         })
@@ -26,16 +29,17 @@ fn add(store: &MemoryStore, name: &str, topic: &str) {
         .unwrap();
 }
 
-fn start(store: &MemoryStore, name: &str) -> Result<StartOutcome> {
-    TryStartTaskInteractor::new(store.clone()).try_start(name)
+fn check(store: &MemoryStore, name: &str) -> Result<bool> {
+    CheckTaskRunningInteractor::new(store.clone()).check_running(name)
 }
 
 #[test]
-fn registration_with_initial_topics_is_queued_without_ownership() {
+fn registration_with_initial_topics_automatically_acquires_all_resources() {
     let store = MemoryStore::default();
     create_topic(&store, "cpu", 1);
     create_topic(&store, "repo", 1);
     let request = RegisterTaskRequest {
+        start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["repo".into(), "cpu".into(), "cpu".into()],
     };
@@ -44,7 +48,7 @@ fn registration_with_initial_topics_is_queued_without_ownership() {
         .register(request.clone())
         .unwrap();
 
-    assert_eq!(task.state(), TaskState::Queued);
+    assert_eq!(task.state(), TaskState::Running);
     assert_eq!(task.topics(), &["cpu", "repo"]);
     assert_eq!(store.data.borrow().tasks, [task]);
     assert!(
@@ -52,7 +56,7 @@ fn registration_with_initial_topics_is_queued_without_ownership() {
             .register(request)
             .is_err()
     );
-    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Started);
+    assert!(check(&store, "build").unwrap());
 }
 
 #[test]
@@ -62,6 +66,7 @@ fn failed_initial_membership_leaves_no_registered_task_or_partial_links() {
     let before = store.data.borrow().clone();
 
     let missing = RegisterTaskInteractor::new(store.clone()).register(RegisterTaskRequest {
+        start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["cpu".into(), "missing".into()],
     });
@@ -72,6 +77,7 @@ fn failed_initial_membership_leaves_no_registered_task_or_partial_links() {
     store.data.borrow_mut().fail_save = true;
     let before_save = store.data.borrow().clone();
     let failed_save = RegisterTaskInteractor::new(store.clone()).register(RegisterTaskRequest {
+        start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["cpu".into()],
     });
@@ -86,7 +92,7 @@ fn listing_and_inspection_include_the_requested_states_without_changing_them() {
     create_topic(&store, "cpu", 1);
     register(&store, "running");
     add(&store, "running", "cpu");
-    start(&store, "running").unwrap();
+    check(&store, "running").unwrap();
     register(&store, "registered");
     register(&store, "queued");
     add(&store, "queued", "cpu");
@@ -131,6 +137,7 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
     assert!(
         RegisterTaskInteractor::new(store.clone())
             .register(RegisterTaskRequest {
+                start: anyq_queue_api::StartPreference::Default,
                 name: "build".into(),
                 topics: Vec::new()
             })
@@ -148,7 +155,7 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
     );
     assert_eq!(store.data.borrow().tasks[0], task);
     assert!(
-        start(&store, "build")
+        check(&store, "build")
             .unwrap_err()
             .to_string()
             .contains("not registered")
@@ -161,6 +168,7 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
     assert!(
         RegisterTaskInteractor::new(store.clone())
             .register(RegisterTaskRequest {
+                start: anyq_queue_api::StartPreference::Default,
                 name: "build".into(),
                 topics: Vec::new()
             })
@@ -179,24 +187,35 @@ fn crossed_membership_uses_global_registration_order_and_releases_all_resources(
     let store = MemoryStore::default();
     create_topic(&store, "cpu", 1);
     create_topic(&store, "repo", 1);
+    register(&store, "owner");
+    add(&store, "owner", "cpu");
     register(&store, "a");
     register(&store, "b");
     add(&store, "a", "cpu");
+    add(&store, "b", "cpu");
     add(&store, "b", "repo");
     add(&store, "a", "repo");
-    add(&store, "b", "cpu");
 
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
-    assert_eq!(start(&store, "a").unwrap(), StartOutcome::Started);
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
-    assert!(start(&store, "a").is_err());
+    assert!(!check(&store, "a").unwrap());
+    assert!(!check(&store, "b").unwrap());
+
+    CompleteTaskInteractor::new(store.clone())
+        .complete("owner", false)
+        .unwrap();
+
+    assert_eq!(store.data.borrow().tasks[1].state(), TaskState::Running);
+    assert_eq!(store.data.borrow().tasks[2].state(), TaskState::Queued);
+    let before = store.data.borrow().clone();
+    assert!(check(&store, "a").unwrap());
+    assert!(check(&store, "a").unwrap());
+    assert_eq!(*store.data.borrow(), before);
 
     CompleteTaskInteractor::new(store.clone())
         .complete("a", false)
         .unwrap();
 
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
-    assert_eq!(store.data.borrow().tasks[1].topics(), &["cpu", "repo"]);
+    assert_eq!(store.data.borrow().tasks[2].state(), TaskState::Running);
+    assert_eq!(store.data.borrow().tasks[2].topics(), &["cpu", "repo"]);
 }
 
 #[test]
@@ -206,13 +225,13 @@ fn an_unavailable_topic_leaves_the_whole_task_queued() {
     create_topic(&store, "repo", 1);
     register(&store, "owner");
     add(&store, "owner", "repo");
-    start(&store, "owner").unwrap();
+    check(&store, "owner").unwrap();
     register(&store, "build");
-    add(&store, "build", "cpu");
     add(&store, "build", "repo");
+    add(&store, "build", "cpu");
     let before = store.data.borrow().clone();
 
-    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Busy);
+    assert!(!check(&store, "build").unwrap());
 
     assert_eq!(*store.data.borrow(), before);
 }
@@ -227,10 +246,10 @@ fn capacity_two_allows_only_the_first_two_queued_tasks() {
         add(&store, name, "cpu");
     }
 
-    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Busy);
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
-    assert_eq!(start(&store, "a").unwrap(), StartOutcome::Started);
-    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Busy);
+    assert!(!check(&store, "c").unwrap());
+    assert!(check(&store, "b").unwrap());
+    assert!(check(&store, "a").unwrap());
+    assert!(!check(&store, "c").unwrap());
     assert!(
         SetTopicCapacityInteractor::new(store.clone())
             .set_capacity(Topic::new("cpu".into(), 1).unwrap())
@@ -241,7 +260,7 @@ fn capacity_two_allows_only_the_first_two_queued_tasks() {
         .complete("a", false)
         .unwrap();
 
-    assert_eq!(start(&store, "c").unwrap(), StartOutcome::Started);
+    assert!(check(&store, "c").unwrap());
     assert_eq!(store.data.borrow().topics[0].capacity, 2);
 }
 
@@ -249,9 +268,13 @@ fn capacity_two_allows_only_the_first_two_queued_tasks() {
 fn force_removes_an_unstarted_predecessor_and_stale_wait_cannot_start_it() {
     let store = MemoryStore::default();
     create_topic(&store, "cpu", 1);
+    create_topic(&store, "repo", 1);
+    register(&store, "owner");
+    add(&store, "owner", "repo");
     register(&store, "a");
-    register(&store, "b");
+    add(&store, "a", "repo");
     add(&store, "a", "cpu");
+    register(&store, "b");
     add(&store, "b", "cpu");
 
     assert!(
@@ -259,17 +282,17 @@ fn force_removes_an_unstarted_predecessor_and_stale_wait_cannot_start_it() {
             .complete("a", false)
             .is_err()
     );
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Busy);
+    assert!(!check(&store, "b").unwrap());
 
     CompleteTaskInteractor::new(store.clone())
         .complete("a", true)
         .unwrap();
 
-    assert!(start(&store, "a").is_err());
-    assert_eq!(start(&store, "b").unwrap(), StartOutcome::Started);
+    assert!(check(&store, "a").is_err());
+    assert_eq!(store.data.borrow().tasks[2].state(), TaskState::Running);
     assert!(
         AddTaskToTopicInteractor::new(store.clone())
-            .add("b", "cpu")
+            .add("b", "repo")
             .is_err()
     );
 }
@@ -278,41 +301,52 @@ fn force_removes_an_unstarted_predecessor_and_stale_wait_cannot_start_it() {
 fn failed_saves_roll_back_admission_completion_and_membership() {
     let store = MemoryStore::default();
     create_topic(&store, "cpu", 1);
+    create_topic(&store, "repo", 1);
+    register(&store, "owner");
+    add(&store, "owner", "cpu");
     register(&store, "build");
     add(&store, "build", "cpu");
     store.data.borrow_mut().fail_save = true;
     let before = store.data.borrow().clone();
 
-    assert!(start(&store, "build").is_err());
+    assert!(!check(&store, "build").unwrap());
     assert_eq!(*store.data.borrow(), before);
     assert!(
         CompleteTaskInteractor::new(store.clone())
-            .complete("build", true)
+            .complete("owner", false)
             .is_err()
     );
     assert_eq!(*store.data.borrow(), before);
-
-    create_topic(&store, "repo", 1);
-    let before_add = store.data.borrow().clone();
-
     assert!(
         AddTaskToTopicInteractor::new(store.clone())
             .add("build", "repo")
             .is_err()
     );
-    assert_eq!(*store.data.borrow(), before_add);
+    assert_eq!(*store.data.borrow(), before);
 
     store.data.borrow_mut().fail_save = false;
-    assert_eq!(start(&store, "build").unwrap(), StartOutcome::Started);
-    store.data.borrow_mut().fail_save = true;
-    let running = store.data.borrow().clone();
+    store.data.borrow_mut().fail_task = Some("build".into());
+    let before_promotion = store.data.borrow().clone();
 
     assert!(
         CompleteTaskInteractor::new(store.clone())
-            .complete("build", false)
+            .complete("owner", false)
             .is_err()
     );
-    assert_eq!(*store.data.borrow(), running);
+    assert_eq!(*store.data.borrow(), before_promotion);
+    assert!(
+        SetTopicCapacityInteractor::new(store.clone())
+            .set_capacity(Topic::new("cpu".into(), 2).unwrap())
+            .is_err()
+    );
+    assert_eq!(*store.data.borrow(), before_promotion);
+
+    store.data.borrow_mut().fail_task = None;
+    CompleteTaskInteractor::new(store.clone())
+        .complete("owner", false)
+        .unwrap();
+
+    assert_eq!(store.data.borrow().tasks[1].state(), TaskState::Running);
 }
 
 #[test]
@@ -324,8 +358,8 @@ fn autocreate_changes_are_staged_with_the_primary_operation_and_rollback_on_save
     };
 
     assert!(
-        TryStartTaskInteractor::with_policy(store.clone(), policy)
-            .try_start("missing")
+        CheckTaskRunningInteractor::with_policy(store.clone(), policy)
+            .check_running("missing")
             .is_err()
     );
     assert!(
@@ -350,9 +384,9 @@ fn autocreate_changes_are_staged_with_the_primary_operation_and_rollback_on_save
         .add("job", "cpu")
         .unwrap();
 
-    assert_eq!(task.state(), TaskState::Queued);
+    assert_eq!(task.state(), TaskState::Running);
     assert_eq!(store.data.borrow().topics[0].capacity, 1);
-    assert_eq!(start(&store, "job").unwrap(), StartOutcome::Started);
+    assert!(check(&store, "job").unwrap());
 
     assert!(
         AddTaskToTopicInteractor::with_policy(store.clone(), policy)
