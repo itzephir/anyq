@@ -162,3 +162,15 @@ Desktop UI changes SHALL compare representative native screenshots with reviewed
 #### Scenario: Missing or changed golden
 - **WHEN** a required screenshot has no reviewed golden or differs beyond the documented tolerance
 - **THEN** CI fails and retains the actual image and visual difference for review without silently accepting a new baseline
+
+
+#### Scenario: Configured deterministic state
+- **WHEN** a screenshot case is verified or generated
+- **THEN** its fixtures, expected snapshot, source, preferences, viewport, selection, scroll, focus and fixed clock/timezone come from test configuration
+- **AND** two independent clean launches must produce identical pixels before verification or generation succeeds
+
+#### Scenario: Explicit verification and generation
+- **WHEN** the screenshot runner uses verify mode
+- **THEN** it compares against the reviewed golden and fails on a regression without updating the golden
+- **WHEN** the runner uses generate mode
+- **THEN** it writes a new deterministic golden for explicit review and repository commit

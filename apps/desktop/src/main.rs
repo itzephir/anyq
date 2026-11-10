@@ -15,7 +15,7 @@ mod test_driver;
 
 use anyq_desktop_api::PanelPreferences;
 use anyq_queue_api::{Error, ObserveQueueRequest};
-use controller::Controller;
+use controller::{Controller, DisplayClock};
 use std::{
     path::Path,
     sync::{
@@ -77,15 +77,30 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let observe = Arc::new(|path: &Path, cancelled: Arc<AtomicBool>| {
         anyq_daemon_impl::observe(path, cancelled)?.observe(ObserveQueueRequest::default())
     });
+    let clock: Arc<DisplayClock> = Arc::new(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|value| value.as_millis() as u64)
+            .unwrap_or_default()
+    });
+    #[cfg(feature = "integration-test-hooks")]
+    let clock: Arc<DisplayClock> = match test_driver::fixed_clock()? {
+        Some(timestamp) => Arc::new(move || timestamp),
+        None => clock,
+    };
     let controller = Arc::new(Controller::new(
         preferences,
         anyq_desktop_impl::set_preferences(&preference_path),
         resolve,
         observe,
+        clock,
     ));
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(controller.clone())
+        .manage(controller.clone());
+    #[cfg(feature = "integration-test-hooks")]
+    let builder = builder.plugin(test_driver::clock_plugin());
+    let app = builder
         .invoke_handler(tauri::generate_handler![
             commands::get_panel_state,
             commands::refresh_panel,

@@ -61,6 +61,7 @@ fn source_switch_rejects_late_data_coalesces_refresh_and_preserves_state_after_f
         Box::new(PreferenceWriter(failed.clone())),
         Arc::new(selection),
         observe,
+        Arc::new(|| 1735732800000),
     ));
     let worker_controller = controller.clone();
     let (published, received) = mpsc::channel();
@@ -97,6 +98,7 @@ fn source_switch_rejects_late_data_coalesces_refresh_and_preserves_state_after_f
     let session = controller.session();
     assert_eq!(session.model.generation, 2);
     assert_eq!(session.model.status, ConnectionState::Live);
+    assert_eq!(session.last_success, Some(1735732800000));
     assert_eq!(
         session.model.snapshot.as_ref().unwrap().topics[0].capacity,
         2
@@ -119,6 +121,7 @@ fn connection_failure_retains_a_complete_stale_snapshot_and_recovers() {
                 Ok(snapshot(1))
             }
         }),
+        Arc::new(|| 1735732800000),
     ));
     let worker_controller = controller.clone();
     let (published, received) = mpsc::channel();

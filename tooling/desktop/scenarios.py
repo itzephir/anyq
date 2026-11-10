@@ -3,41 +3,29 @@
 import json
 import os
 import sqlite3
-import subprocess
 import time
+from contextlib import closing
 from pathlib import Path
 
 from driver import Driver
-from screenshots import Screenshots
+from fixtures import Fixtures
+from screenshots import platform_name
 
 
-def run(cli, panel, home, output, goldens, update=False):
+def run(cli, panel, home, output, configuration):
     home = Path(home)
-    home.mkdir(parents=True, exist_ok=True)
-    database = home / "queue.db"
-    alternate = home / "other.db"
-    empty = home / "empty.db"
-    missing = home / "missing.db"
-    incompatible = home / "incompatible.db"
-    environment = os.environ | {
-        "HOME": str(home),
-        "USERPROFILE": str(home),
-        "ANYQ_DB": str(database),
-    }
+    fixtures = Fixtures(cli, home, configuration)
+    database = fixtures.create("primary")
+    alternate = fixtures.create("alternate")
+    empty = fixtures.create("empty")
+    missing = fixtures.create("missing")
+    incompatible = fixtures.create("incompatible")
 
     def call(*arguments, db=database):
-        result = subprocess.run(
-            [str(cli), "--db", str(db), *arguments],
-            env=environment,
-            text=True,
-            capture_output=True,
-            timeout=20,
-        )
-        assert result.returncode == 0, (arguments, result.stderr)
-        return result.stdout.strip()
+        return fixtures.call(list(arguments), db)
 
     def fingerprint(db):
-        with sqlite3.connect(db) as connection:
+        with closing(sqlite3.connect(db)) as connection:
             return {
                 table: connection.execute(
                     f"SELECT * FROM {table} ORDER BY 1"
@@ -45,32 +33,14 @@ def run(cli, panel, home, output, goldens, update=False):
                 for table in ("topics", "tasks", "task_topics")
             }
 
-    call("config", "task.autocreate", "true")
-    call("config", "topic.autocreate", "true")
-    for name, capacity in [
-        ("cpu", "4"),
-        ("repo", "1"),
-        ("emulator", "1"),
-        ("empty", "2"),
-        ("`данные`", "1"),
-    ]:
-        call("topic", "create", name, "-c", capacity)
-    hostile = "</button><img src=x onerror='window.injected=1'>"
-    call("topic", "create", f"`{hostile}`")
-    call("task", "create", "build-ui", "-t", "cpu", "-t", "repo")
-    call("task", "create", "lint-tests", "-t", "cpu")
-    call("task", "create", "release-preview", "-t", "cpu", "-t", "repo")
-    call("task", "create", "manual-check", "-t", "emulator", "--stop")
-    call("task", "create", "``", "-t", "emulator", "--stop")
-    call("topic", "create", "cpu", "-c", "2", db=alternate)
-    call("topic", "create", "repo", "-c", "3", db=alternate)
-    call("task", "create", "build-ui", "-t", "cpu", "--stop", db=alternate)
-    call("daemon", "start", db=empty)
-    incompatible.write_bytes(b"not an anyq SQLite database\n")
-    (home / ".anyq/panel.toml").write_text('theme = "dark"\nlanguage = "en"\n')
+    hostile = configuration["fixtures"]["primary"]["commands"][5][2][1:-1]
+    (home / ".anyq/panel.toml").write_text(
+        'theme = "dark"\nlanguage = "en"\n', encoding="utf-8"
+    )
     original = fingerprint(database)
-    driver = Driver(panel, home, database)
-    screenshots = Screenshots(output, goldens, update)
+    driver = Driver(panel, home, database, configuration["clock_ms"])
+    platform = platform_name()
+    (Path(output) / platform).mkdir(parents=True, exist_ok=True)
 
     def ui(script):
         return driver.call(script)["payload"].get("value")
@@ -102,6 +72,7 @@ def run(cli, panel, home, output, goldens, update=False):
     try:
         driver.start()
         state = driver.state()
+        original_frame = state
         assert state["source"] == "environment"
         assert state["snapshot"]["running"] == 2
         assert state["snapshot"]["queued"] == 3
@@ -116,12 +87,10 @@ def run(cli, panel, home, output, goldens, update=False):
         ui(
             "[...document.querySelectorAll('[data-topic]')].find(el=>el.querySelector('.topic-name').textContent==='cpu').click();"
         )
-        screenshots.capture(driver, "main-dark-en")
         driver.click('[data-task="1"]')
         driver.wait(
             "return JSON.stringify([...document.querySelectorAll('.resource-tags > span')].map(el=>el.textContent)) === '[\"cpu\",\"repo\"]';"
         )
-        screenshots.capture(driver, "details-dark-en")
         driver.fill("#task-search", "release")
         assert ui("return document.querySelectorAll('[data-task]').length;") == 1
         driver.fill("#task-search", "")
@@ -141,28 +110,22 @@ def run(cli, panel, home, output, goldens, update=False):
             "return [...document.querySelectorAll('.compact-counts strong')].map(el=>Number(el.textContent));",
             "compact",
         )["payload"]["value"] == [2, 3]
-        screenshots.capture(driver, "compact-dark-en", "compact")
         driver.click("#open-main", "compact")
         source(None, language="ru", theme="light")
         driver.wait(
             "return document.documentElement.lang==='ru' && document.documentElement.dataset.theme==='light';"
         )
-        screenshots.capture(driver, "main-light-ru")
         settings()
-        screenshots.capture(driver, "settings-light-ru")
         driver.click("#cancel")
         source(empty)
         assert driver.state()["snapshot"]["topics"] == []
-        screenshots.capture(driver, "empty-light-ru")
         source(missing, "error")
         assert driver.state()["snapshot"] is None
         assert driver.state()["error_kind"] == "missing"
         assert not missing.exists()
-        screenshots.capture(driver, "missing-light-ru")
         source(incompatible, "error")
         assert driver.state()["error_kind"] == "incompatible"
         assert incompatible.read_bytes() == b"not an anyq SQLite database\n"
-        screenshots.capture(driver, "incompatible-light-ru")
         source(None, language="en", theme="dark")
         assert fingerprint(database) == original, (
             "Read-only UI actions changed queue state"
@@ -182,7 +145,6 @@ def run(cli, panel, home, output, goldens, update=False):
                 "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='stale';"
             )
             assert driver.state()["snapshot"]["running"] == 2
-            screenshots.capture(driver, "stale-dark-en")
         finally:
             paused.rename(database)
         driver.wait(
@@ -202,9 +164,8 @@ def run(cli, panel, home, output, goldens, update=False):
         driver.wait(
             "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='live';"
         )
-        driver.call(native="resize", width=360, height=650)
-        screenshots.capture(driver, "narrow-dark-en")
-        driver.call(native="resize", width=1000, height=700)
+        driver.resize(360, 650)
+        driver.resize(1000, 700)
         ui(
             "[...document.querySelectorAll('[data-topic]')].find(el=>el.querySelector('.topic-name').textContent==='cpu').click();"
         )
@@ -216,9 +177,8 @@ def run(cli, panel, home, output, goldens, update=False):
         driver.wait(
             "return !document.querySelector('[data-task=\"1\"]') && !document.querySelector('.detail');"
         )
-        screenshots.capture(driver, "completion-dark-en")
         after_completion = fingerprint(database)
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection, connection:
             connection.executemany(
                 "INSERT INTO topics(name,capacity) VALUES (?,1)",
                 [(f"limit-{index}",) for index in range(10_001)],
@@ -230,7 +190,7 @@ def run(cli, panel, home, output, goldens, update=False):
             )
             assert len(driver.state()["snapshot"]["topics"]) == 6
         finally:
-            with sqlite3.connect(database) as connection:
+            with closing(sqlite3.connect(database)) as connection, connection:
                 connection.execute("DELETE FROM topics WHERE name LIKE 'limit-%'")
         driver.wait(
             "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='live';"
@@ -239,8 +199,19 @@ def run(cli, panel, home, output, goldens, update=False):
         source(alternate)
         assert driver.state()["snapshot"]["running"] == 0
         assert driver.state()["snapshot"]["queued"] == 1
-        screenshots.capture(driver, "source-switch-dark-en")
         source_path = driver.state()["path"]
+        driver.call(native="publish-state", payload=original_frame)
+        assert (
+            ui("return document.querySelector('.source-path').textContent;")
+            == source_path
+        )
+        assert (
+            ui(
+                "return document.querySelector('.stat strong').textContent.replace(/\\s/g,'');"
+            )
+            == "0/2"
+        )
+
         alternate_before = fingerprint(alternate)
         driver.stop()
         assert "running" in call("daemon", "status", db=alternate)
@@ -265,7 +236,7 @@ def run(cli, panel, home, output, goldens, update=False):
             driver.process.wait(timeout=10)
         assert "running" in call("daemon", "status")
         assert fingerprint(database) == after_completion
-        (Path(output) / screenshots.platform / "integration.json").write_text(
+        (Path(output) / platform / "integration.json").write_text(
             json.dumps(
                 {
                     "result": "passed",
@@ -286,6 +257,7 @@ def run(cli, panel, home, output, goldens, update=False):
                         "concurrent-completion",
                         "oversized-response",
                         "source-switch",
+                        "late-native-frame-rejected",
                         "preference-restart-reset",
                         "close-reopen-quit",
                         "ownership-preserved",
@@ -295,7 +267,6 @@ def run(cli, panel, home, output, goldens, update=False):
             )
             + "\n"
         )
-        screenshots.finish()
     finally:
         if driver.process and driver.process.poll() is None:
             driver.process.terminate()
@@ -306,5 +277,4 @@ def run(cli, panel, home, output, goldens, update=False):
         (Path(output) / "panel.log").write_bytes(
             (home / "panel.log").read_bytes() if (home / "panel.log").exists() else b""
         )
-        for db in (database, alternate, empty):
-            call("daemon", "stop", db=db)
+        fixtures.stop()

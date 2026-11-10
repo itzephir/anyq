@@ -8,10 +8,11 @@ use std::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 pub type ResolveDatabase = dyn Fn(&PanelPreferences) -> Result<DatabaseSelection> + Send + Sync;
+pub type DisplayClock = dyn Fn() -> u64 + Send + Sync;
 pub type ObserveSnapshot = dyn Fn(&Path, Arc<AtomicBool>) -> Result<QueueSnapshot> + Send + Sync;
 
 pub struct Controller {
@@ -20,6 +21,7 @@ pub struct Controller {
     writer: Mutex<Box<dyn SetPanelPreferences>>,
     resolve: Arc<ResolveDatabase>,
     observe: Arc<ObserveSnapshot>,
+    clock: Arc<DisplayClock>,
 }
 
 impl Controller {
@@ -28,6 +30,7 @@ impl Controller {
         writer: Box<dyn SetPanelPreferences>,
         resolve: Arc<ResolveDatabase>,
         observe: Arc<ObserveSnapshot>,
+        clock: Arc<DisplayClock>,
     ) -> Self {
         let (preferences, preference_error) = match preferences {
             Ok(preferences) => (preferences, None),
@@ -39,6 +42,7 @@ impl Controller {
         Self {
             session: Mutex::new(PanelSession {
                 model,
+                revision: 0,
                 preferences,
                 selection: None,
                 preference_error,
@@ -53,6 +57,7 @@ impl Controller {
             writer: Mutex::new(writer),
             resolve,
             observe,
+            clock,
         }
     }
 
@@ -88,6 +93,7 @@ impl Controller {
         let changed = session.preferences.database_override != preferences.database_override
             || session.preference_error.is_some();
         session.preferences = preferences;
+        session.revision += 1;
         session.preference_error = None;
         if changed {
             if let Some(cancelled) = &session.active_cancel {
@@ -157,6 +163,7 @@ impl Controller {
                     {
                         // Automatic config changes are source changes too.
                         session.model.change_source();
+                        session.revision += 1;
                         session.selection = Some(selection.clone());
                         session.last_success = None;
                         session.refresh = true;
@@ -172,18 +179,18 @@ impl Controller {
 
             let mut session = self.session();
             session.active_cancel = None;
-            match result {
+            let accepted = match result {
                 Ok(snapshot) => {
-                    if session.model.accept(generation, snapshot) {
-                        session.last_success = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .ok()
-                            .map(|time| time.as_millis() as u64);
+                    let accepted = session.model.accept(generation, snapshot);
+                    if accepted {
+                        session.last_success = Some((self.clock)());
                     }
+                    accepted
                 }
-                Err(error) => {
-                    session.model.fail(generation, error.to_string());
-                }
+                Err(error) => session.model.fail(generation, error.to_string()),
+            };
+            if accepted {
+                session.revision += 1;
             }
             session.next_poll =
                 Instant::now() + Duration::from_secs(if session.visible { 1 } else { 5 });

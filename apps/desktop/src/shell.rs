@@ -165,10 +165,7 @@ fn show_compact(app: &tauri::AppHandle, position: tauri::PhysicalPosition<f64>, 
     if let Ok(Some(monitor)) = window.monitor_from_point(position.x, position.y) {
         let scale = monitor.scale_factor();
         let bounds = monitor.work_area();
-        let size = window.outer_size().unwrap_or(tauri::PhysicalSize::new(
-            (380.0 * scale) as u32,
-            (355.0 * scale) as u32,
-        ));
+        let size = tauri::LogicalSize::new(380.0, 355.0).to_physical::<u32>(scale);
         let origin = rect.position.to_physical::<f64>(scale);
         let icon_size = rect.size.to_physical::<f64>(scale);
         let margin = (8.0 * scale) as i32;

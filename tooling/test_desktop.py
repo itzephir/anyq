@@ -1,36 +1,42 @@
 #!/usr/bin/env python3
-"""Run integration and reviewed native screenshot scenarios on every desktop OS."""
+"""Run configured native integration and deterministic verify/generate screenshot cases."""
 
 import argparse
+import importlib
+import json
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "desktop"))
 
-from importlib import import_module
-
-run = import_module("scenarios").run
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", type=Path, required=True)
     parser.add_argument("--panel", type=Path, required=True)
+    parser.add_argument("--mode", choices=("verify", "generate"), default="verify")
+    parser.add_argument(
+        "--config", type=Path, default=Path("tests/desktop/config.json")
+    )
     parser.add_argument("--output", type=Path, default=Path("desktop-test-results"))
     parser.add_argument("--goldens", type=Path, default=Path("tests/desktop/goldens"))
-    parser.add_argument("--update-goldens", action="store_true")
     arguments = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="anyq-desktop-e2e-") as home:
-        run(
-            arguments.cli.resolve(),
-            arguments.panel.resolve(),
-            home,
-            arguments.output.resolve(),
-            arguments.goldens.resolve(),
-            arguments.update_goldens,
+    configuration = json.loads(arguments.config.read_text(encoding="utf-8"))
+    assert configuration["version"] == 1 and configuration["timezone"] == "UTC"
+    cli, panel, output = (
+        arguments.cli.resolve(),
+        arguments.panel.resolve(),
+        arguments.output.resolve(),
+    )
+    with tempfile.TemporaryDirectory(prefix="anyq-desktop-integration-") as home:
+        importlib.import_module("scenarios").run(
+            cli, panel, home, output, configuration
         )
-    print("Native integration and screenshot scenarios passed")
+    importlib.import_module("visual_cases").run(
+        cli, panel, output, arguments.goldens.resolve(), configuration, arguments.mode
+    )
+    print(f"Native integration and deterministic screenshot {arguments.mode} passed")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,74 @@
+name: Native desktop UI baseline
+on:
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        default: verify
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Verify reviewed goldens or generate new review artifacts
+        type: choice
+        default: verify
+        options: [verify, generate]
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native UI & screenshots (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux
+          - os: macos-15
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      SCREENSHOT_MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-ui-${{ matrix.os }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r tooling/requirements-desktop.txt
+      - name: Verify screenshot comparison contracts
+        run: python -m unittest discover -s tooling/desktop -p '*_test.py'
+      - name: Linux graphical session
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev librsvg2-dev patchelf xvfb dbus-x11 openbox
+      - name: Build real client and native test application
+        run: cargo build --locked -p anyq -p anyq-desktop --features anyq-desktop/integration-test-hooks,anyq-desktop/custom-protocol
+      - name: Native Linux integration and screenshot scenarios
+        if: runner.os == 'Linux'
+        env:
+          GDK_BACKEND: x11
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+        run: dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1080x24 -dpi 96' sh -c 'openbox >/tmp/anyq-openbox.log 2>&1 & python tooling/test_desktop.py --cli target/debug/anyq --panel target/debug/anyq-panel --mode "$SCREENSHOT_MODE"'
+      - name: Native macOS integration and screenshot scenarios
+        if: runner.os == 'macOS'
+        run: python tooling/test_desktop.py --cli target/debug/anyq --panel target/debug/anyq-panel --mode "$SCREENSHOT_MODE"
+      - name: Native Windows integration and screenshot scenarios
+        if: runner.os == 'Windows'
+        run: python tooling/test_desktop.py --cli target/debug/anyq.exe --panel target/debug/anyq-panel.exe --mode $env:SCREENSHOT_MODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-ui-${{ matrix.os }}
+          path: desktop-test-results/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: inputs.mode == 'generate'
+        with:
+          name: desktop-goldens-${{ matrix.platform }}
+          path: tests/desktop/goldens/${{ matrix.platform }}/
+          if-no-files-found: error

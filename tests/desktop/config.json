@@ -1,0 +1,403 @@
+{
+  "version": 1,
+  "clock_ms": 1735732800000,
+  "timezone": "UTC",
+  "shared_config_commands": [
+    ["config", "task.autocreate", "true"],
+    ["config", "topic.autocreate", "true"]
+  ],
+  "fixtures": {
+    "primary": {
+      "file": "queue.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "cpu", "-c", "4"],
+        ["topic", "create", "repo", "-c", "1"],
+        ["topic", "create", "emulator", "-c", "1"],
+        ["topic", "create", "empty", "-c", "2"],
+        ["topic", "create", "`данные`", "-c", "1"],
+        [
+          "topic",
+          "create",
+          "`</button><img src=x onerror='window.injected=1'>`",
+          "-c",
+          "1"
+        ],
+        ["task", "create", "build-ui", "-t", "cpu", "-t", "repo"],
+        ["task", "create", "lint-tests", "-t", "cpu"],
+        ["task", "create", "release-preview", "-t", "cpu", "-t", "repo"],
+        ["task", "create", "manual-check", "-t", "emulator", "--stop"],
+        ["task", "create", "``", "-t", "emulator", "--stop"]
+      ],
+      "expected_snapshot": {
+        "topics": [
+          {
+            "name": "</button><img src=x onerror='window.injected=1'>",
+            "capacity": 1,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          },
+          {
+            "name": "cpu",
+            "capacity": 4,
+            "autostart": null,
+            "running": 2,
+            "queued": 1
+          },
+          {
+            "name": "empty",
+            "capacity": 2,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          },
+          {
+            "name": "emulator",
+            "capacity": 1,
+            "autostart": null,
+            "running": 0,
+            "queued": 2
+          },
+          {
+            "name": "repo",
+            "capacity": 1,
+            "autostart": null,
+            "running": 1,
+            "queued": 1
+          },
+          {
+            "name": "данные",
+            "capacity": 1,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          }
+        ],
+        "tasks": [
+          {
+            "sequence": 1,
+            "name": "build-ui",
+            "state": "running",
+            "topics": ["cpu", "repo"],
+            "autostart_default": true,
+            "stopped": false
+          },
+          {
+            "sequence": 2,
+            "name": "lint-tests",
+            "state": "running",
+            "topics": ["cpu"],
+            "autostart_default": true,
+            "stopped": false
+          },
+          {
+            "sequence": 3,
+            "name": "release-preview",
+            "state": "queued",
+            "topics": ["cpu", "repo"],
+            "autostart_default": true,
+            "stopped": false
+          },
+          {
+            "sequence": 4,
+            "name": "manual-check",
+            "state": "queued",
+            "topics": ["emulator"],
+            "autostart_default": true,
+            "stopped": true
+          },
+          {
+            "sequence": 5,
+            "name": "",
+            "state": "queued",
+            "topics": ["emulator"],
+            "autostart_default": true,
+            "stopped": true
+          }
+        ],
+        "running": 2,
+        "queued": 3
+      }
+    },
+    "alternate": {
+      "file": "other.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "cpu", "-c", "2"],
+        ["topic", "create", "repo", "-c", "3"],
+        ["task", "create", "build-ui", "-t", "cpu", "--stop"]
+      ],
+      "expected_snapshot": {
+        "topics": [
+          {
+            "name": "cpu",
+            "capacity": 2,
+            "autostart": null,
+            "running": 0,
+            "queued": 1
+          },
+          {
+            "name": "repo",
+            "capacity": 3,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          }
+        ],
+        "tasks": [
+          {
+            "sequence": 1,
+            "name": "build-ui",
+            "state": "queued",
+            "topics": ["cpu"],
+            "autostart_default": true,
+            "stopped": true
+          }
+        ],
+        "running": 0,
+        "queued": 1
+      }
+    },
+    "completed": {
+      "file": "queue.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "cpu", "-c", "4"],
+        ["topic", "create", "repo", "-c", "1"],
+        ["topic", "create", "emulator", "-c", "1"],
+        ["topic", "create", "empty", "-c", "2"],
+        ["topic", "create", "`данные`", "-c", "1"],
+        [
+          "topic",
+          "create",
+          "`</button><img src=x onerror='window.injected=1'>`",
+          "-c",
+          "1"
+        ],
+        ["task", "create", "build-ui", "-t", "cpu", "-t", "repo"],
+        ["task", "create", "lint-tests", "-t", "cpu"],
+        ["task", "create", "release-preview", "-t", "cpu", "-t", "repo"],
+        ["task", "create", "manual-check", "-t", "emulator", "--stop"],
+        ["task", "create", "``", "-t", "emulator", "--stop"],
+        ["task", "complete", "build-ui"]
+      ],
+      "expected_snapshot": {
+        "topics": [
+          {
+            "name": "</button><img src=x onerror='window.injected=1'>",
+            "capacity": 1,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          },
+          {
+            "name": "cpu",
+            "capacity": 4,
+            "autostart": null,
+            "running": 2,
+            "queued": 0
+          },
+          {
+            "name": "empty",
+            "capacity": 2,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          },
+          {
+            "name": "emulator",
+            "capacity": 1,
+            "autostart": null,
+            "running": 0,
+            "queued": 2
+          },
+          {
+            "name": "repo",
+            "capacity": 1,
+            "autostart": null,
+            "running": 1,
+            "queued": 0
+          },
+          {
+            "name": "данные",
+            "capacity": 1,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          }
+        ],
+        "tasks": [
+          {
+            "sequence": 2,
+            "name": "lint-tests",
+            "state": "running",
+            "topics": ["cpu"],
+            "autostart_default": true,
+            "stopped": false
+          },
+          {
+            "sequence": 3,
+            "name": "release-preview",
+            "state": "running",
+            "topics": ["cpu", "repo"],
+            "autostart_default": true,
+            "stopped": false
+          },
+          {
+            "sequence": 4,
+            "name": "manual-check",
+            "state": "queued",
+            "topics": ["emulator"],
+            "autostart_default": true,
+            "stopped": true
+          },
+          {
+            "sequence": 5,
+            "name": "",
+            "state": "queued",
+            "topics": ["emulator"],
+            "autostart_default": true,
+            "stopped": true
+          }
+        ],
+        "running": 2,
+        "queued": 2
+      }
+    },
+    "empty": {
+      "file": "empty.db",
+      "kind": "queue",
+      "commands": [],
+      "expected_snapshot": {
+        "topics": [],
+        "tasks": [],
+        "running": 0,
+        "queued": 0
+      }
+    },
+    "missing": {
+      "file": "missing.db",
+      "kind": "missing",
+      "expected_snapshot": null
+    },
+    "incompatible": {
+      "file": "incompatible.db",
+      "kind": "bytes",
+      "content": "not an anyq SQLite database\n",
+      "expected_snapshot": null
+    }
+  },
+  "visual_defaults": {
+    "theme": "dark",
+    "language": "en",
+    "viewport": [1000, 700],
+    "source": "automatic",
+    "fixture": "primary",
+    "status": "live",
+    "topic": "cpu",
+    "task": null,
+    "settings": false,
+    "surface": "main",
+    "scroll": {
+      "content": 0,
+      "topics": 0,
+      "body": 0
+    },
+    "focus": null,
+    "mask_selectors": [".source-path", ".source-card p"],
+    "repetitions": 2
+  },
+  "visual_cases": [
+    {
+      "id": "main-dark-en"
+    },
+    {
+      "id": "details-dark-en",
+      "task": 1,
+      "scroll": {
+        "content": 190,
+        "topics": 0,
+        "body": 0
+      }
+    },
+    {
+      "id": "compact-dark-en",
+      "surface": "compact",
+      "viewport": [380, 355]
+    },
+    {
+      "id": "main-light-ru",
+      "theme": "light",
+      "language": "ru"
+    },
+    {
+      "id": "settings-light-ru",
+      "theme": "light",
+      "language": "ru",
+      "settings": true
+    },
+    {
+      "id": "empty-light-ru",
+      "fixture": "empty",
+      "topic": null,
+      "theme": "light",
+      "language": "ru"
+    },
+    {
+      "id": "missing-light-ru",
+      "fixture": "missing",
+      "status": "error",
+      "error_kind": "missing",
+      "topic": null,
+      "theme": "light",
+      "language": "ru"
+    },
+    {
+      "id": "incompatible-light-ru",
+      "fixture": "incompatible",
+      "status": "error",
+      "error_kind": "incompatible",
+      "topic": null,
+      "theme": "light",
+      "language": "ru"
+    },
+    {
+      "id": "stale-dark-en",
+      "status": "stale",
+      "after_live": "database-unavailable"
+    },
+    {
+      "id": "narrow-dark-en",
+      "viewport": [360, 650]
+    },
+    {
+      "id": "completion-dark-en",
+      "fixture": "completed"
+    },
+    {
+      "id": "source-switch-dark-en",
+      "fixture": "alternate",
+      "source": "override",
+      "environment_fixture": "primary"
+    },
+    {
+      "id": "main-dark-ru",
+      "language": "ru"
+    },
+    {
+      "id": "main-light-en",
+      "theme": "light"
+    },
+    {
+      "id": "keyboard-focus-dark-en",
+      "focus": "#topic-search"
+    }
+  ],
+  "comparison": {
+    "channel_delta": 8,
+    "max_changed_pixels": 50,
+    "determinism_channel_delta": 0,
+    "determinism_max_changed_pixels": 0
+  }
+}

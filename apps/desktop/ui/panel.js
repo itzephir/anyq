@@ -312,6 +312,8 @@ function bind() {
 }
 
 function accept(next) {
+  if (next.revision !== undefined && next.revision < (state.revision ?? -1))
+    return;
   const displayed = (value) =>
     JSON.stringify([
       value.generation,

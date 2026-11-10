@@ -5,6 +5,7 @@ use std::time::Instant;
 
 pub struct PanelSession {
     pub model: PanelModel,
+    pub revision: u64,
     pub preferences: PanelPreferences,
     pub selection: Option<DatabaseSelection>,
     pub preference_error: Option<String>,

@@ -220,10 +220,12 @@ code {
   min-height: 430px;
 }
 .sidebar {
+  display: flex;
+  flex-direction: column;
   background: var(--side);
   border-right: 1px solid var(--line);
   padding: 23px 12px 16px;
-  overflow: auto;
+  overflow: hidden;
 }
 .brand {
   padding: 0 10px 24px;
@@ -256,6 +258,9 @@ code {
   padding: 0 4px 14px;
 }
 .topic-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -263,6 +268,8 @@ code {
 .topic-item {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
   gap: 10px;
   text-align: left;
   width: 100%;
@@ -271,7 +278,7 @@ code {
   padding: 12px;
   min-height: 76px;
 }
-.topic-item[aria-selected="true"] {
+.topic-item[aria-pressed="true"] {
   background: var(--selected);
   border-color: var(--line);
 }
@@ -374,7 +381,7 @@ code {
 .task-row:last-child {
   border-bottom: 0;
 }
-.task-row[aria-selected="true"] {
+.task-row[aria-pressed="true"] {
   background: var(--selected);
   box-shadow: inset 2px 0 var(--accent);
 }

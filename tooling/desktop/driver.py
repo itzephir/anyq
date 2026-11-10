@@ -1,30 +1,29 @@
 """Drive real native webviews through the private test-only transport."""
 
 import json
-import os
 import subprocess
 import time
 from pathlib import Path
 
+from fixtures import environment
+
 
 class Driver:
-    def __init__(self, executable, home, database):
+    def __init__(self, executable, home, database, clock_ms):
         self.executable = Path(executable).resolve()
         self.home = Path(home)
         self.database = Path(database)
         self.directory = self.home / "driver"
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.environment = os.environ | {
-            "HOME": str(self.home),
-            "USERPROFILE": str(self.home),
-            "ANYQ_DB": str(self.database),
+        self.environment = environment(self.home, self.database) | {
             "ANYQ_PANEL_TEST_DIR": str(self.directory),
+            "ANYQ_PANEL_TEST_CLOCK": str(clock_ms),
         }
         self.process = None
         self.sequence = 0
         self.log = None
 
-    def start(self):
+    def start(self, status="live", viewport=(1000, 700)):
         (self.directory / "command.json").unlink(missing_ok=True)
         self.log = (self.home / "panel.log").open("ab")
         self.process = subprocess.Popen(
@@ -34,10 +33,11 @@ class Driver:
             stderr=self.log,
         )
         self.wait("return Boolean(window.__TAURI__?.core);")
-        self.call(native="resize", width=1000, height=700)
+        self.resize(*viewport)
         self.wait(
-            "return (await window.__TAURI__.core.invoke('get_panel_state')).status === 'live';"
+            f"return (await window.__TAURI__.core.invoke('get_panel_state')).status === {json.dumps(status)};"
         )
+        self.wait(f"return Boolean(document.querySelector('.status.{status}'));")
 
     def call(self, script="return null;", window="main", **native):
         self.sequence += 1
@@ -69,6 +69,27 @@ class Driver:
             if time.monotonic() >= deadline:
                 raise AssertionError(f"Native UI condition timed out: {script}")
             time.sleep(0.05)
+
+    def resize(self, width, height, window="main"):
+        requested_width, requested_height = width, height
+        for _ in range(3):
+            self.call(
+                window=window,
+                native="resize",
+                width=requested_width,
+                height=requested_height,
+            )
+            result = self.wait(
+                "return innerWidth > 0 && innerHeight > 0 ? [innerWidth,innerHeight] : false;",
+                window,
+            )["payload"]["value"]
+            if result == [width, height]:
+                return
+            requested_width += width - result[0]
+            requested_height += height - result[1]
+        raise AssertionError(
+            f"Native viewport did not reach {[width, height]}: {result}"
+        )
 
     def state(self):
         return self.call(

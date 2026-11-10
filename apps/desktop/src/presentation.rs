@@ -41,7 +41,7 @@ pub fn state(controller: &Controller) -> Value {
 
     json!({
         "error_kind": error_kind,
-        "generation": session.model.generation, "status": session.model.status.as_str(),
+        "revision": session.revision, "generation": session.model.generation, "status": session.model.status.as_str(),
         "path": session.selection.as_ref().map(|selection| selection.path.to_string_lossy().into_owned()).or_else(|| preferences.database_override.clone()).unwrap_or_default(),
         "source": session.selection.as_ref().map(|selection| selection.source.as_str()).unwrap_or(if preferences.database_override.is_some() {"override"} else {"default"}),
         "preferences": { "database_override": preferences.database_override, "theme": preferences.theme.as_str(), "language": preferences.language.as_str() },

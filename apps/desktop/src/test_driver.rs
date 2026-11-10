@@ -2,7 +2,7 @@
 use crate::{commands, controller::Controller};
 use serde_json::{Value, json};
 use std::{fs, path::PathBuf, sync::Arc, time::Duration};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub struct TestDriver {
     directory: PathBuf,
@@ -34,10 +34,16 @@ pub fn test_report(
         .try_state::<crate::shell::Shell>()
         .is_some_and(|shell| shell.usable.load(std::sync::atomic::Ordering::SeqCst));
 
+    let outer_position = window.outer_position().map_err(|error| error.to_string())?;
+    let outer_size = window.outer_size().map_err(|error| error.to_string())?;
+    #[cfg(windows)]
+    let native_handle = window.hwnd().ok().map(|value| value.0 as usize);
+    #[cfg(not(windows))]
+    let native_handle: Option<usize> = None;
     write_response(
         &driver,
         id,
-        json!({ "payload": payload, "rect": {"x":position.x,"y":position.y,"width":size.width,"height":size.height,"scale":scale}, "tray":tray }),
+        json!({ "payload": payload, "rect": {"x":position.x,"y":position.y,"width":size.width,"height":size.height,"scale":scale}, "tray":tray, "native_handle":native_handle, "outer": {"x":outer_position.x,"y":outer_position.y,"width":outer_size.width,"height":outer_size.height} }),
     )
 }
 
@@ -64,18 +70,26 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                     let label = command["window"].as_str().unwrap_or("main");
                     if let Some(window) = app.get_webview_window(label) {
                         let result = match command["native"].as_str() {
+                            Some("publish-state") => app
+                                .emit_to(label, "panel-state", command["payload"].clone())
+                                .map_err(|error| error.to_string()),
                             Some("open-main") => commands::show_main(app.clone(), None, false),
                             Some("compact") => window
                                 .show()
                                 .and_then(|()| window.set_focus())
                                 .map_err(|error| error.to_string()),
                             Some("resize") => window
-                                .set_position(tauri::LogicalPosition::new(10.0, 30.0))
+                                .show()
+                                .and_then(|()| window.set_focus())
                                 .and_then(|()| {
-                                    window.set_size(tauri::LogicalSize::new(
-                                        command["width"].as_f64().unwrap_or(1000.0),
-                                        command["height"].as_f64().unwrap_or(700.0),
-                                    ))
+                                    window
+                                        .set_position(tauri::LogicalPosition::new(10.0, 30.0))
+                                        .and_then(|()| {
+                                            window.set_size(tauri::LogicalSize::new(
+                                                command["width"].as_f64().unwrap_or(1000.0),
+                                                command["height"].as_f64().unwrap_or(700.0),
+                                            ))
+                                        })
                                 })
                                 .map_err(|error| error.to_string()),
                             Some("quit" | "close-main") => {
@@ -120,4 +134,22 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
     });
 
     Ok(())
+}
+
+pub fn fixed_clock() -> Result<Option<u64>, std::num::ParseIntError> {
+    std::env::var("ANYQ_PANEL_TEST_CLOCK")
+        .ok()
+        .map(|value| value.parse())
+        .transpose()
+}
+
+pub fn clock_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    let script = if std::env::var_os("ANYQ_PANEL_TEST_CLOCK").is_some() {
+        "(()=>{const original=Date.prototype.toLocaleTimeString;Date.prototype.toLocaleTimeString=function(locales,options){return original.call(this,locales,{...options,timeZone:'UTC'});};})()"
+    } else {
+        ""
+    };
+    tauri::plugin::Builder::new("desktop-test-clock")
+        .js_init_script(script.to_owned())
+        .build()
 }
