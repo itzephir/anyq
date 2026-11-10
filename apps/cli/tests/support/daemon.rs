@@ -83,6 +83,22 @@ fn status_is_read_only_and_owner_lifecycle_is_reusable() {
 }
 
 #[test]
+fn protocol_stop_exits_the_foreground_owner_successfully_and_preserves_slots() {
+    let queue = Queue::new();
+    let owner = queue.spawn_owner();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+
+    queue.call(&["daemon", "stop"]);
+    let result = owner.output();
+
+    assert!(result.status.success());
+    assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+}
+
+#[test]
 fn stop_restart_and_owner_crash_preserve_states_and_all_resource_slots() {
     let queue = Queue::new();
     let owner = queue.spawn_owner();

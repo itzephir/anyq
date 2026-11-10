@@ -30,8 +30,8 @@
 
 ## 5. Storage contention review corrections
 
-- [ ] 5.1 Keep background pre-mutation lock acquisition retryable until shutdown; verify a 31-second transaction commits once, lifecycle remains responsive and stopping under contention cancels safely without replay or slot release.
-- [ ] 5.2 Verify current native Linux/macOS/Windows CI and synchronize the verified background-contention scenario without merging PRs.
+- [x] 5.1 Keep background pre-mutation lock acquisition retryable until shutdown; verify a 31-second transaction commits once, lifecycle remains responsive and stopping under contention cancels safely without replay or slot release.
+- [x] 5.2 Verify current native Linux/macOS/Windows CI and synchronize the verified background-contention scenario without merging PRs.
 
 ## Workflow follow-up
 
