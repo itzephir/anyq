@@ -92,8 +92,8 @@ fn manual_completion_cancels_managed_worker_before_admitting_successor() {
     queue.call(&["task", "complete", "owner"]);
 
     assert_eq!(
-        fs::read_to_string(log.with_extension("marker")).unwrap(),
-        "stopped"
+        fs::read_to_string(log.with_extension("stopped")).unwrap(),
+        "owner"
     );
     assert_eq!(queue.state("next"), "running");
     assert_eq!(queue.usage("cpu"), 1);
@@ -270,8 +270,8 @@ fn slow_managed_cancellation_is_not_flooded_or_killed_before_confirmed_stop() {
     queue.call(&["task", "complete", "owner"]);
 
     assert_eq!(
-        fs::read_to_string(log.with_extension("marker")).unwrap(),
-        "stopped"
+        fs::read_to_string(log.with_extension("stopped")).unwrap(),
+        "owner"
     );
     assert_eq!(status(&queue, "slow")["failures"], 0);
     assert_eq!(queue.state("next"), "running");
