@@ -9,6 +9,26 @@ use serde::{Deserialize, Serialize};
     deny_unknown_fields
 )]
 pub enum QueueRequest {
+    PluginEnable {
+        name: String,
+        executable: String,
+        arguments: Vec<String>,
+    },
+    PluginList,
+    PluginStatus {
+        name: String,
+    },
+    PluginDisable {
+        name: String,
+    },
+    ManagedInspect {
+        owner: String,
+    },
+    ManagedResolve {
+        owner: String,
+        action_id: String,
+        confirmed_cleanup: bool,
+    },
     Open {
         database_id: String,
         policy: PolicyDto,

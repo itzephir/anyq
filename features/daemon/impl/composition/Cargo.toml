@@ -6,9 +6,15 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-integration-test-hooks = ["anyq-daemon-client/integration-test-hooks", "anyq-daemon-runtime/integration-test-hooks", "anyq-queue-impl/integration-test-hooks"]
+integration-test-hooks = ["dep:anyq-queue-dispatch", "dep:anyq-plugin-runtime", "anyq-daemon-client/integration-test-hooks", "anyq-daemon-runtime/integration-test-hooks", "anyq-queue-impl/integration-test-hooks"]
 
 [dependencies]
+anyq-queue-dispatch = { path = "../../../queue/impl/dispatch", optional = true }
+anyq-plugin-runtime = { path = "../../../plugins/impl/runtime", optional = true }
+anyq-plugin-api = { path = "../../../plugins/api" }
+anyq-plugin-wire = { path = "../../../plugins/api/wire" }
+anyq-queue-sqlite = { path = "../../../queue/impl/sqlite" }
+anyq-plugin-impl = { path = "../../../plugins/impl/composition" }
 anyq-daemon-api = { path = "../../api" }
 anyq-daemon-client = { path = "../client" }
 anyq-daemon-runtime = { path = "../runtime" }

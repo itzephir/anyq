@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
   "features/queue/api",
+  "features/queue/api/wire",
   "features/queue/impl/dispatch",
   "features/queue/impl/sqlite",
   "features/queue/impl/metadata",
@@ -15,6 +16,13 @@ members = [
   "features/daemon/impl/client",
   "features/daemon/impl/runtime",
   "features/daemon/impl/composition",
+  "features/plugins/api",
+  "features/plugins/api/wire",
+  "features/plugins/impl/dispatch",
+  "features/plugins/impl/sqlite",
+  "features/plugins/impl/process",
+  "features/plugins/impl/runtime",
+  "features/plugins/impl/composition",
   "apps/cli",
   "tooling/architecture-lint",
   "tooling/integration-test-hooks"

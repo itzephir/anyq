@@ -25,3 +25,7 @@ mod topic_command;
 pub use request::Request;
 pub use task_command::TaskCommand;
 pub use topic_command::TopicCommand;
+
+mod plugin_args;
+mod plugin_command;
+pub use plugin_command::PluginCommand;

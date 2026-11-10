@@ -1,9 +1,11 @@
 use crate::admit_queued_tasks::admit_queued_tasks;
+use crate::record_event::topic_event;
 use crate::{
     lookup_topic::lookup_topic_value,
     ports::{Store, TaskFilter},
 };
 use anyq_queue_api::AutoCreatePolicy;
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::{Result, SetTopicCapacity, TaskState, Topic};
 
 pub struct SetTopicCapacityInteractor<S> {
@@ -28,7 +30,7 @@ impl<S: Store> SetTopicCapacity for SetTopicCapacityInteractor<S> {
         self.store.transaction(|records| {
             let existing = lookup_topic_value(records, &topic.name, self.policy)?;
             topic.autostart = existing.autostart;
-            topic.metadata = existing.metadata;
+            topic.metadata = existing.metadata.clone();
             let running = records.tasks().count_tasks(&TaskFilter {
                 topic: Some(topic.name.clone()),
                 state: TaskState::Running,
@@ -37,6 +39,10 @@ impl<S: Store> SetTopicCapacity for SetTopicCapacityInteractor<S> {
 
             topic.require_capacity_for(running)?;
             records.topics().put_topic(&topic)?;
+
+            if existing.capacity != topic.capacity {
+                topic_event(records, QueueEventKind::TopicCapacityChanged, &topic)?;
+            }
 
             admit_queued_tasks(records)?;
 

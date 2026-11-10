@@ -9,6 +9,9 @@ license.workspace = true
 integration-test-hooks = []
 
 [dependencies]
+anyq-plugin-api = { path = "../../plugins/api" }
+anyq-plugin-wire = { path = "../../plugins/api/wire" }
+anyq-queue-wire = { path = "../../queue/api/wire" }
 anyq-queue-api = { path = "../../queue/api" }
 serde = { version = "1", features = ["derive"] }
 

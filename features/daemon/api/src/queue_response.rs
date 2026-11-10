@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
     deny_unknown_fields
 )]
 pub enum QueueResponse {
+    PluginStatus(anyq_plugin_wire::PluginStatusDto),
+    Plugins(Vec<anyq_plugin_wire::PluginStatusDto>),
+    ManagedWork(anyq_plugin_wire::ManagedWorkDto),
+    ManagedList(Vec<anyq_plugin_wire::ManagedWorkDto>),
     Ready { pid: u32, database_id: String },
     Stopped,
     Metadata(MetadataDto),

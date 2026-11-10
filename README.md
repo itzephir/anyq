@@ -223,3 +223,11 @@ cargo test --locked -p anyq --test interruptions --features integration-test-hoo
 Python is needed for tooling/demos, and Node for pinned OpenSpec tooling. The anyq runtime requires neither.
 
 [Code rules](docs/CODE-RULES.md), [architecture](docs/ARCHITECTURE.md), [CI and main protection](docs/CI.md). [Baseline specs](openspec/specs/), [changes](openspec/changes/), [archive](openspec/changes/archive/).
+
+## Executable plugins
+
+Explicitly enable trusted local observers with `anyq plugin enable NAME EXECUTABLE [ARG...]`.
+Committed lifecycle events, durable acknowledgements, namespaced state/timers,
+replay-safe completion and managed cancellation are described in [PLUGINS.md](docs/PLUGINS.md).
+Run `python3 examples/plugins.py` after building anyq for an isolated public-protocol example.
+Timeout and shell remain separate planned stages of the [stacked roadmap](docs/PLUGIN-ROADMAP.md).

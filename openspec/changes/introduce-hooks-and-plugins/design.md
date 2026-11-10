@@ -102,3 +102,22 @@ for each new crate. Prove delivery rollback, duplicate acknowledgement, request
 deduplication and daemon/plugin crash recovery using fixture executables before
 enabling first-party behavior. Document that downgrades require a pre-upgrade
 backup and that disabling a plugin does not implicitly complete its tasks.
+
+## Implemented boundaries and limits
+
+The queue domain API remains free of serialization. A separate queue wire API is
+shared by daemon, outbox and plugin representations. There are 25 workspace crates;
+plugin API/wire/dispatch/SQLite/process/runtime/composition have separate ownership.
+The daemon root injects plugin storage initialization into the queue SQLite schema-5
+transaction. Versions 2/3/4 preserve states, metadata and ownership without events
+for historical running tasks. Plugin progress, state and timers use a separate
+consumer-owned transaction port; completion receipts and managed barriers remain
+inside queue transactions because they protect resource ownership.
+
+Protocol v1 limits are 16 MiB/frame, physical depth 256, 64 KiB stderr/instance,
+16 enabled plugins, 128 timers/plugin, five-second response deadlines and a
+three-second cancellation grace. Eight consecutive failures require explicit
+enable after exponential backoff capped at 60 seconds. Runtime options expose
+response/cancellation/polling and event-retention bounds; default retention is
+10,000 recent events, with disabled cursors, timer origins and unresolved work
+pinning needed history. Daemon IPC advances to version 3.

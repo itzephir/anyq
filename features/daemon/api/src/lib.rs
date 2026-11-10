@@ -1,21 +1,16 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
-mod metadata_dto;
-pub use metadata_dto::MetadataDto;
+pub use anyq_queue_wire::MetadataDto;
 
-mod caller_directory_dto;
-pub use caller_directory_dto::CallerDirectoryDto;
+pub use anyq_queue_wire::CallerDirectoryDto;
 
-mod task_dto;
-pub use task_dto::TaskDto;
+pub use anyq_queue_wire::TaskDto;
 
-mod topic_dto;
-pub use topic_dto::TopicDto;
+pub use anyq_queue_wire::TopicDto;
 
-mod topic_queue_dto;
-pub use topic_queue_dto::TopicQueueDto;
+pub use anyq_queue_wire::TopicQueueDto;
 
 mod policy_dto;
 pub use policy_dto::PolicyDto;
@@ -44,3 +39,6 @@ pub use anyq_queue_api::QueueServices;
 mod gate_dto;
 #[cfg(feature = "integration-test-hooks")]
 pub use gate_dto::GateDto;
+
+mod daemon_services;
+pub use daemon_services::DaemonServices;

@@ -1,7 +1,9 @@
 use crate::begin_transaction::begin_transaction;
 use crate::checkpoint::checkpoint;
+use crate::system_clock::SystemClock;
 use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
-use anyq_queue_api::{Error, Result};
+use anyq_queue_api::{Error, ExecutionDirectory, Result};
+use anyq_queue_dispatch::ports::Clock;
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
 use rusqlite::{Connection, ErrorCode, TransactionBehavior};
 use std::{
@@ -19,6 +21,8 @@ const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct Sqlite {
     pub(crate) connection: Rc<RefCell<Connection>>,
     cancelled: Arc<AtomicBool>,
+    clock: Rc<dyn Clock>,
+    directory: Option<ExecutionDirectory>,
 }
 
 fn compatible_version(connection: &Connection) -> Result<i64> {
@@ -26,7 +30,7 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(storage)?;
 
-    if ![0, 2, 3, 4].contains(&version) {
+    if ![0, 2, 3, 4, 5].contains(&version) {
         return Err(Error::Storage(format!(
             "unsupported database schema version {version}; choose a separate database with --db"
         )));
@@ -68,11 +72,31 @@ fn enable_wal(connection: &Connection, cancelled: &AtomicBool) -> Result<()> {
 }
 
 impl Sqlite {
+    pub fn with_clock(mut self, clock: Rc<dyn Clock>) -> Self {
+        self.clock = clock;
+
+        self
+    }
+
+    pub fn with_directory(mut self, directory: ExecutionDirectory) -> Self {
+        self.directory = Some(directory);
+
+        self
+    }
+
     pub fn open(path: &Path) -> Result<Self> {
         Self::open_with_cancellation(path, Arc::new(AtomicBool::new(false)))
     }
 
     pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        Self::open_with_initializer(path, cancelled, |_| Ok(()))
+    }
+
+    pub fn open_with_initializer(
+        path: &Path,
+        cancelled: Arc<AtomicBool>,
+        initialize: fn(&Connection) -> Result<()>,
+    ) -> Result<Self> {
         checkpoint("sqlite.before-open", &cancelled)?;
         let mut connection = Connection::open(path).map_err(storage)?;
         checkpoint("sqlite.after-open", &cancelled)?;
@@ -116,6 +140,17 @@ impl Sqlite {
             _ => {}
         }
 
+        let version: i64 = tx
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .map_err(storage)?;
+        if version == 4 {
+            tx.execute_batch(include_str!("migrate_v4.sql"))
+                .map_err(storage)?;
+            tx.pragma_update(None, "user_version", 5).map_err(storage)?;
+        }
+
+        initialize(&tx)?;
+
         checkpoint("sqlite.schema.before-commit", &cancelled)?;
         tx.commit().map_err(storage)?;
         checkpoint("sqlite.schema.after-commit", &cancelled)?;
@@ -123,6 +158,8 @@ impl Sqlite {
         Ok(Self {
             connection: Rc::new(RefCell::new(connection)),
             cancelled,
+            clock: Rc::new(SystemClock),
+            directory: None,
         })
     }
 }
@@ -135,7 +172,12 @@ impl Store for Sqlite {
         checkpoint("sqlite.before-transaction", &self.cancelled)?;
         let connection = self.connection.borrow_mut();
         let tx = begin_transaction(&connection, &self.cancelled, LOCK_TIMEOUT)?;
-        let result = operation(&mut SqliteUnitOfWork::new(&tx, &self.cancelled))?;
+        let result = operation(&mut SqliteUnitOfWork::new(
+            &tx,
+            &self.cancelled,
+            self.clock.as_ref(),
+            self.directory.as_ref(),
+        ))?;
         checkpoint("sqlite.before-commit", &self.cancelled)?;
         tx.commit().map_err(storage)?;
         checkpoint("sqlite.after-commit", &self.cancelled)?;

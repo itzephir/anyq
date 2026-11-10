@@ -20,6 +20,16 @@ pub fn serve(
     let listener = endpoint
         .listen()
         .map_err(|error| Error::Storage(error.to_string()))?;
+    let background_factory = factory.clone();
+    let background_path = endpoint.database.clone();
+    let background_shutdown = shutdown.clone();
+    let background = thread::spawn(move || {
+        let result = background_factory.background(&background_path, background_shutdown.clone());
+        if result.is_err() {
+            background_shutdown.store(true, Ordering::SeqCst);
+        }
+        result
+    });
     let mut sessions = Vec::new();
     let mut failure = None;
 
@@ -77,6 +87,18 @@ pub fn serve(
 
         let _ = handle.join();
     }
+
+    shutdown.store(true, Ordering::SeqCst);
+    while !background.is_finished() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    if !background.is_finished() {
+        std::process::exit(2);
+    }
+    let background_result = background
+        .join()
+        .map_err(|_| Error::Storage("plugin host stopped unexpectedly".into()))?;
+    background_result?;
 
     failure.map_or(Ok(()), Err)
 }

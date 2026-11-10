@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Preserve native path encoding rather than requiring a UTF-8 caller directory.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CallerDirectoryDto {
     #[cfg(unix)]
@@ -55,6 +55,33 @@ impl TryFrom<CallerDirectoryDto> for PathBuf {
 
                 Ok(std::ffi::OsString::from_wide(&wide).into())
             }
+        }
+    }
+}
+
+impl From<CallerDirectoryDto> for anyq_queue_api::ExecutionDirectory {
+    fn from(value: CallerDirectoryDto) -> Self {
+        match value {
+            #[cfg(unix)]
+            CallerDirectoryDto::Unix(bytes) => Self::Unix(bytes),
+            #[cfg(windows)]
+            CallerDirectoryDto::Windows(wide) => Self::Windows(wide),
+        }
+    }
+}
+
+impl TryFrom<anyq_queue_api::ExecutionDirectory> for CallerDirectoryDto {
+    type Error = Error;
+
+    fn try_from(value: anyq_queue_api::ExecutionDirectory) -> Result<Self> {
+        match value {
+            #[cfg(unix)]
+            anyq_queue_api::ExecutionDirectory::Unix(bytes) => Ok(Self::Unix(bytes)),
+            #[cfg(windows)]
+            anyq_queue_api::ExecutionDirectory::Windows(wide) => Ok(Self::Windows(wide)),
+            _ => Err(Error::Invalid(
+                "caller directory belongs to another platform".into(),
+            )),
         }
     }
 }

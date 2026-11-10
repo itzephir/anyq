@@ -46,7 +46,7 @@ session opening. No IP listener, access token or network service is exposed.
 Do not concurrently use pre-daemon anyq binaries on the same database: those
 binaries do not participate in the owner lock. Stop the daemon before rolling
 back to an older compatible binary. Schema 4 includes metadata and atomic
-schema-2/3 upgrades, and never resets running ownership.
+schema-2/3/4 upgrades, and never resets running ownership.
 
 Before upgrading or replacing the executable, stop the daemon for each active
 database. Windows keeps the running executable in use, and a replacement CLI
@@ -55,7 +55,7 @@ version and retains the stored tasks and ownership.
 
 ## Protocol and failure boundaries
 
-Protocol version 2 uses a four-byte big-endian payload length followed by UTF-8
+Protocol version 3 uses a four-byte big-endian payload length followed by UTF-8
 JSON bytes, with each chunk bounded to 16 MiB. The header's high bit indicates
 continuation; the remaining bits give the chunk length. Incoming requests are
 limited to 16 MiB in total. Large query responses span chunks and are reassembled
@@ -91,4 +91,8 @@ See [INTERRUPTIONS.md](INTERRUPTIONS.md) for native signal boundaries and tests.
 
 Metadata is described in [METADATA.md](METADATA.md). Lifecycle event delivery
 and plugins are separate later stages of the [roadmap](PLUGIN-ROADMAP.md);
-starting the daemon does not execute external work.
+starting the daemon resumes explicitly enabled executable plugins. Their managed work follows the completion barrier documented in [PLUGINS.md](PLUGINS.md).
+
+Stop waits for the lifetime database lock to be released, including managed-plugin
+drain after the endpoint has closed. Initial discovery can retry a competing owner
+launch after that lock is released; it never replays a sent queue operation.

@@ -62,6 +62,8 @@ dependencies = [
  "anyq-daemon-impl",
  "anyq-daemon-transport",
  "anyq-integration-test-hooks",
+ "anyq-plugin-api",
+ "anyq-plugin-wire",
  "anyq-queue-api",
  "anyq-queue-metadata",
  "clap",
@@ -114,7 +116,10 @@ dependencies = [
 name = "anyq-daemon-api"
 version = "0.1.1"
 dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-wire",
  "anyq-queue-api",
+ "anyq-queue-wire",
  "serde",
 ]
 
@@ -124,6 +129,7 @@ version = "0.1.1"
 dependencies = [
  "anyq-daemon-api",
  "anyq-daemon-transport",
+ "anyq-plugin-api",
  "anyq-queue-api",
  "windows-spawn",
 ]
@@ -136,8 +142,14 @@ dependencies = [
  "anyq-daemon-client",
  "anyq-daemon-runtime",
  "anyq-daemon-transport",
+ "anyq-plugin-api",
+ "anyq-plugin-impl",
+ "anyq-plugin-runtime",
+ "anyq-plugin-wire",
  "anyq-queue-api",
+ "anyq-queue-dispatch",
  "anyq-queue-impl",
+ "anyq-queue-sqlite",
 ]
 
 [[package]]
@@ -147,6 +159,7 @@ dependencies = [
  "anyq-daemon-api",
  "anyq-daemon-transport",
  "anyq-integration-test-hooks",
+ "anyq-plugin-api",
  "anyq-queue-api",
 ]
 
@@ -170,6 +183,81 @@ dependencies = [
 [[package]]
 name = "anyq-integration-test-hooks"
 version = "0.1.1"
+
+[[package]]
+name = "anyq-plugin-api"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-plugin-dispatch"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-plugin-impl"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-plugin-process",
+ "anyq-plugin-runtime",
+ "anyq-plugin-sqlite",
+ "anyq-queue-api",
+ "rusqlite",
+]
+
+[[package]]
+name = "anyq-plugin-process"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-runtime",
+ "anyq-queue-api",
+ "tokio",
+]
+
+[[package]]
+name = "anyq-plugin-runtime"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+]
+
+[[package]]
+name = "anyq-plugin-sqlite"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "anyq-plugin-wire"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "anyq-queue-api"
@@ -210,8 +298,19 @@ dependencies = [
  "anyq-queue-api",
  "anyq-queue-dispatch",
  "anyq-queue-metadata",
+ "anyq-queue-wire",
  "rusqlite",
+ "serde",
+ "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "anyq-queue-wire"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+ "serde",
 ]
 
 [[package]]
@@ -562,9 +661,9 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "libsqlite3-sys"
-version = "0.36.0"
+version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b4103cffefa72eb8428cb6b47d6627161e51c2739fc5e3b734584157bc642a"
+checksum = "b1f111c8c41e7c61a49cd34e44c7619462967221a6443b0ec299e0ac30cfb9b1"
 dependencies = [
  "cc",
  "pkg-config",
@@ -687,9 +786,9 @@ dependencies = [
 
 [[package]]
 name = "rusqlite"
-version = "0.38.0"
+version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1c93dd1c9683b438c392c492109cb702b8090b2bfc8fed6f6e4eb4523f17af3"
+checksum = "a0d2b0146dd9661bf67bb107c0bb2a55064d556eeb3fc314151b957f313bcd4e"
 dependencies = [
  "bitflags",
  "fallible-iterator",
@@ -787,6 +886,16 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
 
 [[package]]
 name = "smallvec"
@@ -887,6 +996,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys",

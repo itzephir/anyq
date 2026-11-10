@@ -1,0 +1,13 @@
+[package]
+name = "anyq-queue-wire"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-queue-api = { path = ".." }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

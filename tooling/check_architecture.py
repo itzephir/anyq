@@ -10,8 +10,54 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
     "anyq-queue-api": set(),
+    "anyq-queue-wire": {"anyq-queue-api", "serde"},
+    "anyq-plugin-api": {"anyq-queue-api"},
+    "anyq-plugin-wire": {
+        "anyq-plugin-api",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "serde",
+        "serde_json",
+    },
+    "anyq-plugin-dispatch": {"anyq-plugin-api", "anyq-queue-api"},
+    "anyq-plugin-sqlite": {
+        "anyq-plugin-api",
+        "anyq-plugin-dispatch",
+        "anyq-plugin-wire",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "rusqlite",
+        "serde",
+        "serde_json",
+        "tempfile",
+    },
+    "anyq-plugin-process": {
+        "anyq-plugin-api",
+        "anyq-plugin-runtime",
+        "anyq-queue-api",
+        "tokio",
+    },
+    "anyq-plugin-runtime": {
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "anyq-plugin-dispatch",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+    },
+    "anyq-plugin-impl": {
+        "anyq-plugin-api",
+        "anyq-plugin-dispatch",
+        "anyq-plugin-sqlite",
+        "anyq-plugin-process",
+        "anyq-plugin-runtime",
+        "anyq-queue-api",
+        "rusqlite",
+    },
     "anyq-queue-dispatch": {"anyq-queue-api"},
     "anyq-queue-sqlite": {
+        "anyq-queue-wire",
+        "serde",
+        "serde_json",
         "anyq-queue-metadata",
         "anyq-queue-api",
         "anyq-queue-dispatch",
@@ -46,7 +92,13 @@ ALLOWED = {
         "anyq-config-dispatch",
         "anyq-config-file",
     },
-    "anyq-daemon-api": {"anyq-queue-api", "serde"},
+    "anyq-daemon-api": {
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "serde",
+    },
     "anyq-daemon-transport": {
         "anyq-queue-api",
         "tokio",
@@ -61,18 +113,26 @@ ALLOWED = {
         "widestring",
     },
     "anyq-daemon-client": {
+        "anyq-plugin-api",
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "anyq-queue-api",
         "windows-spawn",
     },
     "anyq-daemon-runtime": {
+        "anyq-plugin-api",
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "anyq-queue-api",
         "anyq-integration-test-hooks",
     },
     "anyq-daemon-impl": {
+        "anyq-queue-dispatch",
+        "anyq-plugin-runtime",
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "anyq-plugin-impl",
+        "anyq-queue-sqlite",
         "anyq-daemon-api",
         "anyq-daemon-client",
         "anyq-daemon-runtime",
@@ -82,6 +142,8 @@ ALLOWED = {
     },
     "anyq-integration-test-hooks": set(),
     "anyq": {
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
         "anyq-queue-metadata",
         "anyq-daemon-api",
         "anyq-daemon-transport",
@@ -99,6 +161,10 @@ ALLOWED = {
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
+    "anyq-plugin-api",
+    "anyq-plugin-dispatch",
+    "anyq-plugin-wire",
+    "anyq-queue-wire",
     "anyq-daemon-api",
     "anyq-queue-api",
     "anyq-queue-dispatch",
@@ -138,7 +204,7 @@ def check(graph, sources):
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
                 and re.search(
-                    r"\b(?:anyq_(?:daemon|queue|config)_impl|anyq_queue_metadata)\b",
+                    r"\b(?:anyq_(?:daemon|queue|config|plugin)_impl|anyq_queue_metadata)\b",
                     source,
                 )
             ):
@@ -216,6 +282,11 @@ def main():
         ("anyq-daemon-api", "interprocess"),
         ("anyq-daemon-runtime", "anyq-queue-impl"),
         ("anyq", "anyq-queue-impl"),
+        ("anyq-plugin-api", "anyq-plugin-sqlite"),
+        ("anyq-plugin-dispatch", "rusqlite"),
+        ("anyq-plugin-runtime", "anyq-queue-sqlite"),
+        ("anyq-plugin-runtime", "anyq-queue-impl"),
+        ("anyq", "anyq-plugin-sqlite"),
     ]:
         mutant = copy.deepcopy(graph)
         mutant[owner].add(dep)

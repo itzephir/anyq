@@ -4,6 +4,8 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[command(about = "Enable, inspect or disable trusted local plugins")]
+    Plugin(super::plugin_args::PluginArgs),
     #[command(about = "Start, inspect or stop the background queue owner")]
     Daemon(super::daemon_args::DaemonArgs),
     #[command(about = "Read and update ~/.anyq/config.toml")]

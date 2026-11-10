@@ -1,7 +1,9 @@
+use crate::record_event::task_event;
 use crate::{
     admit_queued_tasks::admit_queued_tasks, lookup_task::lookup_task, lookup_topic::lookup_topic,
     ports::UnitOfWork,
 };
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::{Error, QueuePolicy, Result, Task};
 
 pub(crate) fn link_tasks_to_topics(
@@ -27,7 +29,12 @@ pub(crate) fn link_tasks_to_topics(
 
     for task in &mut tasks {
         for topic in &topics {
+            let is_new = !task.topics().contains(&topic.name);
             task.link_topic(topic)?;
+
+            if is_new {
+                task_event(records, QueueEventKind::TaskLinked, task)?;
+            }
         }
 
         records.tasks().save_task(task)?;

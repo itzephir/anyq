@@ -1,0 +1,16 @@
+[package]
+name = "anyq-plugin-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-plugin-api = { path = "../../api" }
+anyq-plugin-wire = { path = "../../api/wire" }
+anyq-plugin-dispatch = { path = "../dispatch" }
+anyq-queue-api = { path = "../../../queue/api" }
+anyq-queue-wire = { path = "../../../queue/api/wire" }
+
+[lints]
+workspace = true

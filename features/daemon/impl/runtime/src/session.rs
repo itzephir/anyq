@@ -1,6 +1,6 @@
 use crate::{QueueFactory, SessionSignals, route::route};
 use anyq_daemon_api::{
-    PROTOCOL_VERSION, QueueRequest, QueueResponse, QueueServices, RequestFrame, ResponseFrame,
+    DaemonServices, PROTOCOL_VERSION, QueueRequest, QueueResponse, RequestFrame, ResponseFrame,
 };
 use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_frame};
 use anyq_queue_api::{Error, QueuePolicy, Result};
@@ -68,11 +68,13 @@ impl Session {
         receiver: &Receiver<RequestFrame>,
         id: u64,
         policy: QueuePolicy,
+        directory: anyq_queue_api::ExecutionDirectory,
     ) -> Result<()> {
-        let mut services: QueueServices = match self.factory.open(
+        let mut services: DaemonServices = match self.factory.open(
             &self.endpoint.database,
             policy,
             self.signals.cancelled.clone(),
+            directory,
         ) {
             Ok(services) => services,
             Err(error) => {
@@ -138,12 +140,22 @@ impl Session {
                     );
 
                     anyq_integration_test_hooks::with_context(context, || {
-                        self.queue_loop(receiver, frame.id, policy.into())
+                        self.queue_loop(
+                            receiver,
+                            frame.id,
+                            policy.into(),
+                            anyq_daemon_api::CallerDirectoryDto::from(caller_directory).into(),
+                        )
                     })
                 }
 
                 #[cfg(not(feature = "integration-test-hooks"))]
-                self.queue_loop(receiver, frame.id, policy.into())
+                self.queue_loop(
+                    receiver,
+                    frame.id,
+                    policy.into(),
+                    anyq_daemon_api::CallerDirectoryDto::from(caller_directory).into(),
+                )
             }
             _ => self.reply(
                 frame.id,
