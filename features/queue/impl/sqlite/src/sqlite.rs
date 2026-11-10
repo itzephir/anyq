@@ -5,7 +5,7 @@ use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
 use anyq_queue_api::{Error, ExecutionDirectory, Result};
 use anyq_queue_dispatch::ports::Clock;
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
-use rusqlite::{Connection, ErrorCode, TransactionBehavior};
+use rusqlite::{Connection, TransactionBehavior};
 use std::{
     cell::RefCell,
     path::Path,
@@ -25,10 +25,10 @@ pub struct Sqlite {
     directory: Option<ExecutionDirectory>,
 }
 
-fn compatible_version(connection: &Connection) -> Result<i64> {
-    let version: i64 = connection
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(storage)?;
+fn compatible_version(connection: &Connection, cancelled: &AtomicBool) -> Result<i64> {
+    let version: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, || {
+        connection.pragma_query_value(None, "user_version", |row| row.get(0))
+    })?;
 
     if ![0, 2, 3, 4, 5].contains(&version) {
         return Err(Error::Storage(format!(
@@ -37,10 +37,12 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
     }
 
     if version == 0 {
-        let tables: i64 = connection.query_row(
+        let tables: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, || {
+            connection.query_row(
             "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'",
             [], |row| row.get(0),
-        ).map_err(storage)?;
+        )
+        })?;
 
         if tables != 0 {
             return Err(Error::Storage(
@@ -59,10 +61,7 @@ fn enable_wal(connection: &Connection, cancelled: &AtomicBool) -> Result<()> {
         checkpoint("sqlite.before-wal", cancelled)?;
         match connection.pragma_update(None, "journal_mode", "WAL") {
             Ok(()) => return Ok(()),
-            Err(error)
-                if error.sqlite_error_code() == Some(ErrorCode::DatabaseBusy)
-                    && Instant::now() < deadline =>
-            {
+            Err(error) if crate::retry_lock::contention(&error) && Instant::now() < deadline => {
                 // Journal-mode lock upgrades can return BUSY without calling the busy handler.
                 thread::sleep(Duration::from_millis(10));
             }
@@ -106,7 +105,7 @@ impl Sqlite {
         let read = connection
             .transaction_with_behavior(TransactionBehavior::Deferred)
             .map_err(storage)?;
-        compatible_version(&read)?;
+        compatible_version(&read, &cancelled)?;
         read.commit().map_err(storage)?;
 
         connection
@@ -119,7 +118,7 @@ impl Sqlite {
         let tx = begin_transaction(&connection, &cancelled, LOCK_TIMEOUT)?;
 
         // Another opener may have initialized the database since the read-only check.
-        match compatible_version(&tx)? {
+        match compatible_version(&tx, &cancelled)? {
             0 => {
                 tx.execute_batch(include_str!("schema.sql"))
                     .map_err(storage)?;
