@@ -37,8 +37,8 @@
 ## 6. Protocol review corrections
 
 - [x] 6.1 Separate idle/partial-frame deadlines from active execution; verify a real request survives 31 seconds before commit, cancellation/EOF still interrupt it, and incomplete input remains bounded.
-- [ ] 6.2 Verify the connected Windows pipe owner SID before Open and explicitly assign the listener owner; verify native accepted/mismatched/unreadable owner cases without unsafe project code.
-- [ ] 6.3 Run mandatory local checks and native Linux/macOS/Windows CI, synchronize verified protocol scenarios and publish the corrections in PR #14 without merging it.
+- [x] 6.2 Verify the connected Windows pipe owner SID before Open and explicitly assign the listener owner; verify native accepted/mismatched/unreadable owner cases without unsafe project code.
+- [x] 6.3 Run mandatory local checks and native Linux/macOS/Windows CI, synchronize verified protocol scenarios and publish the corrections in PR #14 without merging it.
 
 ## Workflow follow-up
 
