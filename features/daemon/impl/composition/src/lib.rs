@@ -14,6 +14,19 @@ fn endpoint(path: &Path) -> Result<Endpoint> {
     Endpoint::resolve(path).map_err(|error| Error::Storage(error.to_string()))
 }
 
+pub fn observe(
+    path: &Path,
+    cancelled: Arc<AtomicBool>,
+) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
+    let endpoint = endpoint(path)?;
+    let channel = Channel::open_observer(&endpoint, cancelled)?;
+
+    Ok(Box::new(RemoteObserveQueue::new(
+        channel,
+        endpoint.identity,
+    )))
+}
+
 pub fn connect(
     path: &Path,
     policy: QueuePolicy,

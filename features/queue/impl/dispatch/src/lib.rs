@@ -56,3 +56,6 @@ pub use start_task::StartTaskInteractor;
 
 mod set_topic_autostart;
 pub use set_topic_autostart::SetTopicAutostartInteractor;
+
+mod observe_queue;
+pub use observe_queue::ObserveQueueInteractor;

@@ -14,6 +14,28 @@ pub struct Channel {
 }
 
 impl Channel {
+    pub fn open_observer(endpoint: &Endpoint, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        if !endpoint.database.is_file() {
+            return Err(Error::NotFound(
+                "selected queue database does not exist".into(),
+            ));
+        }
+        let stream =
+            start_owner(endpoint, &cancelled).map_err(|error| Error::Storage(error.to_string()))?;
+        let channel = Self {
+            session: Rc::new(RefCell::new(ClientSession::new(stream, cancelled))),
+        };
+
+        match channel.request(QueueRequest::OpenObservation {
+            database_id: endpoint.identity.clone(),
+        })? {
+            QueueResponse::Ready { database_id, .. } if database_id == endpoint.identity => {
+                Ok(channel)
+            }
+            _ => Err(Self::unexpected()),
+        }
+    }
+
     pub fn open(
         endpoint: &Endpoint,
         policy: QueuePolicy,

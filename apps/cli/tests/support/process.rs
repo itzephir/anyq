@@ -31,12 +31,8 @@ impl TestProcess {
 
         Output {
             status,
-            stdout: stdout
-                .map(|reader| reader.join().unwrap())
-                .unwrap_or_default(),
-            stderr: stderr
-                .map(|reader| reader.join().unwrap())
-                .unwrap_or_default(),
+            stdout: collect(stdout, "stdout"),
+            stderr: collect(stderr, "stderr"),
         }
     }
 
@@ -61,6 +57,23 @@ impl TestProcess {
             child.wait().unwrap();
         }
     }
+}
+
+fn collect(reader: Option<thread::JoinHandle<Vec<u8>>>, label: &str) -> Vec<u8> {
+    let Some(reader) = reader else {
+        return Vec::new();
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+
+    while !reader.is_finished() {
+        assert!(
+            Instant::now() < deadline,
+            "{label} stayed open after the CLI process exited"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    reader.join().unwrap()
 }
 
 fn drain<R: Read + Send + 'static>(reader: Option<R>) -> Option<thread::JoinHandle<Vec<u8>>> {

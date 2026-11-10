@@ -16,6 +16,13 @@ pub enum QueueRequest {
         gate: crate::GateDto,
     },
     Ping,
+    OpenObservation {
+        database_id: String,
+    },
+    ObserveQueue {
+        max_entities: u32,
+        max_text_bytes: u64,
+    },
     Stop,
     Cancel,
     ListTasks,

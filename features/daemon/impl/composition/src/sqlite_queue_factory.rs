@@ -9,6 +9,14 @@ use std::{
 pub(crate) struct SqliteQueueFactory;
 
 impl QueueFactory for SqliteQueueFactory {
+    fn observe(
+        &self,
+        path: &Path,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
+        anyq_queue_impl::observe_existing(path, cancelled)
+    }
+
     fn open(
         &self,
         path: &Path,

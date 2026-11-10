@@ -63,7 +63,8 @@ fn write_raw(stream: &mut Stream, mut bytes: &[u8]) {
 
 #[test]
 fn status_is_read_only_and_owner_lifecycle_is_reusable() {
-    let queue = Queue::new();
+    let mut queue = Queue::new();
+    queue.db = queue.dir.path().join("queue with spaces 🦀.db");
 
     assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
     assert!(!queue.db.exists());

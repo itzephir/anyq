@@ -15,6 +15,9 @@ mod automatic_admission;
 #[path = "support/autostart.rs"]
 mod autostart;
 
+#[path = "support/observation.rs"]
+mod observation;
+
 use rusqlite::Connection;
 use std::{
     fs,

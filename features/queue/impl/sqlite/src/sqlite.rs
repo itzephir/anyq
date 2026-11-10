@@ -3,7 +3,7 @@ use crate::checkpoint::checkpoint;
 use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
 use anyq_queue_api::{Error, Result};
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
-use rusqlite::{Connection, ErrorCode, TransactionBehavior};
+use rusqlite::{Connection, ErrorCode, OpenFlags, TransactionBehavior};
 use std::{
     cell::RefCell,
     path::Path,
@@ -18,7 +18,7 @@ const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Clone)]
 pub struct Sqlite {
     pub(crate) connection: Rc<RefCell<Connection>>,
-    cancelled: Arc<AtomicBool>,
+    pub(crate) cancelled: Arc<AtomicBool>,
 }
 
 fn compatible_version(connection: &Connection) -> Result<i64> {
@@ -73,8 +73,16 @@ impl Sqlite {
     }
 
     pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        Self::open_flags(path, cancelled, OpenFlags::default())
+    }
+
+    pub fn open_existing(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        Self::open_flags(path, cancelled, OpenFlags::SQLITE_OPEN_READ_WRITE)
+    }
+
+    fn open_flags(path: &Path, cancelled: Arc<AtomicBool>, flags: OpenFlags) -> Result<Self> {
         checkpoint("sqlite.before-open", &cancelled)?;
-        let mut connection = Connection::open(path).map_err(storage)?;
+        let mut connection = Connection::open_with_flags(path, flags).map_err(storage)?;
         checkpoint("sqlite.after-open", &cancelled)?;
         connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
 

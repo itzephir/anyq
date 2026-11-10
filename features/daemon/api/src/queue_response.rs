@@ -9,7 +9,14 @@ use serde::{Deserialize, Serialize};
     deny_unknown_fields
 )]
 pub enum QueueResponse {
-    Ready { pid: u32, database_id: String },
+    Ready {
+        pid: u32,
+        database_id: String,
+    },
+    Observation {
+        database_id: String,
+        snapshot: crate::QueueSnapshotDto,
+    },
     Stopped,
     Task(TaskDto),
     Tasks(Vec<TaskDto>),

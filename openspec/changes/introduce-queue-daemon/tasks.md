@@ -19,14 +19,14 @@
 
 - [x] 3.1 Add per-request cancellation and safe-boundary propagation without global token sharing; verify cancelling one real client rolls back uncommitted work while other clients and owner remain usable.
 - [x] 3.2 Refactor feature-only integration gates to request/session scope with per-session hit counts; verify all existing native Ctrl+C cases still exercise real owner persistence boundaries without skip/ignore.
-- [ ] 3.3 Add foreground-owner signal/crash tests and blocked-client framing/output tests; verify committed states survive and shutdown remains bounded on native Linux/macOS/Windows CI.
+- [x] 3.3 Add foreground-owner signal/crash tests and blocked-client framing/output tests; verify committed states survive and shutdown remains bounded on native Linux/macOS/Windows CI.
 - [x] 3.4 Add fixture-owned daemon cleanup and update docs/INTERRUPTIONS.md; verify process tests leave no owners and first/second Ctrl+C behavior matches documented boundaries.
 
 ## 4. Integration acceptance
 
 - [x] 4.1 Run all mandatory formatting, lint, architecture, Ruff, OpenSpec, workspace and native interruption commands; retain their results and leave failures unchecked.
-- [ ] 4.2 Open the daemon-only implementation PR and verify current GitHub CI passed, including all native matrices, distribution and website categories, before marking cross-platform acceptance complete.
-- [ ] 4.3 Sync only verified daemon behavior into baseline specs; verify strict OpenSpec validation and review the diff for unchanged admission/ownership semantics.
+- [x] 4.2 Open the daemon-only implementation PR and verify current GitHub CI passed, including all native matrices, distribution and website categories, before marking cross-platform acceptance complete.
+- [x] 4.3 Sync only verified daemon behavior into baseline specs; verify strict OpenSpec validation and review the diff for unchanged admission/ownership semantics.
 
 ## Workflow follow-up
 

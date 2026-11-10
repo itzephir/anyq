@@ -4,6 +4,7 @@ mod checkpoint;
 mod sqlite;
 pub use sqlite::Sqlite;
 
+mod observation;
 mod sqlite_tasks;
 mod sqlite_topics;
 mod sqlite_unit_of_work;

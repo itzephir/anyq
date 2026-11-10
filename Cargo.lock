@@ -124,6 +124,7 @@ dependencies = [
  "anyq-daemon-api",
  "anyq-daemon-transport",
  "anyq-queue-api",
+ "windows-spawn",
 ]
 
 [[package]]
@@ -1022,6 +1023,15 @@ name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-spawn"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de3bd5b666ddb82bdd91c438afbe6a413fc21725d10e3e0b8d1d1c4afdd91c6"
+dependencies = [
+ "windows-sys",
+]
 
 [[package]]
 name = "windows-sys"
