@@ -25,8 +25,8 @@
 ## 4. Integration acceptance
 
 - [x] 4.1 Run mandatory local checks and native daemon/plugin crash, cancellation and interruption suites; record results without marking untested platform behavior complete.
-- [ ] 4.2 Open the hooks/plugins-only implementation PR and verify current CI passed for all supported OSes and required categories.
-- [ ] 4.3 Sync verified queue-events/plugin-runtime specs and verify strict validation while timeout and shell remain planned changes.
+- [x] 4.2 Open the hooks/plugins-only implementation PR and verify current CI passed for all supported OSes and required categories.
+- [x] 4.3 Sync verified queue-events/plugin-runtime specs and verify strict validation while timeout and shell remain planned changes.
 
 ## Workflow follow-up
 
