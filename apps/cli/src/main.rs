@@ -37,6 +37,10 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         parse_toml: anyq_queue_metadata::parse_toml,
     };
     let mut request = Request::parse(cli.command, &metadata_input)?;
+    if let Request::PluginRuntime(_) = request {
+        anyq_timeout_impl::run(&mut std::io::stdin().lock(), &mut std::io::stdout().lock())?;
+        return Ok(());
+    }
     if let Request::Plugin(controllers::PluginCommand::Enable {
         name, executable, ..
     }) = &mut request
@@ -224,6 +228,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             cases.replace_topic_metadata.replace(request)?;
             None
         }
+        Request::PluginRuntime(_) => unreachable!("plugin runtime handled before queue operations"),
         Request::Plugin(_) => unreachable!("plugin operations handled before queue operations"),
         Request::Config(_) => unreachable!("configuration handled before opening the queue"),
         Request::Daemon(_) => unreachable!("daemon lifecycle handled before queue operations"),

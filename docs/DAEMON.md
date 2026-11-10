@@ -55,7 +55,7 @@ version and retains the stored tasks and ownership.
 
 ## Protocol and failure boundaries
 
-Protocol version 3 uses a four-byte big-endian payload length followed by UTF-8
+Protocol version 4 uses a four-byte big-endian payload length followed by UTF-8
 JSON bytes, with each chunk bounded to 16 MiB. The header's high bit indicates
 continuation; the remaining bits give the chunk length. Incoming requests are
 limited to 16 MiB in total. Large query responses span chunks and are reassembled

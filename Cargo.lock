@@ -66,6 +66,9 @@ dependencies = [
  "anyq-plugin-wire",
  "anyq-queue-api",
  "anyq-queue-metadata",
+ "anyq-queue-wire",
+ "anyq-timeout-api",
+ "anyq-timeout-impl",
  "clap",
  "ctrlc",
  "rusqlite",
@@ -311,6 +314,23 @@ version = "0.1.1"
 dependencies = [
  "anyq-queue-api",
  "serde",
+]
+
+[[package]]
+name = "anyq-timeout-api"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-timeout-impl"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "anyq-timeout-api",
 ]
 
 [[package]]

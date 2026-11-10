@@ -64,7 +64,7 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 25 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 27 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
 
 Metadata/MetadataValue, exact normalized MetadataNumber, dotted paths and the incremental size/depth budget belong to queue API. Separate task/topic read, set, unset and replace interactors use the existing transaction. Task owns its edit-state restriction; metadata mutations never invoke admission. Creation saves initial metadata before links and admission. Topic capacity/autostart changes preserve its metadata.
 
@@ -100,3 +100,7 @@ SQLite stores topics/tasks/task_topics. Schema 5 adds committed outbox, original
 One standalone type per file; see [CODE-RULES.md](CODE-RULES.md). The Rust AST linter checks structure and prohibits a generic business dispatcher. The Python checker verifies the Cargo graph, inward dependencies, CLI factories only in main, and no direct CLI queue implementation access. Wire routing is an external adapter and never replaces typed use cases.
 
 Domain/use-case tests verify rules without infrastructure. SQLite and file integration suites use real data, failures, and independent writers. CLI workflow and native Ctrl+C suites run real clients and owners on Linux/macOS/Windows. Test hooks are enabled by a separate feature in external adapters only; they are absent from the normal binary and production protocol. Daemon gates use thread-scoped session context and hit counts without changing global environment. Fixtures stop every isolated owner before removing its database directory.
+
+The timeout feature separates pure duration/snapshot policy (`timeout/api`) from
+the public stdio adapter (`timeout/impl/protocol`). The CLI root injects native
+streams. Timeout has no queue implementation or SQLite dependency.

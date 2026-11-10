@@ -15,7 +15,7 @@ impl RemoteListPlugins {
 impl anyq_plugin_api::ListPlugins for RemoteListPlugins {
     fn list(&mut self) -> Result<Vec<anyq_plugin_api::PluginStatus>> {
         match self.channel.request(QueueRequest::PluginList)? {
-            QueueResponse::Plugins(value) => Ok(value.into_iter().map(Into::into).collect()),
+            QueueResponse::Plugins(value) => value.into_iter().map(TryInto::try_into).collect(),
             _ => Err(Channel::unexpected()),
         }
     }

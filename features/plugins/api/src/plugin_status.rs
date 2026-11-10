@@ -1,5 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PluginStatus {
+    pub state: anyq_queue_api::Metadata,
     pub name: String,
     pub enabled: bool,
     pub running: bool,
