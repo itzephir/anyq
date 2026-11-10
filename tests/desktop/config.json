@@ -291,7 +291,7 @@
   "visual_defaults": {
     "theme": "dark",
     "language": "en",
-    "viewport": [1000, 700],
+    "viewport": [1000, 620],
     "source": "automatic",
     "fixture": "primary",
     "status": "live",

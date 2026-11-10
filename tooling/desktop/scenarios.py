@@ -70,7 +70,7 @@ def run(cli, panel, home, output, configuration):
         )
 
     try:
-        driver.start()
+        driver.start(viewport=configuration["visual_defaults"]["viewport"])
         state = driver.state()
         original_frame = state
         assert state["source"] == "environment"
@@ -165,7 +165,7 @@ def run(cli, panel, home, output, configuration):
             "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='live';"
         )
         driver.resize(360, 650)
-        driver.resize(1000, 700)
+        driver.resize(*configuration["visual_defaults"]["viewport"])
         ui(
             "[...document.querySelectorAll('[data-topic]')].find(el=>el.querySelector('.topic-name').textContent==='cpu').click();"
         )
@@ -215,7 +215,7 @@ def run(cli, panel, home, output, configuration):
         alternate_before = fingerprint(alternate)
         driver.stop()
         assert "running" in call("daemon", "status", db=alternate)
-        driver.start()
+        driver.start(viewport=configuration["visual_defaults"]["viewport"])
         assert driver.state()["path"] == source_path
         assert driver.state()["source"] == "override"
         assert fingerprint(alternate) == alternate_before

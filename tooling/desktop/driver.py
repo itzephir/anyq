@@ -23,7 +23,7 @@ class Driver:
         self.sequence = 0
         self.log = None
 
-    def start(self, status="live", viewport=(1000, 700)):
+    def start(self, status="live", viewport=(1000, 620)):
         (self.directory / "command.json").unlink(missing_ok=True)
         self.log = (self.home / "panel.log").open("ab")
         self.process = subprocess.Popen(

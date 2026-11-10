@@ -44,7 +44,9 @@ def run(cli, panel, output, goldens, configuration, mode):
                 try:
                     driver.start(
                         status="live" if case.get("after_live") else case["status"],
-                        viewport=case["viewport"],
+                        viewport=case["viewport"]
+                        if case["surface"] == "main"
+                        else configuration["visual_defaults"]["viewport"],
                     )
                     if case.get("after_live"):
                         assert case["after_live"] == "database-unavailable"

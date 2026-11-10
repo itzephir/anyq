@@ -56,7 +56,7 @@ class Fixtures:
                 self.call(command, path)
             self.call(["daemon", "stop"], path)
         elif fixture["kind"] == "bytes":
-            path.write_text(fixture["content"], encoding="utf-8")
+            path.write_bytes(fixture["content"].encode("utf-8"))
         else:
             assert fixture["kind"] == "missing"
             assert not path.exists()

@@ -68,6 +68,7 @@ class Screenshots:
         time.sleep(0.15)
         if sys.platform == "win32":
             # PrintWindow captures the real window even when the taskbar overlaps it.
+            assert result["native_handle"], "Native Windows handle is unavailable"
             captured = ImageGrab.grab(window=result["native_handle"]).convert("RGB")
             if captured.size == (width, height):
                 actual = captured
