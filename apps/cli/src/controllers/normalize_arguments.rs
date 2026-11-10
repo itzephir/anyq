@@ -36,11 +36,11 @@ pub fn normalize_arguments(arguments: impl IntoIterator<Item = OsString>) -> Vec
 
 fn next_word(arguments: &[OsString], mut position: usize) -> Option<usize> {
     while let Some(argument) = arguments.get(position) {
-        if argument == "--db" || argument == "--lang" {
+        if argument == "--db" {
             position += 2;
         } else if argument
             .to_str()
-            .is_some_and(|value| value.starts_with("--db=") || value.starts_with("--lang="))
+            .is_some_and(|value| value.starts_with("--db="))
         {
             position += 1;
         } else {

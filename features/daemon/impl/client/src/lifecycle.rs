@@ -51,6 +51,7 @@ pub fn stop(endpoint: &Endpoint, cancelled: Arc<AtomicBool>) -> Result<()> {
     if !matches!(session.request(QueueRequest::Stop)?, QueueResponse::Stopped) {
         return Err(Channel::unexpected());
     }
+    drop(session);
 
     let deadline = Instant::now() + Duration::from_secs(10);
     while endpoint.connect().is_ok() {

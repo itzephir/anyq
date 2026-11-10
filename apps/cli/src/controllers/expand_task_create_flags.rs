@@ -24,7 +24,7 @@ pub fn expand_task_create_flags(arguments: impl IntoIterator<Item = OsString>) -
 
         if argument == "--" {
             positional_only = true;
-        } else if argument == "--db" || argument == "--lang" {
+        } else if argument == "--db" {
             value_expected = true;
         } else {
             let text = argument.to_str().unwrap_or("");

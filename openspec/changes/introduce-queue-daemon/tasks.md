@@ -11,7 +11,7 @@
 
 - [x] 2.1 Implement foreground serving, automatic detached startup, start/status/stop and bounded shutdown; verify a daemon survives client exit and stopped/restarted owners retain every task state and slot.
 - [x] 2.2 Implement individual remote queue trait adapters and switch every task/topic CLI path to them; verify existing workflow/name/alias/config/path-precedence tests and chain commit behavior without direct CLI SQLite access.
-- [x] 2.3 Preserve config/help/version independence and add en/ru lifecycle presentation; verify those commands create no database/owner and lifecycle messages render in both languages.
+- [x] 2.3 Preserve config/help/version independence and English-only CLI presentation; verify those commands create no database/owner and no CLI language option or translation resources are added.
 - [x] 2.4 Report response-loss ambiguity without replaying mutations; verify a severed post-commit response preserves ownership and a later query resolves the durable result.
 - [x] 2.5 Update README/examples and OpenSpec project context for daemon ownership; verify examples run as documented and do not imply plugin execution exists yet.
 

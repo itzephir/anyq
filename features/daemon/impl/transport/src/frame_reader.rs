@@ -65,7 +65,7 @@ impl Default for FrameReader {
 }
 
 impl FrameReader {
-    fn with_limit(limit: usize) -> Self {
+    pub(crate) fn with_limit(limit: usize) -> Self {
         Self {
             prefix: [0; 4],
             prefix_read: 0,

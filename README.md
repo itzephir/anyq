@@ -13,7 +13,7 @@ The landing page and its delivery workflow live in [website/](website/README.md)
 The website supports English and Russian, detects browser language, and remembers
 your EN/RU choice. Use `?lang=en` or `?lang=ru` for an explicit language override.
 Repository documentation, specifications, and comments are maintained in English;
-interface work supports both languages.
+the CLI is English-only, while website interfaces support both languages.
 
 Rust 1.85+ and C build tools for bundled SQLite are required. Linux, macOS, and Windows MSVC with Visual Studio Build Tools C++ are supported.
 
@@ -48,7 +48,7 @@ Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default.
 | `anyq config list` / `--list` / `-l` | Effective settings |
 | `anyq help [command]` | Help, for example help task link |
 
--v = --version, -h = --help, -w = --wait, -c = --complete for tasks. --db PATH is available at every level. Lifecycle messages support `--lang en/ru` or `ANYQ_LANG`; English is the default.
+-v = --version, -h = --help, -w = --wait, -c = --complete for tasks. --db PATH is available at every level. The CLI is English-only.
 
 The daemon uses a private Unix socket or Windows named pipe under the current account,
 with one OS lifetime lock per canonical database path. Config/help/version remain

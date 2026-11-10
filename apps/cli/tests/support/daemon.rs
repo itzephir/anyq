@@ -45,31 +45,33 @@ fn open_session(queue: &Queue) -> Stream {
     stream
 }
 
+fn write_raw(stream: &mut Stream, mut bytes: &[u8]) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+
+    while !bytes.is_empty() {
+        match stream.write(bytes) {
+            Ok(0) => panic!("connection closed during fixture write"),
+            Ok(count) => bytes = &bytes[count..],
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(2));
+            }
+            Err(error) => panic!("fixture write failed: {error}"),
+        }
+    }
+}
+
 #[test]
-fn status_is_read_only_and_lifecycle_messages_support_both_languages() {
+fn status_is_read_only_and_owner_lifecycle_is_reusable() {
     let queue = Queue::new();
 
     assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
-    assert_eq!(
-        queue.call(&["--lang", "ru", "daemon", "status"]),
-        "демон остановлен"
-    );
     assert!(!queue.db.exists());
 
     let first = queue.call(&["daemon", "start"]);
     assert!(first.starts_with("daemon is running (pid "));
     assert_eq!(queue.call(&["daemon", "start"]), first);
     assert_eq!(queue.call(&["daemon", "status"]), first);
-    assert!(
-        queue
-            .call(&["daemon", "status", "--lang=ru"])
-            .starts_with("демон запущен")
-    );
-
-    queue.topic("cpu");
-    queue.call(&["--lang", "ru", "task", "localized", "create", "-twc", "cpu"]);
-    assert_eq!(queue.state("localized"), "completed");
-
     queue.call(&["daemon", "stop"]);
     assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
 }
@@ -162,10 +164,10 @@ fn incomplete_oversized_and_incompatible_clients_cannot_block_or_mutate_queue() 
     queue.call(&["daemon", "start"]);
     let endpoint = Endpoint::resolve(&queue.db).unwrap();
     let mut slow = endpoint.connect().unwrap();
-    slow.write_all(&[0, 0]).unwrap();
+    write_raw(&mut slow, &[0, 0]);
 
     let mut oversized = endpoint.connect().unwrap();
-    oversized.write_all(&u32::MAX.to_be_bytes()).unwrap();
+    write_raw(&mut oversized, &u32::MAX.to_be_bytes());
     let malformed = endpoint.connect().unwrap();
     send_frame(
         &malformed,

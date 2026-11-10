@@ -12,7 +12,7 @@
 - [ ] 2.1 Add plugin API/dispatch/process/persistence/composition crates and update graph checks; verify negative fixtures reject cross-feature impl dependencies and plugin database access.
 - [ ] 2.2 Implement versioned bounded stdio handshake/subscriptions/acks with isolated supervision; verify incompatible, hanging, crashing and output-flooding fixture plugins do not block queue clients.
 - [ ] 2.3 Persist registrations, future-event enable watermark and per-plugin delivery positions; verify independent consumers, retry backoff, lost ack, disable/re-enable and restart resume without changed event identity.
-- [ ] 2.4 Add plugin enable/list/status/disable CLI and en/ru diagnostics; verify explicit enable is required and document executable trust, delivery behavior and error recovery with a runnable fixture plugin.
+- [ ] 2.4 Add plugin enable/list/status/disable CLI and English-only diagnostics; verify explicit enable is required and document executable trust, delivery behavior and error recovery with a runnable fixture plugin.
 
 ## 3. Capabilities, timers and managed work
 

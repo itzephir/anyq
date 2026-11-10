@@ -3,7 +3,8 @@ schema: spec-driven
 context: |
   Language: English
   All repository content, documentation, comments, and OpenSpec artifacts must be written in English.
-  User interfaces must support English (en) and Russian (ru).
+  The CLI is English-only, with no translations or language selection.
+  Websites and other graphical interfaces support English (en) and Russian (ru).
   Russian is allowed in localization resources and language-specific test fixtures.
   Website language selection: valid URL override, saved preference, browser languages, then English.
   Expose the selected website language through the HTML lang attribute for layout and accessibility.

@@ -21,8 +21,8 @@ anyq --db ./queue.db daemon stop
 Use `anyq daemon run --db PATH` to serve in the foreground under a process
 supervisor. The foreground owner handles native Ctrl+C. A background Windows
 owner has no console; use `daemon stop` for graceful shutdown. Login services and
-remote clients are not installed. Lifecycle messages accept `--lang en/ru` or
-`ANYQ_LANG`, default English. `status` and `stop` accept an explicit --db/ANYQ_DB
+remote clients are not installed. CLI messages and help are English-only, with
+no language setting. `status` and `stop` accept an explicit --db/ANYQ_DB
 even when config is damaged, allowing cleanup without reading that file.
 
 ## Identity and access

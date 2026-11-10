@@ -3,7 +3,6 @@ mod controllers;
 mod daemon_presenters;
 mod error;
 mod interrupt;
-mod language;
 mod output;
 mod paths;
 mod presenters;
@@ -82,7 +81,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             } else {
                 anyq_daemon_impl::daemon_status(path, cancelled.clone())?
             };
-            output::emit(&daemon_presenters::status(pid, cli.lang), &cancelled)?;
+            output::emit(&daemon_presenters::status(pid), &cancelled)?;
 
             return Ok(());
         }
@@ -118,7 +117,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
                 None
             }
         };
-        output::emit(&daemon_presenters::status(pid, cli.lang), &cancelled)?;
+        output::emit(&daemon_presenters::status(pid), &cancelled)?;
 
         return Ok(());
     }
