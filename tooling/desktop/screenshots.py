@@ -92,22 +92,43 @@ class Screenshots:
             and outer["x"] + border + width <= work["x"] + work["width"]
             and outer["y"] + inset_top + height <= work["y"] + work["height"]
         ), f"Configured client viewport is outside the visible work area: {result}"
-        time.sleep(0.15)
         divisor = scale if sys.platform == "darwin" else 1
         x = (outer["x"] + border) / divisor
         y = (outer["y"] + inset_top) / divisor
+
         # Capture displayed pixels. PrintWindow can return partially blank
         # WebView2 surfaces despite a fully loaded DOM and a visible window.
-        actual = ImageGrab.grab(
-            bbox=(
-                round(x),
-                round(y),
-                round(x + width / divisor),
-                round(y + height / divisor),
-            )
-        ).convert("RGB")
-        if actual.size != tuple(case["viewport"]):
-            actual = actual.resize(tuple(case["viewport"]), Image.Resampling.LANCZOS)
+        def grab():
+            frame = ImageGrab.grab(
+                bbox=(
+                    round(x),
+                    round(y),
+                    round(x + width / divisor),
+                    round(y + height / divisor),
+                )
+            ).convert("RGB")
+            if frame.size != tuple(case["viewport"]):
+                frame = frame.resize(tuple(case["viewport"]), Image.Resampling.LANCZOS)
+            return frame
+
+        readiness = case["capture_stability"]
+        deadline = time.monotonic() + readiness["timeout_seconds"]
+        previous, stable, frames = grab(), 0, 1
+        while True:
+            time.sleep(readiness["interval_seconds"])
+            actual = grab()
+            frames += 1
+            changed, difference = changed_pixels(previous, actual, self.comparison)
+            stable = stable + 1 if changed == 0 else 0
+            if stable >= readiness["consecutive_frames"]:
+                break
+            if time.monotonic() >= deadline:
+                actual.save(self.output / f"{name}.unstable.png")
+                if difference is not None:
+                    difference.save(self.output / f"{name}.unstable.diff.png")
+                raise AssertionError(f"Native renderer did not settle: {name}")
+            previous = actual
+        result["capture_frames"] = frames
         colors = actual.getcolors(maxcolors=32)
         assert colors is None or len(colors) > 1, f"Blank native capture: {name}"
         suffix = "actual" if repetition == 0 else "repeat"

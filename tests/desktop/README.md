@@ -13,6 +13,9 @@ any visual instability under the configured comparison before accepting candidat
 fixed clock/timezone, source, preferences, viewport/decorations, selected topic/task,
 scroll, focus, cursor, renderer arguments, masks and comparison thresholds. Cases
 do not inherit earlier scenarios.
+The configured capture deadline waits for three consecutive visually stable
+native frames after fonts/layout are ready. It rejects an unsettled renderer;
+it does not replace the separate repeatability check across clean processes.
 Only machine-specific source-path text is masked and its actual identity is
 asserted separately. The display clock and timezone are injected only into the
 feature-gated test build. Timers still use real bounded deadlines; tests wait for
@@ -74,8 +77,10 @@ To update goldens intentionally, use `--mode generate` on the corresponding
 native platform, inspect every changed PNG and commit the result in the PR.
 The native UI workflow also exposes `verify`/`generate` through workflow_dispatch.
 Before that workflow reaches main, invoke the existing CI workflow on the PR
-branch with `desktop_goldens=true`; its separate generator job uploads candidates
-while the required comparison job still runs in verify mode. Generation never
+branch with `desktop_goldens=true`; this runs only the native generator matrix.
+It deliberately cannot satisfy `CI passed`, whose gate still rejects skipped
+normal checks. Every PR always runs the complete required verify matrix and other
+categories. Generation never
 commits files or grants a CI pass for missing/unreviewed goldens.
 The initial hosted-runner images may be collected from CI artifacts, inspected,
 and committed. A missing initial baseline deliberately fails comparison until

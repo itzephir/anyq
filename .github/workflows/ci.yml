@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   lint:
+    if: github.event_name != 'workflow_dispatch' || !inputs.desktop_goldens
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -45,6 +46,7 @@ jobs:
       - run: npx prettier --check 'apps/desktop/ui/**/*.{html,css,js,json}' apps/desktop/tauri.conf.json tests/desktop/config.json
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
   build-and-unit-tests:
+    if: github.event_name != 'workflow_dispatch' || !inputs.desktop_goldens
     name: Build & unit tests (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -59,6 +61,7 @@ jobs:
       - run: cargo build --workspace --locked
       - run: cargo test --workspace --lib --bins --exclude anyq-queue-sqlite --exclude anyq-config-file --locked
   integration-tests:
+    if: github.event_name != 'workflow_dispatch' || !inputs.desktop_goldens
     name: Integration tests (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -83,6 +86,7 @@ jobs:
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
   desktop:
+    if: github.event_name != 'workflow_dispatch' || !inputs.desktop_goldens
     uses: ./.github/workflows/desktop.yml
   desktop-goldens:
     if: github.event_name == 'workflow_dispatch' && inputs.desktop_goldens
@@ -90,8 +94,10 @@ jobs:
     with:
       mode: generate
   distribution:
+    if: github.event_name != 'workflow_dispatch' || !inputs.desktop_goldens
     uses: ./.github/workflows/distribution.yml
   website:
+    if: github.event_name != 'workflow_dispatch' || !inputs.desktop_goldens
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

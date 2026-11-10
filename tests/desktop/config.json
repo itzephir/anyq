@@ -309,7 +309,12 @@
     },
     "focus": null,
     "mask_selectors": [".source-path", ".source-card p"],
-    "repetitions": 2
+    "repetitions": 2,
+    "capture_stability": {
+      "consecutive_frames": 3,
+      "interval_seconds": 0.1,
+      "timeout_seconds": 5
+    }
   },
   "visual_cases": [
     {
