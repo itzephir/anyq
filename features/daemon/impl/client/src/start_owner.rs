@@ -1,11 +1,16 @@
 use anyq_daemon_transport::{Endpoint, Stream};
 use std::{
     io,
-    process::{Command, Stdio},
     sync::atomic::{AtomicBool, Ordering},
     thread,
     time::{Duration, Instant},
 };
+
+#[cfg(unix)]
+use std::process::{Command, Stdio};
+
+#[cfg(windows)]
+use windows_spawn::{Command, CreationFlags, SpawnOptions, Stdio};
 
 pub(crate) fn start_owner(endpoint: &Endpoint, cancelled: &AtomicBool) -> io::Result<Stream> {
     if let Ok(stream) = endpoint.connect() {
@@ -31,14 +36,16 @@ pub(crate) fn start_owner(endpoint: &Endpoint, cancelled: &AtomicBool) -> io::Re
         command.process_group(0);
     }
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-
-        command.creation_flags(0x00000008 | 0x00000200);
-    }
-
+    #[cfg(unix)]
     let mut child = command.spawn()?;
+
+    #[cfg(windows)]
+    let mut child =
+        command
+            .spawn_with(SpawnOptions::new().creation_flags(
+                CreationFlags::DETACHED_PROCESS | CreationFlags::NEW_PROCESS_GROUP,
+            ))?;
+
     let deadline = Instant::now() + Duration::from_secs(10);
 
     loop {
@@ -53,6 +60,7 @@ pub(crate) fn start_owner(endpoint: &Endpoint, cancelled: &AtomicBool) -> io::Re
         }
 
         let _ = child.try_wait();
+
         if Instant::now() >= deadline {
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,

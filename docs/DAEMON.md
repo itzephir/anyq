@@ -25,6 +25,11 @@ remote clients are not installed. CLI messages and help are English-only, with
 no language setting. `status` and `stop` accept an explicit --db/ANYQ_DB
 even when config is damaged, allowing cleanup without reading that file.
 
+Background Windows startup uses an explicit handle allowlist through the
+`windows-spawn` adapter. Only its null standard streams are transferred; the
+caller's output pipes and other inherited handles are excluded, so capturing
+a CLI command's output does not wait for the daemon to exit.
+
 ## Identity and access
 
 Existing symlinks and relative paths resolve to a canonical database identity.
@@ -42,6 +47,11 @@ Do not concurrently use pre-daemon anyq binaries on the same database: those
 binaries do not participate in the owner lock. Stop the daemon before rolling
 back to an older compatible binary. This stage retains schema 3, including
 the existing atomic schema-2 upgrade, and never resets running ownership.
+
+Before upgrading or replacing the executable, stop the daemon for each active
+database. Windows keeps the running executable in use, and a replacement CLI
+may use a different protocol. The next queue command starts the installed
+version and retains the stored tasks and ownership.
 
 ## Protocol and failure boundaries
 

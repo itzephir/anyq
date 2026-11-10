@@ -55,6 +55,7 @@ ALLOWED = {
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "anyq-queue-api",
+        "windows-spawn",
     },
     "anyq-daemon-runtime": {
         "anyq-daemon-api",

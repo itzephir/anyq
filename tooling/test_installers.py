@@ -152,23 +152,42 @@ def main():
                     "USERPROFILE": str(root),
                     "LOCALAPPDATA": str(root / "appdata"),
                 }
-                for command in (
-                    ["topic", "create", "installer-resource"],
-                    [
-                        "task",
-                        "create",
-                        "installer-probe",
-                        "-t",
-                        "installer-resource",
-                        "-w",
-                    ],
-                    ["task", "complete", "installer-probe"],
-                ):
+                try:
+                    for command in (
+                        ["topic", "create", "installer-resource"],
+                        [
+                            "task",
+                            "create",
+                            "installer-probe",
+                            "-t",
+                            "installer-resource",
+                            "-w",
+                        ],
+                        ["task", "complete", "installer-probe"],
+                    ):
+                        subprocess.run(
+                            [
+                                destination,
+                                "--db",
+                                str(root / "smoke queue.db"),
+                                *command,
+                            ],
+                            env=smoke_environment,
+                            capture_output=True,
+                            check=True,
+                            timeout=15,
+                        )
+                finally:
                     subprocess.run(
-                        [destination, "--db", str(root / "smoke queue.db"), *command],
+                        [
+                            destination,
+                            "--db",
+                            str(root / "smoke queue.db"),
+                            "daemon",
+                            "stop",
+                        ],
                         env=smoke_environment,
                         capture_output=True,
-                        check=True,
                         timeout=15,
                     )
 

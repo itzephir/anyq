@@ -13,5 +13,8 @@ anyq-daemon-api = { path = "../../api" }
 anyq-daemon-transport = { path = "../transport" }
 anyq-queue-api = { path = "../../../queue/api" }
 
+[target.'cfg(windows)'.dependencies]
+windows-spawn = "0.1.0"
+
 [lints]
 workspace = true
