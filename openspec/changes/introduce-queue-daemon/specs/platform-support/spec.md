@@ -10,7 +10,7 @@ Task registration, topic linking, wait, and complete SHALL run natively on macOS
 - **THEN** the task remains running in both topics until a separate complete
 
 ### Requirement: Native CLI interruption
-The first Ctrl+C SHALL return 130. Client cancellation SHALL reach its daemon request's safe persistence boundary. Before commit, SQLite SHALL roll back the current transaction; after commit it SHALL preserve the result and ownership. Other requests and the daemon SHALL survive client cancellation. Chains SHALL leave the last committed stage. Native integration tests SHALL send real SIGINT/CTRL_C_EVENT on all three operating systems without skip/ignore and verify states, slots, and subsequent operations.
+The first Ctrl+C SHALL return 130. Client cancellation SHALL reach its daemon request's safe persistence boundary. Before commit, SQLite SHALL roll back the current transaction; after commit it SHALL preserve the result and ownership. Chains SHALL leave the last committed stage. Native integration tests SHALL send real SIGINT/CTRL_C_EVENT on all three operating systems without skip/ignore and verify states, slots, and subsequent operations.
 
 #### Scenario: Signal after admission
 - **WHEN** Ctrl+C arrives after running commit but before the CLI message
@@ -19,3 +19,7 @@ The first Ctrl+C SHALL return 130. Client cancellation SHALL reach its daemon re
 #### Scenario: Signal before admission
 - **WHEN** Ctrl+C arrives before running commit or while waiting for a resource
 - **THEN** the task is queued without partial ownership
+
+#### Scenario: Independent clients survive cancellation
+- **WHEN** a CLI request is cancelled while another client uses the daemon
+- **THEN** other requests and the daemon survive client cancellation

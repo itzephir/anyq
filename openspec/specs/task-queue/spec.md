@@ -127,7 +127,7 @@ For task create, --wait/-w SHALL require at least one --topic/-t, and --complete
 - **THEN** the command is rejected and the acquired resource set is preserved
 
 ### Requirement: Blocking wait for own admission
-`anyq task wait NAME` SHALL wait for the specified queued task's admission and return 0 only after it becomes running. Running SHALL succeed immediately; unknown tasks, missing topics, and completed SHALL fail without waiting. Wait SHALL only observe state, without performing admission or changing ownership. Waiting SHALL NOT launch commands or a separate task executor.
+`anyq task wait NAME` SHALL wait for the specified queued task's admission and return 0 only after it becomes running. Running SHALL succeed immediately; unknown tasks, missing topics, and completed SHALL fail without waiting. Wait SHALL only observe state, without performing admission or changing ownership. Waiting SHALL NOT launch commands or a task executor; the persistent queue owner SHALL serve observation requests independently of external work.
 
 #### Scenario: No topics
 - **WHEN** wait is called for a registered task without topics
@@ -212,7 +212,7 @@ Names, topic links, order, and states SHALL survive opening the database in a ne
 - **THEN** the operation fails and recommends a separate database, original bytes are preserved, and journal files are not created
 
 ### Requirement: Native coordination interface
-Task and topic commands SHALL work natively. The caller SHALL remain responsible for external work. Successful operations SHALL return 0 with a clear message; state and input errors SHALL return nonzero.
+Task and topic commands SHALL work natively through the local background queue daemon. The caller SHALL remain responsible for external work. Successful operations SHALL return 0 with a clear message; state and input errors SHALL return nonzero.
 
 #### Scenario: External build
 - **WHEN** the caller registers a task, links it to topics, obtains wait, performs a build, and calls complete
@@ -244,7 +244,7 @@ Both link forms SHALL accept --wait/-w and --complete/-c; complete SHALL require
 - **THEN** CLI returns an error before opening the database
 
 ### Requirement: Automatic queue advancement
-Successful registration with topics, link, complete (including force), and topic capacity/autostart changes SHALL admit all eligible queued tasks with autostart enabled in global registration order before commit. Admission SHALL be saved atomically with the original change. Neither active wait nor a background process SHALL be required; persistence failure SHALL roll back the entire operation.
+Successful registration with topics, link, complete (including force), and topic capacity/autostart changes SHALL admit all eligible queued tasks with autostart enabled in global registration order before commit. Admission SHALL be saved atomically with the original change. No active wait or periodic scheduling SHALL be required; persistence failure SHALL roll back the entire operation.
 
 #### Scenario: Release without observer
 - **WHEN** the owner of the only slot completes and the next queued task has no active wait
