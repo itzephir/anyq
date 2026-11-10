@@ -1069,8 +1069,8 @@ fn native_owner_interrupt_cancels_managed_plugin_without_releasing_task_ownershi
     owner.interrupt();
 
     assert_eq!(
-        fs::read_to_string(log.with_extension("marker")).unwrap(),
-        "stopped"
+        fs::read_to_string(log.with_extension("stopped")).unwrap(),
+        "owner"
     );
     assert_eq!(queue.state("owner"), "running");
     assert_eq!(queue.state("next"), "queued");

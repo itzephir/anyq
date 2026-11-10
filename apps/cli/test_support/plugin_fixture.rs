@@ -163,6 +163,7 @@ fn main() {
                     let marker = marker.clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(std::time::Duration::from_millis(200));
+                        fs::write(marker.with_extension("stopped"), &work.task).unwrap();
                         fs::write(marker, b"stopped").unwrap();
                         send(PluginFrame::Request {
                             id: "stop".into(),
@@ -173,6 +174,9 @@ fn main() {
                         });
                     });
                     continue;
+                }
+                if mode != "uncertain" {
+                    fs::write(marker.with_extension("stopped"), &work.task).unwrap();
                 }
                 fs::write(
                     &marker,
