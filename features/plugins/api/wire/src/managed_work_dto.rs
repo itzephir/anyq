@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedWorkDto {
+    pub details: anyq_queue_wire::MetadataDto,
     pub owner: String,
     pub action_id: String,
     pub task: String,
@@ -14,6 +15,7 @@ pub struct ManagedWorkDto {
 impl From<ManagedWork> for ManagedWorkDto {
     fn from(work: ManagedWork) -> Self {
         Self {
+            details: work.details.into(),
             owner: work.owner,
             action_id: work.action_id,
             task: work.task,

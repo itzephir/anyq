@@ -443,7 +443,7 @@ fn transaction_failure_rolls_back_prior_writes_and_ownership() {
 
 #[test]
 fn incompatible_databases_are_rejected_without_changing_their_bytes() {
-    for version in [0, 1, 6] {
+    for version in [0, 1, 7] {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("incompatible.db");
         let connection = Connection::open(&path).unwrap();
@@ -785,7 +785,7 @@ fn schema_v2_upgrade_preserves_states_order_memberships_and_ownership() {
         .borrow()
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
 
     complete(&store, "owner", false);
 

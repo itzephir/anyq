@@ -57,8 +57,13 @@ pub(crate) fn capability(
                 Err(error) => return Err(error),
             }
         }
-        CapabilityRequest::ManagedRegister { action_id, task } => {
+        CapabilityRequest::ManagedRegister {
+            action_id,
+            task,
+            details,
+        } => {
             let launch = work.register.register(RegisterManagedWorkRequest {
+                details: details.try_into()?,
                 owner: plugin.name.clone(),
                 action_id,
                 task,
@@ -68,10 +73,15 @@ pub(crate) fn capability(
                 launch_allowed: launch.launch_allowed,
             }
         }
-        CapabilityRequest::ManagedReport { action_id, state } => CapabilityResult::ManagedWork {
+        CapabilityRequest::ManagedReport {
+            action_id,
+            state,
+            details,
+        } => CapabilityResult::ManagedWork {
             work: work
                 .report
                 .report(ReportManagedWorkRequest {
+                    details: details.map(TryInto::try_into).transpose()?,
                     owner: plugin.name.clone(),
                     action_id,
                     state: work_state(&state)?,

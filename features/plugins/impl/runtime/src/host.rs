@@ -43,6 +43,7 @@ impl<S: Store> Host<S> {
     fn uncertain(&mut self, name: &str) -> Result<()> {
         for work in self.unresolved(name)? {
             self.work.report.report(ReportManagedWorkRequest {
+                details: None,
                 owner: name.into(),
                 action_id: work.action_id,
                 state: ManagedWorkState::Uncertain,
@@ -75,6 +76,9 @@ impl<S: Store> Host<S> {
     ) -> Result<bool> {
         let work = self.unresolved(&plugin.name)?;
         let blocked = !work.is_empty();
+        session
+            .sent_cancellations
+            .retain(|id| work.iter().any(|work| &work.action_id == id));
         if session.last_cancellation.elapsed() < Duration::from_millis(10) {
             return Ok(blocked);
         }
@@ -85,7 +89,11 @@ impl<S: Store> Host<S> {
             if all && !work.cancellation_requested {
                 work = self.work.cancel.cancel(&plugin.name, &work.action_id)?;
             }
-            if work.cancellation_requested && session.handshake {
+            if work.cancellation_requested
+                && session.handshake
+                && !session.sent_cancellations.contains(&work.action_id)
+            {
+                session.sent_cancellations.insert(work.action_id.clone());
                 session
                     .process
                     .send(encode(&HostFrame::Cancel { work: work.into() })?)?;
@@ -168,6 +176,7 @@ impl<S: Store> Host<S> {
                             started_at: Instant::now(),
                             pending: None,
                             cancellation_cursor: 0,
+                            sent_cancellations: std::collections::BTreeSet::new(),
                             draining_since: None,
                             last_cancellation: Instant::now() - Duration::from_secs(1),
                         },

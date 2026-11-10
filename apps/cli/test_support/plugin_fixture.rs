@@ -17,7 +17,12 @@ fn send(frame: PluginFrame) {
     stdout.flush().unwrap();
 }
 
+mod worker;
+
 fn main() {
+    if worker::run() {
+        return;
+    }
     let arguments: Vec<_> = std::env::args().collect();
     let mode = &arguments[1];
     let log = PathBuf::from(&arguments[2]);
@@ -41,7 +46,11 @@ fn main() {
                     continue;
                 }
                 send(PluginFrame::Hello {
-                    version: if mode == "incompatible" { 999 } else { 1 },
+                    version: if mode == "incompatible" {
+                        999
+                    } else {
+                        anyq_plugin_wire::PROTOCOL_VERSION
+                    },
                     subscriptions: vec!["task.running".into()],
                     capabilities: vec![
                         "read".into(),
@@ -92,6 +101,7 @@ fn main() {
                     send(PluginFrame::Request {
                         id: "register".into(),
                         request: CapabilityRequest::ManagedRegister {
+                            details: anyq_queue_api::Metadata::default().into(),
                             action_id: format!("work:{delivery_id}"),
                             task: anyq_queue_api::format_name(&event.task.as_ref().unwrap().name),
                         },
@@ -132,6 +142,7 @@ fn main() {
                     send(PluginFrame::Request {
                         id: "active".into(),
                         request: CapabilityRequest::ManagedReport {
+                            details: None,
                             action_id: work.action_id,
                             state: "active".into(),
                         },
@@ -171,6 +182,7 @@ fn main() {
                 send(PluginFrame::Request {
                     id: "stop".into(),
                     request: CapabilityRequest::ManagedReport {
+                        details: None,
                         action_id: work.action_id,
                         state: if mode == "uncertain" {
                             "uncertain"

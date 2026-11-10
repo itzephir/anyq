@@ -11,7 +11,7 @@ pub(crate) struct SqliteWork<'a> {
 
 impl WorkRecords for SqliteWork<'_> {
     fn managed(&mut self, owner: Option<&str>, task: Option<&str>) -> Result<Vec<ManagedWork>> {
-        let mut statement = self.connection.prepare("SELECT owner,action_id,task_name,state,cancellation_requested FROM managed_work WHERE (?1 IS NULL OR owner=?1) AND (?2 IS NULL OR task_name=?2) ORDER BY owner,action_id").map_err(storage)?;
+        let mut statement = self.connection.prepare("SELECT owner,action_id,task_name,state,cancellation_requested,details FROM managed_work WHERE (?1 IS NULL OR owner=?1) AND (?2 IS NULL OR task_name=?2) ORDER BY owner,action_id").map_err(storage)?;
         let rows = statement
             .query_map(params![owner, task], |row| {
                 Ok((
@@ -20,6 +20,7 @@ impl WorkRecords for SqliteWork<'_> {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, bool>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             })
             .map_err(storage)?
@@ -27,28 +28,39 @@ impl WorkRecords for SqliteWork<'_> {
             .map_err(storage)?;
 
         rows.into_iter()
-            .map(|(owner, action_id, task, state, cancellation_requested)| {
-                let state = match state.as_str() {
-                    "launch-pending" => ManagedWorkState::LaunchPending,
-                    "active" => ManagedWorkState::Active,
-                    "stopped" => ManagedWorkState::Stopped,
-                    "uncertain" => ManagedWorkState::Uncertain,
-                    _ => return Err(Error::Storage("unknown managed work state".into())),
-                };
+            .map(
+                |(owner, action_id, task, state, cancellation_requested, details)| {
+                    let state = match state.as_str() {
+                        "launch-pending" => ManagedWorkState::LaunchPending,
+                        "active" => ManagedWorkState::Active,
+                        "stopped" => ManagedWorkState::Stopped,
+                        "uncertain" => ManagedWorkState::Uncertain,
+                        _ => return Err(Error::Storage("unknown managed work state".into())),
+                    };
 
-                Ok(ManagedWork {
-                    owner,
-                    action_id,
-                    task,
-                    state,
-                    cancellation_requested,
-                })
-            })
+                    let mut decoder = serde_json::Deserializer::from_str(&details);
+                    decoder.disable_recursion_limit();
+                    let details = anyq_queue_wire::MetadataDto::deserialize(&mut decoder)
+                        .map_err(|error| Error::Storage(error.to_string()))?;
+                    decoder
+                        .end()
+                        .map_err(|error| Error::Storage(error.to_string()))?;
+
+                    Ok(ManagedWork {
+                        details: details.try_into()?,
+                        owner,
+                        action_id,
+                        task,
+                        state,
+                        cancellation_requested,
+                    })
+                },
+            )
             .collect()
     }
 
     fn save_managed(&mut self, work: &ManagedWork) -> Result<()> {
-        self.connection.execute("INSERT INTO managed_work(owner,action_id,task_name,state,cancellation_requested) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(owner,action_id) DO UPDATE SET state=excluded.state,cancellation_requested=excluded.cancellation_requested", params![work.owner,work.action_id,work.task,work.state.as_str(),work.cancellation_requested]).map_err(storage)?;
+        self.connection.execute("INSERT INTO managed_work(owner,action_id,task_name,state,cancellation_requested,details) VALUES (?1,?2,?3,?4,?5,?6) ON CONFLICT(owner,action_id) DO UPDATE SET state=excluded.state,cancellation_requested=excluded.cancellation_requested,details=excluded.details", params![work.owner,work.action_id,work.task,work.state.as_str(),work.cancellation_requested,serde_json::to_string(&anyq_queue_wire::MetadataDto::from(work.details.clone())).map_err(|error| Error::Storage(error.to_string()))?]).map_err(storage)?;
 
         Ok(())
     }

@@ -820,7 +820,7 @@ fn incompatible_database_returns_a_clear_error_without_modifying_it() {
     let connection = Connection::open(&q.db).unwrap();
     connection
         .execute_batch(
-            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=6",
+            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=7",
         )
         .unwrap();
     drop(connection);
@@ -910,3 +910,7 @@ mod plugins;
 #[cfg(feature = "integration-test-hooks")]
 #[path = "support/timeout.rs"]
 mod timeout;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/shell.rs"]
+mod shell;

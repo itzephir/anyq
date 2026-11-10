@@ -74,6 +74,7 @@ fn persisted_completion_intent_prevents_late_launch_and_stopped_receipts_are_own
     let store = Sqlite::open(&directory.path().join("queue.db")).unwrap();
     running(&store);
     let request = RegisterManagedWorkRequest {
+        details: anyq_queue_api::Metadata::default(),
         owner: "shell".into(),
         action_id: "run".into(),
         task: "owner".into(),
@@ -104,6 +105,7 @@ fn persisted_completion_intent_prevents_late_launch_and_stopped_receipts_are_own
     assert!(
         RegisterManagedWorkInteractor::new(store.clone())
             .register(RegisterManagedWorkRequest {
+                details: anyq_queue_api::Metadata::default(),
                 owner: "other".into(),
                 action_id: "late".into(),
                 task: "owner".into()
@@ -113,6 +115,7 @@ fn persisted_completion_intent_prevents_late_launch_and_stopped_receipts_are_own
     assert!(
         ReportManagedWorkInteractor::new(store.clone())
             .report(ReportManagedWorkRequest {
+                details: None,
                 owner: "other".into(),
                 action_id: "run".into(),
                 state: ManagedWorkState::Stopped
@@ -122,6 +125,7 @@ fn persisted_completion_intent_prevents_late_launch_and_stopped_receipts_are_own
     assert_eq!(usage(&store, "cpu"), 1);
     ReportManagedWorkInteractor::new(store.clone())
         .report(ReportManagedWorkRequest {
+            details: None,
             owner: "shell".into(),
             action_id: "run".into(),
             state: ManagedWorkState::Uncertain,
@@ -130,6 +134,7 @@ fn persisted_completion_intent_prevents_late_launch_and_stopped_receipts_are_own
     assert!(
         ReportManagedWorkInteractor::new(store.clone())
             .report(ReportManagedWorkRequest {
+                details: None,
                 owner: "shell".into(),
                 action_id: "run".into(),
                 state: ManagedWorkState::Active
@@ -207,6 +212,7 @@ fn independent_launch_and_completion_transactions_serialize_the_same_task() {
         let store = Sqlite::open(&launch_path).unwrap();
         launch_barrier.wait();
         RegisterManagedWorkInteractor::new(store).register(RegisterManagedWorkRequest {
+            details: anyq_queue_api::Metadata::default(),
             owner: "worker".into(),
             action_id: "race".into(),
             task: "owner".into(),
@@ -234,6 +240,7 @@ fn independent_launch_and_completion_transactions_serialize_the_same_task() {
         );
         ReportManagedWorkInteractor::new(store.clone())
             .report(ReportManagedWorkRequest {
+                details: None,
                 owner: "worker".into(),
                 action_id: "race".into(),
                 state: ManagedWorkState::Stopped,

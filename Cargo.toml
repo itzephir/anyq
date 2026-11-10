@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
+  "features/shell/api",
+  "features/shell/impl/runtime",
+  "features/shell/impl/process",
   "features/timeout/api",
   "features/timeout/impl/protocol",
   "features/queue/api",

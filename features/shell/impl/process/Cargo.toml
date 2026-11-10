@@ -1,0 +1,22 @@
+[package]
+name = "anyq-shell-process"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-shell-api = { path = "../../api" }
+anyq-shell-runtime = { path = "../runtime" }
+anyq-queue-api = { path = "../../../queue/api" }
+
+[lints]
+workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1", features = ["process"] }
+sysinfo = { version = "=0.33.1", default-features = false, features = ["system"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-spawn = "=0.1.0"
+win32job = "=2.0.3"

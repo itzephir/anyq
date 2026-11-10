@@ -892,7 +892,7 @@ fn ctrl_c_topic_autostart_and_its_promotions_share_one_commit() {
 
 #[test]
 fn ctrl_c_schema_upgrade_preserves_the_old_or_whole_new_schema_and_ownership() {
-    for initial_version in [2, 3, 4] {
+    for initial_version in [2, 3, 4, 5] {
         for (stage, committed) in [
             ("sqlite.schema.before-commit", false),
             ("sqlite.schema.after-commit", true),
@@ -912,13 +912,26 @@ fn ctrl_c_schema_upgrade_preserves_the_old_or_whole_new_schema_and_ownership() {
                     .unwrap();
                 connection.pragma_update(None, "user_version", 3).unwrap();
             }
-            if initial_version == 4 {
+            if initial_version >= 4 {
                 connection
                     .execute_batch(include_str!(
                         "../../../features/queue/impl/sqlite/src/migrate_v3.sql"
                     ))
                     .unwrap();
                 connection.pragma_update(None, "user_version", 4).unwrap();
+            }
+            if initial_version == 5 {
+                connection
+                    .execute_batch(include_str!(
+                        "../../../features/queue/impl/sqlite/src/migrate_v4.sql"
+                    ))
+                    .unwrap();
+                connection
+                    .execute_batch(include_str!(
+                        "../../../features/plugins/impl/sqlite/src/schema.sql"
+                    ))
+                    .unwrap();
+                connection.execute_batch("INSERT INTO managed_work(owner,action_id,task_name,state,cancellation_requested) VALUES ('fixture','old','owner','uncertain',0); PRAGMA user_version=5;").unwrap();
             }
             drop(connection);
 
@@ -928,7 +941,7 @@ fn ctrl_c_schema_upgrade_preserves_the_old_or_whole_new_schema_and_ownership() {
             let version: i64 = connection
                 .pragma_query_value(None, "user_version", |row| row.get(0))
                 .unwrap();
-            assert_eq!(version, if committed { 5 } else { initial_version });
+            assert_eq!(version, if committed { 6 } else { initial_version });
             let metadata_columns: i64 = connection
                 .query_row(
                     "SELECT count(*) FROM pragma_table_info('tasks') WHERE name='metadata'",
@@ -938,15 +951,25 @@ fn ctrl_c_schema_upgrade_preserves_the_old_or_whole_new_schema_and_ownership() {
                 .unwrap();
             assert_eq!(
                 metadata_columns,
-                i64::from(committed || initial_version == 4)
+                i64::from(committed || initial_version >= 4)
             );
             let feature_tables: i64 = connection.query_row("SELECT count(*) FROM sqlite_schema WHERE name IN ('queue_events','queue_identity','task_directories','completion_intents','completion_receipts','managed_work','plugins','plugin_timers')",[],|row| row.get(0)).unwrap();
-            assert_eq!(feature_tables, if committed { 8 } else { 0 });
+            assert_eq!(
+                feature_tables,
+                if committed || initial_version == 5 {
+                    8
+                } else {
+                    0
+                }
+            );
             assert_eq!(queue.state("owner"), "running");
             assert_eq!(queue.state("next"), "queued");
             assert_eq!(queue.usage("cpu"), 1);
             drop(connection);
 
+            if initial_version == 5 {
+                queue.call(&["plugin", "resolve", "fixture", "old", "--confirmed-cleanup"]);
+            }
             queue.call(&["task", "complete", "owner"]);
 
             assert_eq!(queue.state("next"), "running");

@@ -1,6 +1,6 @@
 # Ctrl+C and persistence boundaries
 
-The first Ctrl+C requests cancellation; CLI reaches the current safe boundary and returns 130. A committed stage is not undone. An open transaction rolls back completely. External work is outside anyq's ownership; a CLI signal does not prove that work has stopped.
+The first Ctrl+C requests cancellation; CLI reaches the current safe boundary and returns 130. A committed stage is not undone. An open transaction rolls back completely. Caller-managed external work is outside anyq's ownership; a CLI signal does not prove that work has stopped.
 
 Queue operations execute inside a daemon session with its own cancellation token.
 Client Ctrl+C sends a cancellation message and waits briefly for the owner to
@@ -62,3 +62,14 @@ cargo test --locked -p anyq --test interruptions --features integration-test-hoo
 ```
 
 Checkpoints are built only with integration-test-hooks. ANYQ_TEST_CHECKPOINT variables have no effect in a normal build. CI on all three operating systems explicitly enables the required native suite; omitting the feature does not replace running it.
+
+## Optional managed execution
+
+Enabled shell work has a durable launch intent before spawn. Manual/timeout
+completion, disable and owner shutdown request cancellation and retain slots until
+all managed descendants are confirmed stopped. Abrupt plugin or owner failure
+leaves uncertainty; restart does not replay a command or certify cleanup from a
+saved PID. Explicit inspection/resolution is documented in [SHELL.md](SHELL.md).
+The shell crash gates are compiled only with integration-test-hooks; they never
+appear in production protocol frames or ordinary builds. Native integration tests
+exercise both sides of spawn, process descendants and retained execution results.

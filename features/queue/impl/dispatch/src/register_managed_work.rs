@@ -46,6 +46,7 @@ impl<S: Store> RegisterManagedWork for RegisterManagedWorkInteractor<S> {
             let completion = records.work().completion_requested(task.name())?;
             ManagedWork::require_launch(task.state(), completion)?;
             let work = ManagedWork {
+                details: request.details,
                 owner: request.owner,
                 action_id: request.action_id,
                 task: task.name().into(),

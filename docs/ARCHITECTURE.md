@@ -64,7 +64,7 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 27 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 30 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
 
 Metadata/MetadataValue, exact normalized MetadataNumber, dotted paths and the incremental size/depth budget belong to queue API. Separate task/topic read, set, unset and replace interactors use the existing transaction. Task owns its edit-state restriction; metadata mutations never invoke admission. Creation saves initial metadata before links and admission. Topic capacity/autostart changes preserve its metadata.
 
@@ -104,3 +104,8 @@ Domain/use-case tests verify rules without infrastructure. SQLite and file integ
 The timeout feature separates pure duration/snapshot policy (`timeout/api`) from
 the public stdio adapter (`timeout/impl/protocol`). The CLI root injects native
 streams. Timeout has no queue implementation or SQLite dependency.
+
+Shell separates pure task-plan policy (`shell/api`), public protocol/supervision
+(`shell/impl/runtime`) and native process IO (`shell/impl/process`). Runtime-owned
+process ports are injected by the CLI root; neither policy nor runtime depends on
+queue implementation or SQLite. Per-action details use bounded managed capabilities.

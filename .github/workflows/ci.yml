@@ -77,6 +77,7 @@ jobs:
       - run: python examples/metadata.py
       - run: python examples/plugins.py
       - run: python examples/timeout.py
+      - run: python examples/shell.py
   distribution:
     uses: ./.github/workflows/distribution.yml
   website:

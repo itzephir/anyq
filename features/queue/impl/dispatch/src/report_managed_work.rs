@@ -22,6 +22,9 @@ impl<S: Store> ReportManagedWork for ReportManagedWorkInteractor<S> {
                 .find(|work| work.action_id == request.action_id)
                 .ok_or_else(|| Error::NotFound("managed action is absent for this owner".into()))?;
             work.report(request.state)?;
+            if let Some(details) = request.details {
+                work.details = details;
+            }
             records.work().save_managed(&work)?;
 
             Ok(work)

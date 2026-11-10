@@ -2,6 +2,8 @@ use crate::{Error, ManagedWorkState, Result, TaskState};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagedWork {
+    pub details: crate::Metadata,
+
     pub owner: String,
     pub action_id: String,
     pub task: String,

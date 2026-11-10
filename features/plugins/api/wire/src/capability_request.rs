@@ -14,10 +14,12 @@ pub enum CapabilityRequest {
     },
     ReadState,
     ManagedRegister {
+        details: anyq_queue_wire::MetadataDto,
         action_id: String,
         task: String,
     },
     ManagedReport {
+        details: Option<anyq_queue_wire::MetadataDto>,
         action_id: String,
         state: String,
     },

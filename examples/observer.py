@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal explicitly enabled protocol-v1 observer; Python is example tooling."""
+"""Minimal explicitly enabled versioned-protocol observer; Python is example tooling."""
 
 import json
 import sys
@@ -20,7 +20,7 @@ def main():
             send(
                 {
                     "type": "hello",
-                    "version": 1,
+                    "version": frame["version"],
                     "subscriptions": ["task.running"],
                     "capabilities": ["state"],
                 }
