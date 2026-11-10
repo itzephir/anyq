@@ -102,3 +102,7 @@ connection churn while a task retains its resource ownership.
 Stop waits for the lifetime database lock to be released, including managed-plugin
 drain after the endpoint has closed. Initial discovery can retry a competing owner
 launch after that lock is released; it never replays a sent queue operation.
+
+SQLite WAL lock acquisition and initial schema reads retry bounded BUSY/PROTOCOL
+contention before business mutations. A failed or uncertain queue mutation is
+never retried through this path. Concurrent first clients are covered natively.
