@@ -1,6 +1,6 @@
 use crate::{
-    Error, ResourceAvailability, Result, StartOutcome, StartPreference, TaskState, Topic,
-    parse_name, parse_topic_name,
+    Error, Metadata, MetadataValue, ResourceAvailability, Result, StartOutcome, StartPreference,
+    TaskState, Topic, parse_name, parse_topic_name,
 };
 use std::collections::BTreeSet;
 
@@ -12,6 +12,7 @@ pub struct Task {
     topics: Vec<String>,
     autostart_default: bool,
     stopped: bool,
+    metadata: Metadata,
 }
 
 impl Task {
@@ -29,7 +30,17 @@ impl Task {
         sequence: i64,
         name: String,
         state: TaskState,
+        topics: Vec<String>,
+    ) -> Result<Self> {
+        Self::restore_with_metadata(sequence, name, state, topics, Metadata::default())
+    }
+
+    pub fn restore_with_metadata(
+        sequence: i64,
+        name: String,
+        state: TaskState,
         mut topics: Vec<String>,
+        metadata: Metadata,
     ) -> Result<Self> {
         if sequence <= 0 {
             return Err(Error::Invalid("task sequence must be positive".into()));
@@ -56,6 +67,7 @@ impl Task {
             topics,
             autostart_default: true,
             stopped: false,
+            metadata,
         })
     }
 
@@ -81,6 +93,41 @@ impl Task {
 
     pub fn stopped(&self) -> bool {
         self.stopped
+    }
+
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    fn require_metadata_editable(&self) -> Result<()> {
+        if matches!(self.state, TaskState::Running | TaskState::Completed) {
+            return Err(Error::Conflict(format!(
+                "metadata of '{}' cannot change while {}",
+                self.name,
+                self.state.as_str()
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub fn set_metadata_key(&mut self, key: &str, value: MetadataValue) -> Result<()> {
+        self.require_metadata_editable()?;
+
+        self.metadata.set(key, value)
+    }
+
+    pub fn unset_metadata_key(&mut self, key: &str) -> Result<()> {
+        self.require_metadata_editable()?;
+
+        self.metadata.unset(key)
+    }
+
+    pub fn replace_metadata(&mut self, metadata: Metadata) -> Result<()> {
+        self.require_metadata_editable()?;
+        self.metadata = metadata;
+
+        Ok(())
     }
 
     pub fn with_start_policy(mut self, default: bool, stopped: bool) -> Self {

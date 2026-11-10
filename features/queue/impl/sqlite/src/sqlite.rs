@@ -26,7 +26,7 @@ fn compatible_version(connection: &Connection) -> Result<i64> {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(storage)?;
 
-    if version != 0 && version != 2 && version != 3 {
+    if ![0, 2, 3, 4].contains(&version) {
         return Err(Error::Storage(format!(
             "unsupported database schema version {version}; choose a separate database with --db"
         )));
@@ -99,12 +99,19 @@ impl Sqlite {
             0 => {
                 tx.execute_batch(include_str!("schema.sql"))
                     .map_err(storage)?;
-                tx.pragma_update(None, "user_version", 3).map_err(storage)?;
+                tx.pragma_update(None, "user_version", 4).map_err(storage)?;
             }
             2 => {
                 tx.execute_batch(include_str!("migrate_v2.sql"))
                     .map_err(storage)?;
-                tx.pragma_update(None, "user_version", 3).map_err(storage)?;
+                tx.execute_batch(include_str!("migrate_v3.sql"))
+                    .map_err(storage)?;
+                tx.pragma_update(None, "user_version", 4).map_err(storage)?;
+            }
+            3 => {
+                tx.execute_batch(include_str!("migrate_v3.sql"))
+                    .map_err(storage)?;
+                tx.pragma_update(None, "user_version", 4).map_err(storage)?;
             }
             _ => {}
         }

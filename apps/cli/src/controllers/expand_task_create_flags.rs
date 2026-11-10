@@ -12,12 +12,12 @@ pub fn expand_task_create_flags(arguments: impl IntoIterator<Item = OsString>) -
     let mut arguments = arguments.into_iter();
     let mut expanded: Vec<_> = arguments.next().into_iter().collect();
     let mut position = Position::Root;
-    let mut value_expected = false;
+    let mut values_expected: usize = 0;
     let mut positional_only = false;
 
     for argument in arguments {
-        if value_expected || positional_only {
-            value_expected = false;
+        if values_expected != 0 || positional_only {
+            values_expected = values_expected.saturating_sub(1);
             expanded.push(argument);
             continue;
         }
@@ -25,7 +25,7 @@ pub fn expand_task_create_flags(arguments: impl IntoIterator<Item = OsString>) -
         if argument == "--" {
             positional_only = true;
         } else if argument == "--db" {
-            value_expected = true;
+            values_expected = 1;
         } else {
             let text = argument.to_str().unwrap_or("");
 
@@ -40,11 +40,16 @@ pub fn expand_task_create_flags(arguments: impl IntoIterator<Item = OsString>) -
                 if let Some(flags) = topic_cluster(text) {
                     expanded.push(format!("-{flags}").into());
                     expanded.push("-t".into());
-                    value_expected = true;
+                    values_expected = 1;
                     continue;
                 }
 
-                value_expected = matches!(text, "-t" | "--topic");
+                values_expected = match text {
+                    "--meta" => 2,
+                    "-t" | "--topic" | "--metafile" => 1,
+                    text if text.starts_with("--meta=") => 1,
+                    _ => 0,
+                };
             }
         }
 

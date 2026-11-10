@@ -16,6 +16,7 @@ impl<S: Store> CreateTopic for CreateTopicInteractor<S> {
         self.store.transaction(|records| {
             let mut validated = Topic::restore(topic.name, topic.capacity)?;
             validated.autostart = topic.autostart;
+            validated.metadata = topic.metadata;
             let topic = validated;
 
             if let Some(existing) = records.topics().topic(&topic.name)? {

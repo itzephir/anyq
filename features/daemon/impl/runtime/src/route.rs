@@ -6,6 +6,68 @@ use anyq_queue_api::{
 
 pub(crate) fn route(request: QueueRequest, services: &mut QueueServices) -> Result<QueueResponse> {
     Ok(match request {
+        QueueRequest::GetTaskMetadata { task, key } => QueueResponse::Metadata(
+            services
+                .get_task_metadata
+                .get(anyq_queue_api::GetTaskMetadataRequest { task, key })?
+                .into(),
+        ),
+        QueueRequest::SetTaskMetadata { task, key, value } => QueueResponse::Metadata(
+            services
+                .set_task_metadata
+                .set(anyq_queue_api::SetTaskMetadataRequest {
+                    task,
+                    key,
+                    value: value.try_into()?,
+                })?
+                .into(),
+        ),
+        QueueRequest::UnsetTaskMetadata { task, key } => QueueResponse::Metadata(
+            services
+                .unset_task_metadata
+                .unset(anyq_queue_api::UnsetTaskMetadataRequest { task, key })?
+                .into(),
+        ),
+        QueueRequest::ReplaceTaskMetadata { task, metadata } => QueueResponse::Metadata(
+            services
+                .replace_task_metadata
+                .replace(anyq_queue_api::ReplaceTaskMetadataRequest {
+                    task,
+                    metadata: metadata.try_into()?,
+                })?
+                .into(),
+        ),
+        QueueRequest::GetTopicMetadata { topic, key } => QueueResponse::Metadata(
+            services
+                .get_topic_metadata
+                .get(anyq_queue_api::GetTopicMetadataRequest { topic, key })?
+                .into(),
+        ),
+        QueueRequest::SetTopicMetadata { topic, key, value } => QueueResponse::Metadata(
+            services
+                .set_topic_metadata
+                .set(anyq_queue_api::SetTopicMetadataRequest {
+                    topic,
+                    key,
+                    value: value.try_into()?,
+                })?
+                .into(),
+        ),
+        QueueRequest::UnsetTopicMetadata { topic, key } => QueueResponse::Metadata(
+            services
+                .unset_topic_metadata
+                .unset(anyq_queue_api::UnsetTopicMetadataRequest { topic, key })?
+                .into(),
+        ),
+        QueueRequest::ReplaceTopicMetadata { topic, metadata } => QueueResponse::Metadata(
+            services
+                .replace_topic_metadata
+                .replace(anyq_queue_api::ReplaceTopicMetadataRequest {
+                    topic,
+                    metadata: metadata.try_into()?,
+                })?
+                .into(),
+        ),
         QueueRequest::ListTasks => QueueResponse::Names(services.list_tasks.list()?),
         QueueRequest::ListTopics => QueueResponse::Topics(
             services
@@ -41,10 +103,12 @@ pub(crate) fn route(request: QueueRequest, services: &mut QueueServices) -> Resu
             name,
             topics,
             start,
+            metadata,
         } => QueueResponse::Task(
             services
                 .register_task
                 .register(RegisterTaskRequest {
+                    metadata: metadata.try_into()?,
                     name,
                     topics,
                     start: start.into(),

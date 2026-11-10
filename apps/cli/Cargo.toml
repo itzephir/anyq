@@ -10,6 +10,7 @@ integration-test-hooks = ["dep:anyq-integration-test-hooks", "anyq-daemon-impl/i
 
 [dependencies]
 anyq-queue-api = { path = "../../features/queue/api" }
+anyq-queue-metadata = { path = "../../features/queue/impl/metadata", features = ["files"] }
 anyq-daemon-impl = { path = "../../features/daemon/impl/composition" }
 anyq-config-api = { path = "../../features/config/api" }
 anyq-config-impl = { path = "../../features/config/impl/composition" }

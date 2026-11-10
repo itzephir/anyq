@@ -32,6 +32,13 @@ using serde_json::Value inside the domain would couple its contracts to one
 format. All parsers must detect duplicate object keys and reject unsupported
 TOML/YAML values rather than stringifying them silently.
 
+The structural budget charges eight bytes per value plus UTF-8 key/string and
+normalized-number bytes. File input has an independent 1 MiB cap. Stateless
+conversion lives in queue/impl/metadata: SQLite uses its JSON functions and the
+CLI root injects its format functions into client-local MetadataInput. YAML
+uses bounded pull events, including anchor/alias accounting; TOML preserves
+decimal lexical representations. Inner crates remain format independent.
+
 ### Focused typed use cases
 
 Provide separate task/topic metadata read, set-key, unset-key and replace
@@ -71,6 +78,11 @@ IMMEDIATE transaction. Use a single explicit serializer at the adapter boundary.
 Retain schema 2 -> 3 -> metadata upgrade in the same initialization transaction,
 with no admission on open. Update protocol DTOs and typed client adapters together;
 incompatible protocol peers are rejected before operations.
+
+The implemented storage version is 4 and the protocol version is 2. Wire object
+pairs are duplicate checked and exact numbers travel as decimal text. Caller
+directories retain native path encoding. Each implementation PR targets its
+immediate predecessor's branch, forming the requested stack.
 
 ## Risks / Trade-offs
 

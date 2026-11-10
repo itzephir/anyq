@@ -3,6 +3,7 @@ mod controllers;
 mod daemon_presenters;
 mod error;
 mod interrupt;
+mod metadata_input;
 mod output;
 mod paths;
 mod presenters;
@@ -28,7 +29,13 @@ use std::{
 };
 
 fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
-    let request = Request::try_from(cli.command)?;
+    let metadata_input = metadata_input::MetadataInput {
+        parse_value: anyq_queue_metadata::parse_value,
+        parse_json: anyq_queue_metadata::parse_json,
+        parse_yaml: anyq_queue_metadata::parse_yaml,
+        parse_toml: anyq_queue_metadata::parse_toml,
+    };
+    let request = Request::parse(cli.command, &metadata_input)?;
     checkpoint("cli.before-command", &cancelled)?;
     let config_path = paths::home()?.join(".anyq/config.toml");
     let mut configuration = anyq_config_impl::open(&config_path, cancelled.clone());
@@ -126,6 +133,36 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     checkpoint("cli.before-operation", &cancelled)?;
 
     let message = match request {
+        Request::GetTaskMetadata(request) => Some(anyq_queue_metadata::to_json(
+            &cases.get_task_metadata.get(request)?,
+        )?),
+        Request::SetTaskMetadata(request) => {
+            cases.set_task_metadata.set(request)?;
+            None
+        }
+        Request::UnsetTaskMetadata(request) => {
+            cases.unset_task_metadata.unset(request)?;
+            None
+        }
+        Request::ReplaceTaskMetadata(request) => {
+            cases.replace_task_metadata.replace(request)?;
+            None
+        }
+        Request::GetTopicMetadata(request) => Some(anyq_queue_metadata::to_json(
+            &cases.get_topic_metadata.get(request)?,
+        )?),
+        Request::SetTopicMetadata(request) => {
+            cases.set_topic_metadata.set(request)?;
+            None
+        }
+        Request::UnsetTopicMetadata(request) => {
+            cases.unset_topic_metadata.unset(request)?;
+            None
+        }
+        Request::ReplaceTopicMetadata(request) => {
+            cases.replace_topic_metadata.replace(request)?;
+            None
+        }
         Request::Config(_) => unreachable!("configuration handled before opening the queue"),
         Request::Daemon(_) => unreachable!("daemon lifecycle handled before queue operations"),
         Request::GetTask { name } => Some(presenters::task(&cases.get_task.get(&name)?)),

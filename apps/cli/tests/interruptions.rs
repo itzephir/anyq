@@ -892,34 +892,145 @@ fn ctrl_c_topic_autostart_and_its_promotions_share_one_commit() {
 
 #[test]
 fn ctrl_c_schema_upgrade_preserves_the_old_or_whole_new_schema_and_ownership() {
+    for initial_version in [2, 3] {
+        for (stage, committed) in [
+            ("sqlite.schema.before-commit", false),
+            ("sqlite.schema.after-commit", true),
+        ] {
+            let queue = Queue::new();
+            let connection = rusqlite::Connection::open(&queue.db).unwrap();
+            connection
+                .execute_batch(include_str!(
+                    "../../../features/queue/impl/sqlite/src/tests/schema_v2.sql"
+                ))
+                .unwrap();
+            if initial_version == 3 {
+                connection
+                    .execute_batch(include_str!(
+                        "../../../features/queue/impl/sqlite/src/migrate_v2.sql"
+                    ))
+                    .unwrap();
+                connection.pragma_update(None, "user_version", 3).unwrap();
+            }
+            drop(connection);
+
+            InterruptProcess::spawn(&queue, &["task", "list"], stage, 1).interrupt();
+
+            let connection = rusqlite::Connection::open(&queue.db).unwrap();
+            let version: i64 = connection
+                .pragma_query_value(None, "user_version", |row| row.get(0))
+                .unwrap();
+            assert_eq!(version, if committed { 4 } else { initial_version });
+            let metadata_columns: i64 = connection
+                .query_row(
+                    "SELECT count(*) FROM pragma_table_info('tasks') WHERE name='metadata'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(metadata_columns, i64::from(committed));
+            assert_eq!(queue.state("owner"), "running");
+            assert_eq!(queue.state("next"), "queued");
+            assert_eq!(queue.usage("cpu"), 1);
+            drop(connection);
+
+            queue.call(&["task", "complete", "owner"]);
+
+            assert_eq!(queue.state("next"), "running");
+            assert_eq!(queue.usage("repo"), 1);
+        }
+    }
+}
+
+#[test]
+fn ctrl_c_creation_commits_metadata_registration_and_every_slot_together() {
+    use rusqlite::OptionalExtension;
+
     for (stage, committed) in [
-        ("sqlite.schema.before-commit", false),
-        ("sqlite.schema.after-commit", true),
+        ("sqlite.after-task-insert", false),
+        ("sqlite.before-commit", false),
+        ("sqlite.after-commit", true),
     ] {
         let queue = Queue::new();
+        queue.call(&["config", "topic.autocreate", "true"]);
+        let file = queue.dir.path().join("metadata.json");
+        fs::write(&file, r#"{"timeout":"2h","unknown":{"enabled":true}}"#).unwrap();
+
+        InterruptProcess::spawn(
+            &queue,
+            &[
+                "task",
+                "create",
+                "job",
+                "-t",
+                "cpu",
+                "-t",
+                "repo",
+                "--metafile",
+                file.to_str().unwrap(),
+            ],
+            stage,
+            1,
+        )
+        .interrupt();
+
         let connection = rusqlite::Connection::open(&queue.db).unwrap();
-        connection
-            .execute_batch(include_str!(
-                "../../../features/queue/impl/sqlite/src/tests/schema_v2.sql"
-            ))
+        let raw: Option<String> = connection
+            .query_row("SELECT metadata FROM tasks WHERE name='job'", [], |row| {
+                row.get(0)
+            })
+            .optional()
             .unwrap();
-        drop(connection);
-
-        InterruptProcess::spawn(&queue, &["task", "list"], stage, 1).interrupt();
-
-        let connection = rusqlite::Connection::open(&queue.db).unwrap();
-        let version: i64 = connection
-            .pragma_query_value(None, "user_version", |row| row.get(0))
+        assert_eq!(raw.is_some(), committed);
+        let topics: i64 = connection
+            .query_row("SELECT count(*) FROM topics", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, if committed { 3 } else { 2 });
-        assert_eq!(queue.state("owner"), "running");
-        assert_eq!(queue.state("next"), "queued");
-        assert_eq!(queue.usage("cpu"), 1);
-        drop(connection);
+        assert_eq!(topics, if committed { 2 } else { 0 });
+        if let Some(raw) = raw {
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&raw).unwrap(),
+                serde_json::json!({"timeout":"2h","unknown":{"enabled":true}})
+            );
+            assert_eq!(queue.state("job"), "running");
+        }
+        assert_eq!(queue.usage("cpu"), i64::from(committed));
+        assert_eq!(queue.usage("repo"), i64::from(committed));
+    }
+}
 
-        queue.call(&["task", "complete", "owner"]);
+#[test]
+fn ctrl_c_metadata_patches_preserve_the_old_or_complete_new_object() {
+    for (kind, name, write_gate) in [
+        ("task", "job", "sqlite.after-task-update"),
+        ("topic", "cpu", "sqlite.after-topic-write"),
+    ] {
+        for (stage, committed) in [
+            (write_gate, false),
+            ("sqlite.before-commit", false),
+            ("sqlite.after-commit", true),
+        ] {
+            let queue = Queue::new();
+            queue.topic("cpu");
+            queue.task("job", &[]);
+            queue.call(&[kind, name, "meta", "keep", "true"]);
 
-        assert_eq!(queue.state("next"), "running");
-        assert_eq!(queue.usage("repo"), 1);
+            InterruptProcess::spawn(
+                &queue,
+                &[kind, name, "meta", "added.flag", "false"],
+                stage,
+                1,
+            )
+            .interrupt();
+
+            let metadata: serde_json::Value =
+                serde_json::from_str(&queue.call(&[kind, name, "meta"])).unwrap();
+            assert_eq!(metadata["keep"], true);
+            assert_eq!(metadata.get("added").is_some(), committed);
+            if committed {
+                assert_eq!(metadata["added"]["flag"], false);
+            }
+            assert_eq!(queue.state("job"), "registered");
+            assert_eq!(queue.usage("cpu"), 0);
+        }
     }
 }

@@ -7,6 +7,7 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | queue/api | Task, TaskState, Topic, TopicQueue, ResourceAvailability, AutoCreatePolicy, name parsing and formatting; separate use-case contracts |
 | queue/impl/dispatch | Registration, linking, admission, completion, reads, and topic management; consumer-owned persistence ports |
 | queue/impl/sqlite | Schema, exact queries, IMMEDIATE transaction boundary |
+| queue/impl/metadata | Stateless outer JSON/YAML/TOML conversion and exact decimal serialization |
 | queue/impl/composition | Explicit assembly of individual queue interactors |
 | config/api | Config, typed keys/values, defaults, separate read/write contracts |
 | config/impl/dispatch | GetConfig, GetConfigValue, SetConfigValue, UnsetConfigValue, and consumer-owned Store |
@@ -27,7 +28,7 @@ Task has a unique name, an immutable monotonic registration sequence, a state, a
 
 Task owns transitions, resource-set completeness, and the prohibition on changing running/completed membership. ResourceAvailability checks free slots and queued predecessors. The same registration order applies across all topics. A queued task keeps its place without an active wait; remove an unwanted task with complete --force.
 
-parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/start/autostart/wait/complete/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
+parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/start/autostart/wait/complete/meta/metafile/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
 
 Storage and ports use canonical strings. Task::restore and Topic::restore restore an already parsed name without stripping backticks again and validate the aggregate's structural invariants. format_name produces a reversible representation of a canonical name. CLI and SQL do not duplicate naming rules.
 
@@ -55,7 +56,11 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 16 crates, including two development tools. CLI no longer imports queue impl; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to the technical daemon boundary, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 17 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to the technical daemon boundary, not queue/config domain APIs.
+
+Metadata/MetadataValue, exact normalized MetadataNumber, dotted paths and the incremental size/depth budget belong to queue API. Separate task/topic read, set, unset and replace interactors use the existing transaction. Task owns its edit-state restriction; metadata mutations never invoke admission. Creation saves initial metadata before links and admission. Topic capacity/autostart changes preserve its metadata.
+
+Stateless format conversion lives in queue/impl/metadata. SQLite uses its JSON adapter; only the CLI composition root imports the format implementation and injects parsing functions into the local MetadataInput adapter. Controllers receive those functions without depending on an implementation crate. MetadataInput performs bounded client-local UTF-8 file reads. YAML/TOML dependencies are enabled by its files feature. Queue domain and interactors import no serialization libraries. Format and transport limits are documented in [METADATA.md](METADATA.md).
 
 One daemon holds the lifetime owner lock for each canonical database. CLI sessions
 send an Open frame with the canonical identity and validated policy snapshot;
@@ -78,7 +83,7 @@ The first Ctrl+C sets an external cancellation token. A client sends cancellatio
 
 stdout/stderr writes, including help, run in a separate thread owning only its message. The main thread waits for the result through a channel with a short timeout and checks the cancellation token. On cancellation it releases its resources and returns 130 without joining a blocked writer; the writer terminates with CLI. During normal execution, the next step begins only after the write result. Standard Rust streams retain their platform behavior; no business state is passed to the writer.
 
-SQLite stores topics/tasks/task_topics. Schema 3 adds task.autostart_default/stopped and nullable topic.autostart; schema 2 upgrades in one IMMEDIATE transaction, preserving all states and ownership. Version 1 remains incompatible. Opening a database does not perform domain admission. Existing database compatibility is checked before modifying its data or journal mode. An incompatible file is rejected without changing or deleting data.
+SQLite stores topics/tasks/task_topics. Schema 4 adds checked task/topic metadata objects; schema 2 receives autostart fields and metadata, while schema 3 receives metadata, in one IMMEDIATE transaction preserving all states and ownership. Version 1 remains incompatible. Opening a database does not perform domain admission. Existing database compatibility is checked before modifying its data or journal mode. An incompatible file is rejected without changing or deleting data.
 
 ## Checks
 

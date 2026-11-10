@@ -22,6 +22,14 @@ pub fn connect(
     let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
 
     Ok(QueueServices {
+        get_task_metadata: Box::new(RemoteGetTaskMetadata::new(channel.clone())),
+        set_task_metadata: Box::new(RemoteSetTaskMetadata::new(channel.clone())),
+        unset_task_metadata: Box::new(RemoteUnsetTaskMetadata::new(channel.clone())),
+        replace_task_metadata: Box::new(RemoteReplaceTaskMetadata::new(channel.clone())),
+        get_topic_metadata: Box::new(RemoteGetTopicMetadata::new(channel.clone())),
+        set_topic_metadata: Box::new(RemoteSetTopicMetadata::new(channel.clone())),
+        unset_topic_metadata: Box::new(RemoteUnsetTopicMetadata::new(channel.clone())),
+        replace_topic_metadata: Box::new(RemoteReplaceTopicMetadata::new(channel.clone())),
         create_topic: Box::new(RemoteCreateTopic::new(channel.clone())),
         set_topic_capacity: Box::new(RemoteSetTopicCapacity::new(channel.clone())),
         list_topics: Box::new(RemoteListTopics::new(channel.clone())),

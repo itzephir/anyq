@@ -45,8 +45,8 @@ session opening. No IP listener, access token or network service is exposed.
 
 Do not concurrently use pre-daemon anyq binaries on the same database: those
 binaries do not participate in the owner lock. Stop the daemon before rolling
-back to an older compatible binary. This stage retains schema 3, including
-the existing atomic schema-2 upgrade, and never resets running ownership.
+back to an older compatible binary. Schema 4 includes metadata and atomic
+schema-2/3 upgrades, and never resets running ownership.
 
 Before upgrading or replacing the executable, stop the daemon for each active
 database. Windows keeps the running executable in use, and a replacement CLI
@@ -55,7 +55,7 @@ version and retains the stored tasks and ownership.
 
 ## Protocol and failure boundaries
 
-Protocol version 1 uses a four-byte big-endian payload length followed by UTF-8
+Protocol version 2 uses a four-byte big-endian payload length followed by UTF-8
 JSON bytes, with each chunk bounded to 16 MiB. The header's high bit indicates
 continuation; the remaining bits give the chunk length. Incoming requests are
 limited to 16 MiB in total. Large query responses span chunks and are reassembled
@@ -64,6 +64,11 @@ request ID. A queue connection begins with Open (database identity and policy
 snapshot); ready is returned only after its SQLite session initializes. Further
 requests invoke individual typed queue use cases. Ping and Stop are independent
 control sessions. Test gate fields exist only in integration-test-hooks builds.
+
+Open also carries the caller's absolute directory in lossless native encoding
+for later execution context. Metadata values use typed envelopes with exact
+decimal text and duplicate-checked object pairs. Physical JSON nesting is
+bounded before deserialization while admitting 64 logical metadata levels.
 
 The owner accepts at most 64 concurrent sessions. Incoming frames have a 30-second
 deadline; response writes have a five-second inactivity deadline and a two-minute
@@ -84,5 +89,6 @@ task/topic state before deciding to retry. Client cancellation reaches only its
 own session; before commit it rolls back, afterward ownership remains durable.
 See [INTERRUPTIONS.md](INTERRUPTIONS.md) for native signal boundaries and tests.
 
-Metadata, lifecycle event delivery and plugins are separate later stages of the
-[roadmap](PLUGIN-ROADMAP.md); starting the daemon does not execute external work.
+Metadata is described in [METADATA.md](METADATA.md). Lifecycle event delivery
+and plugins are separate later stages of the [roadmap](PLUGIN-ROADMAP.md);
+starting the daemon does not execute external work.

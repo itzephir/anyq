@@ -1,5 +1,8 @@
 mod support;
 
+#[path = "support/metadata.rs"]
+mod metadata;
+
 #[path = "support/config_regressions.rs"]
 mod config_regressions;
 
@@ -817,7 +820,7 @@ fn incompatible_database_returns_a_clear_error_without_modifying_it() {
     let connection = Connection::open(&q.db).unwrap();
     connection
         .execute_batch(
-            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=4",
+            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=5",
         )
         .unwrap();
     drop(connection);

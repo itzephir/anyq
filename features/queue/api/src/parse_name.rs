@@ -23,6 +23,8 @@ pub fn parse_name(input: &str) -> Result<String> {
                 | "autostart"
                 | "wait"
                 | "complete"
+                | "meta"
+                | "metafile"
                 | "config"
                 | "help"
         )
