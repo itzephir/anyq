@@ -1,5 +1,5 @@
+use crate::{MORE, Stream};
 use anyq_daemon_api::MAX_FRAME_BYTES;
-use interprocess::local_socket::Stream;
 use serde::Serialize;
 use std::{
     io::{self, Write},
@@ -15,22 +15,51 @@ pub fn send_frame<T: Serialize>(
     timeout: Duration,
 ) -> io::Result<()> {
     let payload = serde_json::to_vec(value).map_err(io::Error::other)?;
-    if payload.is_empty() || payload.len() > MAX_FRAME_BYTES {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "daemon frame exceeds size limit",
-        ));
-    }
-
-    let mut bytes = Vec::with_capacity(payload.len() + 4);
-    bytes.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-    bytes.extend_from_slice(&payload);
     let mut idle_deadline = Instant::now() + timeout;
     let total_deadline = Instant::now() + Duration::from_secs(120);
+    let mut offset = 0;
+
+    while offset < payload.len() {
+        let end = (offset + MAX_FRAME_BYTES).min(payload.len());
+        let mut length = (end - offset) as u32;
+        if end < payload.len() {
+            length |= MORE;
+        }
+
+        write_piece(
+            stream,
+            &length.to_be_bytes(),
+            cancelled,
+            &mut idle_deadline,
+            total_deadline,
+            timeout,
+        )?;
+        write_piece(
+            stream,
+            &payload[offset..end],
+            cancelled,
+            &mut idle_deadline,
+            total_deadline,
+            timeout,
+        )?;
+        offset = end;
+    }
+
+    Ok(())
+}
+
+fn write_piece(
+    stream: &Stream,
+    buffer: &[u8],
+    cancelled: &AtomicBool,
+    idle_deadline: &mut Instant,
+    total_deadline: Instant,
+    timeout: Duration,
+) -> io::Result<()> {
     let mut written = 0;
     let mut stream = stream;
 
-    while written < bytes.len() {
+    while written < buffer.len() {
         if cancelled.load(Ordering::SeqCst) {
             return Err(io::Error::new(io::ErrorKind::Interrupted, "interrupted"));
         }
@@ -42,7 +71,8 @@ pub fn send_frame<T: Serialize>(
             ));
         }
 
-        match stream.write(&bytes[written..]) {
+        let end = (written + 64 * 1024).min(buffer.len());
+        match stream.write(&buffer[written..end]) {
             Ok(0) => {
                 return Err(io::Error::new(
                     io::ErrorKind::WriteZero,
@@ -51,10 +81,10 @@ pub fn send_frame<T: Serialize>(
             }
             Ok(count) => {
                 written += count;
-                idle_deadline = Instant::now() + timeout;
+                *idle_deadline = Instant::now() + timeout;
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                if Instant::now() >= idle_deadline {
+                if Instant::now() >= *idle_deadline {
                     return Err(io::Error::new(
                         io::ErrorKind::TimedOut,
                         "daemon send timed out",

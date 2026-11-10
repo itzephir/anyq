@@ -40,6 +40,7 @@ ALLOWED = {
     },
     "anyq-daemon-api": {"anyq-queue-api", "serde"},
     "anyq-daemon-transport": {
+        "tokio",
         "tempfile",
         "anyq-daemon-api",
         "interprocess",

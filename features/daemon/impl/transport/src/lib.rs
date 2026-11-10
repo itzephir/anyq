@@ -1,4 +1,6 @@
 //! Native private endpoints, lifetime locking and cancellable bounded framing.
+const MORE: u32 = 1 << 31;
+
 mod endpoint;
 pub use endpoint::{Endpoint, validate_peer};
 
@@ -11,7 +13,12 @@ pub use frame_reader::FrameReader;
 mod send_frame;
 pub use send_frame::send_frame;
 
-pub use interprocess::local_socket::{Listener, Stream, traits};
+mod io_runtime;
+mod stream;
+pub use stream::Stream;
+
+mod listener;
+pub use listener::Listener;
 
 #[cfg(test)]
 mod tests;

@@ -1,5 +1,5 @@
 use crate::{QueueFactory, SessionSignals, session::Session};
-use anyq_daemon_transport::{Endpoint, OwnerLock, traits::Listener, validate_peer};
+use anyq_daemon_transport::{Endpoint, OwnerLock, validate_peer};
 use anyq_queue_api::{Error, Result};
 use std::{
     sync::{

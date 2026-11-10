@@ -65,6 +65,11 @@ discovery can start a detached owner, but no sent operation is automatically
 replayed after response loss. Private native IPC, framing and shutdown limits
 are documented in [DAEMON.md](DAEMON.md).
 
+The native transport uses an IO reactor behind polling Read/Write adapters;
+queue interactors remain synchronous and independent of that reactor. Each wire
+chunk and complete incoming request is bounded, while query results can span
+chunks to preserve large-list compatibility.
+
 CLI normalizes command-first/name-first forms, link directions, and short flags while preserving arguments. Flag dependencies are checked before opening the database. create/link → wait → complete chains invoke separate use cases sequentially. Stages have separate commits; they are not one transaction. Complete does not execute an external command.
 
 CLI retries CheckTaskRunning after false with a short pause without holding a transaction. It returns 0 when it observes running, including repeated and concurrent waits. For batch topic link -wc, tasks are awaited and completed in registration order. The caller launches external work. CLI exit, crashes, and elapsed time do not release slots.

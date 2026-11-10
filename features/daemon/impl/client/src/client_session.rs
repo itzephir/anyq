@@ -53,7 +53,7 @@ impl ClientSession {
         )
         .map_err(|error| transport_error(error, false))?;
 
-        let mut reader = FrameReader::default();
+        let mut reader = FrameReader::for_responses();
         let received: io::Result<ResponseFrame> =
             reader.receive(&self.stream, &self.cancelled, Duration::from_secs(120));
         let response = match received {

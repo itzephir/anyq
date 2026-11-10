@@ -1,6 +1,7 @@
+use crate::{Listener, Stream, io_runtime::io_runtime};
 use interprocess::local_socket::{
-    GenericFilePath, GenericNamespaced, Listener, ListenerNonblockingMode, ListenerOptions, Name,
-    Stream, prelude::*,
+    GenericFilePath, GenericNamespaced, ListenerOptions, Name, prelude::*,
+    traits::tokio::Stream as _,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -93,8 +94,15 @@ impl Endpoint {
     }
 
     pub fn connect(&self) -> io::Result<Stream> {
-        let stream = Stream::connect(self.name()?)?;
-        stream.set_nonblocking(true)?;
+        let inner = io_runtime()?.block_on(async {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                interprocess::local_socket::tokio::Stream::connect(self.name()?),
+            )
+            .await
+            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "daemon connection timed out"))?
+        })?;
+        let stream = Stream { inner };
         validate_peer(&stream)?;
 
         Ok(stream)
@@ -140,9 +148,7 @@ impl Endpoint {
             }
         }
 
-        let options = ListenerOptions::new()
-            .name(self.name()?)
-            .nonblocking(ListenerNonblockingMode::Both);
+        let options = ListenerOptions::new().name(self.name()?);
 
         #[cfg(windows)]
         let options = {
@@ -155,7 +161,12 @@ impl Endpoint {
             ))?)
         };
 
-        let listener = options.create_sync()?;
+        let _runtime = io_runtime()?.enter();
+        let inner = options.create_tokio()?;
+        let listener = Listener {
+            inner: std::sync::Arc::new(inner),
+            pending: std::sync::Mutex::new(None),
+        };
 
         #[cfg(unix)]
         {

@@ -45,8 +45,11 @@ the existing atomic schema-2 upgrade, and never resets running ownership.
 
 ## Protocol and failure boundaries
 
-Protocol version 1 uses a four-byte big-endian JSON payload length followed by a
-UTF-8 JSON frame, bounded to 16 MiB. Every request/response has version and numeric
+Protocol version 1 uses a four-byte big-endian payload length followed by UTF-8
+JSON bytes, with each chunk bounded to 16 MiB. The header's high bit indicates
+continuation; the remaining bits give the chunk length. Incoming requests are
+limited to 16 MiB in total. Large query responses span chunks and are reassembled
+by the client so existing list/inspection output is not truncated. Every request/response has version and numeric
 request ID. A queue connection begins with Open (database identity and policy
 snapshot); ready is returned only after its SQLite session initializes. Further
 requests invoke individual typed queue use cases. Ping and Stop are independent
@@ -56,7 +59,9 @@ The owner accepts at most 64 concurrent sessions. Incoming frames have a 30-seco
 deadline; response writes have a five-second inactivity deadline and a two-minute
 total transfer limit. Progress renews the inactivity deadline so a consuming
 client can receive a large result under contention. IO is nonblocking with
-cancellation checks. A blocked stream cannot hold up other clients or shutdown.
+cancellation checks. Native asynchronous IO drives both Unix sockets and Windows
+overlapped named pipes behind the synchronous queue adapters. A blocked stream
+cannot hold up other clients or shutdown.
 Graceful shutdown cancels sessions and allows up to ten seconds for draining.
 If a worker cannot finish within that bound, the owner terminates the process
 before releasing its lifetime lock; SQLite recovers unfinished transactions.
