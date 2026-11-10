@@ -86,3 +86,16 @@ See [INTERRUPTIONS.md](INTERRUPTIONS.md) for native signal boundaries and tests.
 
 Metadata, lifecycle event delivery and plugins are separate later stages of the
 [roadmap](PLUGIN-ROADMAP.md); starting the daemon does not execute external work.
+
+The bundled SQLite engine is 3.51.3 through rusqlite 0.39. This includes the
+[upstream Unix VFS deadlock fix](https://www.sqlite.org/releaselog/3_51_2.html)
+needed for concurrent session connection open/close. Native CI exercises that
+connection churn while a task retains its resource ownership.
+
+Stop waits for the lifetime database lock to be released after the endpoint closes.
+Initial discovery can retry an owner launch after a competing owner exits; it does
+not replay a sent queue operation after response loss.
+
+SQLite WAL lock acquisition and initial schema reads retry bounded BUSY/PROTOCOL
+contention before business mutations. A failed or uncertain queue mutation is
+never retried through this path. Concurrent first clients are covered natively.

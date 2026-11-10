@@ -8,12 +8,20 @@ use std::{
 /// Keep test failures from leaking waiting CLI or external-caller processes.
 pub struct TestProcess {
     pub child: Option<Child>,
+    label: String,
 }
 
 impl TestProcess {
     pub fn spawn(command: &mut Command) -> Self {
+        let label = format!(
+            "{:?} {:?}",
+            command.get_program(),
+            command.get_args().collect::<Vec<_>>()
+        );
+
         Self {
             child: Some(command.spawn().unwrap()),
+            label,
         }
     }
 
@@ -42,7 +50,8 @@ impl TestProcess {
         while self.child.as_mut().unwrap().try_wait().unwrap().is_none() {
             assert!(
                 Instant::now() < deadline,
-                "CLI did not finish within the test deadline"
+                "CLI did not finish within the test deadline: {}",
+                self.label
             );
             thread::sleep(Duration::from_millis(10));
         }
