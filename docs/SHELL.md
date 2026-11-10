@@ -67,20 +67,24 @@ race or lost response cannot create another logical completion or rerun work.
 
 Before spawn, the plugin durably registers managed work and records the prepared
 plan. Native Unix process groups are established before child execution. The adapter
-keeps the leader waitable with `waitid(WNOWAIT)`, scans live native group members
-and waits for both pipes to reach EOF before reporting stopped. A leader's exit
-alone never proves a descendant stopped; its PID is not reaped while group
-identity is needed. Linux and macOS use the safe rustix/sysinfo adapters.
+uses a private bundled anchor whose live PID reserves the group identity. After
+launch, the anchor leaves the target group while remaining alive, so the kernel
+can certify that group is empty with ESRCH. Completion requires that certificate,
+the original root's exit and both drained pipes. A process-list snapshot or the
+leader's exit alone never certifies cleanup. Permission denial stays pending;
+identifier reuse cannot redirect cancellation to unrelated work. On Linux the
+isolated plugin adopts orphaned descendants as a subreaper and reaps only the
+current action's process group before testing emptiness.
 
 On Windows, the safe [windows-spawn API](https://docs.rs/windows-spawn/0.1.0/windows_spawn/)
-creates a suspended process and its kill-on-close Job Object. A separate query Job
+creates a suspended process in an explicitly owned kill-on-close Job Object. A separate query Job
 is assigned before resume using [win32job](https://docs.rs/win32job/2.0.3/win32job/).
 An empty job member list, root exit and drained pipes are required for stopped.
 Job assignment/query failure is an error, never evidence of cleanup.
 
 Manual completion, timeout, plugin disable and daemon shutdown request the same
 cancellation barrier. Unix requests termination, then forces the retained group
-after a bounded grace period; Windows closes the private kill-on-close Job.
+after a bounded grace period; Windows explicitly terminates the private Job while retaining the root handle.
 Resources remain held until the whole managed group/job is confirmed stopped.
 Cooperating descendants stay within this native containment; deliberate Unix
 session/group escape is unsupported and must not be used for resource-owning work.

@@ -1,3 +1,5 @@
+mod anchor;
+pub use anchor::run as run_anchor;
 mod drain;
 mod native_entry;
 mod native_factory;

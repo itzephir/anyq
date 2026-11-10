@@ -1,4 +1,4 @@
-use crate::{ManagedProcess, ProcessFactory, details, phase::Phase, stdio};
+use crate::{ManagedProcess, SpawnProcess, details, phase::Phase, stdio};
 use anyq_plugin_wire::{CapabilityRequest, PluginFrame};
 use anyq_queue_api::{Metadata, MetadataValue, Result, format_name};
 use anyq_shell_api::{EntryOutcome, EntryOutput, PreparedPlan};
@@ -66,7 +66,7 @@ impl Execution {
 
     pub fn launch(
         &mut self,
-        factory: &mut impl ProcessFactory,
+        factory: &mut impl SpawnProcess,
         output: &mut impl Write,
     ) -> Result<()> {
         if self.cancelled {
@@ -84,7 +84,13 @@ impl Execution {
                     .set("status", MetadataValue::String("running".into()))?;
                 self.report(output, "active")
             }
-            Err(error) => {
+            Err(crate::LaunchError::Uncertain(message)) => {
+                self.details
+                    .set("status", MetadataValue::String("uncertain".into()))?;
+                self.details.set("error", MetadataValue::String(message))?;
+                self.report(output, "uncertain")
+            }
+            Err(crate::LaunchError::NotStarted(error)) => {
                 self.terminal = true;
                 self.details
                     .set("status", MetadataValue::String("launch-failed".into()))?;

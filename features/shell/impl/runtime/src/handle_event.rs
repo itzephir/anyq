@@ -1,4 +1,4 @@
-use crate::{ProcessFactory, details, execution::Execution, phase::Phase, stdio};
+use crate::{PreparePlan, details, execution::Execution, phase::Phase, stdio};
 use anyq_plugin_wire::{CapabilityRequest, PluginFrame};
 use anyq_queue_api::{Metadata, MetadataValue, QueueEvent, QueueEventKind, Result, format_name};
 use anyq_shell_api::Plan;
@@ -8,7 +8,7 @@ pub(crate) fn handle_event(
     event: QueueEvent,
     delivery_id: String,
     executions: &mut BTreeMap<String, Execution>,
-    factory: &mut impl ProcessFactory,
+    factory: &mut impl PreparePlan,
     output: &mut impl Write,
 ) -> Result<()> {
     let prepared: Result<_> = (|| {

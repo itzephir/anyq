@@ -291,7 +291,7 @@ fn descendants_outliving_the_leader_stop_before_manual_disable_or_shutdown_clean
         let config = file(
             &queue,
             "tree.json",
-            json!({"marker":marker,"descendant":true,"leader_exits":true}),
+            json!({"marker":marker,"descendant":true,"leader_exits":true,"chain_depth":8}),
         );
         let mut execution = plan(&queue, &config, true);
         execution["src"]
@@ -306,7 +306,13 @@ fn descendants_outliving_the_leader_stop_before_manual_disable_or_shutdown_clean
 
         match action {
             "manual" => {
-                queue.call(&["task", "complete", "owner"]);
+                let result = queue.raw(&["task", "complete", "owner"]);
+                assert!(
+                    result.status.success(),
+                    "manual tree cleanup: {}; work={:?}",
+                    String::from_utf8_lossy(&result.stderr),
+                    inspect(&queue)
+                );
             }
             "disable" => {
                 queue.call(&["plugin", "disable", "shell"]);
@@ -418,10 +424,8 @@ fn plugin_crash_before_or_after_spawn_never_relaunches_or_releases_resources() {
             assert!(!marker.exists());
         }
         fs::write(marker.with_extension("release"), b"independent cleanup").unwrap();
-        #[cfg(unix)]
-        if stage == "shell.after-spawn" {
-            wait_for_file(&marker.with_extension("exited"), Some("exited"));
-        }
+        // The private anchor now terminates its group on plugin-pipe EOF.
+        // Independently verify the actual held resource is released below.
         if let Some(held_port) = held_port {
             wait(|| TcpListener::bind(("127.0.0.1", held_port)).is_ok());
         }

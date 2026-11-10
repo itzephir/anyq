@@ -1,4 +1,4 @@
-use crate::{ProcessFactory, execution::Execution, phase::Phase, stdio};
+use crate::{SpawnProcess, execution::Execution, phase::Phase, stdio};
 use anyq_plugin_wire::{CapabilityResult, PluginFrame};
 use anyq_queue_api::Result;
 use std::{collections::BTreeMap, io::Write};
@@ -7,7 +7,7 @@ pub(crate) fn handle_result(
     id: &str,
     result: CapabilityResult,
     executions: &mut BTreeMap<String, Execution>,
-    factory: &mut impl ProcessFactory,
+    factory: &mut impl SpawnProcess,
     output: &mut impl Write,
 ) -> Result<()> {
     let Some((operation, action)) = id.split_once(':') else {

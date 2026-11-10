@@ -3,13 +3,17 @@ mod details;
 mod execution;
 mod handle_event;
 mod handle_result;
+mod launch_error;
 mod managed_process;
 mod phase;
-mod process_factory;
+mod prepare_plan;
+mod spawn_process;
 mod stdio;
 
+pub use launch_error::LaunchError;
 pub use managed_process::ManagedProcess;
-pub use process_factory::ProcessFactory;
+pub use prepare_plan::PreparePlan;
+pub use spawn_process::SpawnProcess;
 
 use anyq_plugin_wire::{
     CapabilityRequest, CapabilityResult, HostFrame, PROTOCOL_VERSION, PluginFrame,
@@ -26,7 +30,7 @@ use std::{
 pub fn run(
     mut input: impl BufRead + Send + 'static,
     output: &mut impl Write,
-    factory: &mut impl ProcessFactory,
+    factory: &mut (impl PreparePlan + SpawnProcess),
 ) -> Result<()> {
     let (sender, receiver) = mpsc::sync_channel(8);
     // This reader belongs to the executable mode's process lifetime. Its bounded
@@ -156,3 +160,8 @@ pub fn run(
         }
     }
 }
+
+#[cfg(test)]
+mod launch_failure;
+#[cfg(test)]
+mod tests;

@@ -101,6 +101,7 @@ The shell API validates task-only plans; protocol runtime consumes injected nati
 process ports. The CLI root assembles the three shell crates. Schema 6 adds bounded
 per-action metadata details through existing managed capabilities, inside the queue
 upgrade transaction. Daemon protocol 5 and plugin protocol 2 carry those details.
-Unix retains the waitable leader and scans live group members; Windows uses a
-suspended windows-spawn child, kill-on-close job and separate win32job member query.
+Unix reserves group identity with a private live anchor outside the target group
+and requires the kernel empty-group result; Windows uses a
+suspended windows-spawn child, kill-on-close job, retained root handle and separate win32job member query.
 Both pipe drains and native termination must be confirmed before stopped reports.

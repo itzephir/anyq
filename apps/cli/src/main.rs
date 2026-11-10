@@ -43,10 +43,13 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             controllers::PluginRuntimeMode::Timeout => {
                 anyq_timeout_impl::run(&mut std::io::stdin().lock(), &mut std::io::stdout().lock())?
             }
+            controllers::PluginRuntimeMode::ShellAnchor => anyq_shell_process::run_anchor()?,
             controllers::PluginRuntimeMode::Shell => anyq_shell_runtime::run(
                 std::io::BufReader::new(std::io::stdin()),
                 &mut std::io::stdout().lock(),
-                &mut anyq_shell_process::NativeFactory,
+                &mut anyq_shell_process::NativeFactory::new(
+                    std::env::current_exe().map_err(|error| Error::Invalid(error.to_string()))?,
+                ),
             )?,
         }
         return Ok(());

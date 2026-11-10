@@ -21,7 +21,6 @@ ALLOWED = {
         "anyq-shell-runtime",
         "anyq-queue-api",
         "rustix",
-        "sysinfo",
         "windows-spawn",
         "win32job",
     },

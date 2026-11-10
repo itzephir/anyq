@@ -4,4 +4,6 @@ use clap::ValueEnum;
 pub enum PluginRuntimeMode {
     Timeout,
     Shell,
+    #[value(hide = true)]
+    ShellAnchor,
 }

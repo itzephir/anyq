@@ -4,7 +4,9 @@ use std::{
 
 pub fn run() -> bool {
     let arguments: Vec<_> = std::env::args().collect();
-    let child = arguments.get(1).is_some_and(|mode| mode == "worker-child");
+    let child = arguments
+        .get(1)
+        .is_some_and(|mode| mode == "worker-child" || mode == "worker-chain");
     let configured = arguments.get(1).is_some_and(|mode| mode == "worker");
     if arguments.len() > 1 && !child && !configured {
         return false;
@@ -18,6 +20,24 @@ pub fn run() -> bool {
     let marker = PathBuf::from(value["marker"].as_str().unwrap());
     let release = marker.with_extension("release");
     if child {
+        let remaining = arguments
+            .get(3)
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(0);
+        if remaining > 0 {
+            let mut next = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "worker-chain",
+                    path.to_str().unwrap(),
+                    &(remaining - 1).to_string(),
+                ])
+                .spawn()
+                .unwrap();
+            thread::spawn(move || {
+                let _ = next.wait();
+            });
+            return true;
+        }
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         fs::write(
             marker.with_extension("port"),
@@ -42,14 +62,20 @@ pub fn run() -> bool {
     .unwrap();
     if value["descendant"] == true {
         let mut child = Command::new(std::env::current_exe().unwrap())
-            .args(["worker-child", path.to_str().unwrap()])
+            .args([
+                "worker-chain",
+                path.to_str().unwrap(),
+                &value["chain_depth"].as_u64().unwrap_or(0).to_string(),
+            ])
             .spawn()
             .unwrap();
         std::thread::spawn(move || {
             let _ = child.wait();
         });
-        while !marker.with_extension("port").exists() {
-            thread::sleep(Duration::from_millis(10));
+        if value["chain_depth"].as_u64().unwrap_or(0) == 0 {
+            while !marker.with_extension("port").exists() {
+                thread::sleep(Duration::from_millis(10));
+            }
         }
         if value["leader_exits"] != true {
             while !release.exists() {
