@@ -143,3 +143,22 @@ The panel SHALL support English and Russian, light and dark themes, keyboard nav
 #### Scenario: Keyboard in a small window
 - **WHEN** a keyboard user narrows the main window
 - **THEN** search, topic selection, task details, and settings remain reachable with a visible focus indicator
+
+### Requirement: Native integration acceptance
+Desktop UI changes SHALL have automated integration scenarios against the real native application, daemon and queue on Linux, macOS and Windows. The stable CI passed gate SHALL require these scenarios. Builds, controller tests, mocks and ad hoc screenshots SHALL NOT replace them.
+
+#### Scenario: Native cross-platform acceptance
+- **WHEN** CI validates a desktop implementation PR
+- **THEN** each supported operating system runs real application/daemon integration scenarios
+- **AND** the stable CI passed check requires those scenarios to succeed
+
+### Requirement: Reviewed screenshot regression baseline
+Desktop UI changes SHALL compare representative native screenshots with reviewed platform-specific PNG goldens tracked in the repository. Missing goldens, unexpected dimensions and visual regressions SHALL fail the required CI gate and retain actual/difference artifacts. Comparison jobs SHALL NOT automatically update or accept golden files.
+
+#### Scenario: Representative platform coverage
+- **WHEN** CI validates the desktop presentation
+- **THEN** it compares window, compact, settings, localized/theme, narrow and connection-state screenshots on Linux, macOS and Windows
+
+#### Scenario: Missing or changed golden
+- **WHEN** a required screenshot has no reviewed golden or differs beyond the documented tolerance
+- **THEN** CI fails and retains the actual image and visual difference for review without silently accepting a new baseline

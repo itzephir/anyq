@@ -47,3 +47,12 @@ Linux lint includes Rustfmt, Clippy with -D warnings, the Rust AST linter, the C
 Builds and unit/integration tests run separately on Linux, macOS, and Windows. They verify atomic admission, rollback, real concurrency, persistent ownership after crashes, all CLI forms, config, and autocreate. The native Ctrl+C suite with integration-test-hooks is required on all three operating systems; it sends signals to real processes without skip/ignore. Checkpoints are absent from the normal binary and inner layers.
 
 Do not disable checks or add blanket allow directives to make CI pass. Review additionally checks SRP, SOLID, DRY, KISS, ownership of domain rules, and test quality.
+
+
+Behavior changes require integration tests against their real external boundary.
+Graphical interfaces additionally require native screenshot regression scenarios
+on Linux, macOS and Windows, with reviewed PNG goldens committed to the repository.
+Missing goldens and visual differences fail CI and retain actual/diff artifacts.
+Explicit golden updates are reviewed as code; comparison jobs never rewrite or
+auto-accept the baseline. Package builds, unit/controller tests and manually saved
+screenshots supplement these required checks rather than replace them.

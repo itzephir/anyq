@@ -10,6 +10,9 @@ mod preference_input;
 mod presentation;
 mod shell;
 
+#[cfg(feature = "integration-test-hooks")]
+mod test_driver;
+
 use anyq_desktop_api::PanelPreferences;
 use anyq_queue_api::{Error, ObserveQueueRequest};
 use controller::Controller;
@@ -89,10 +92,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             commands::save_preferences,
             commands::choose_database,
             commands::show_main,
-            commands::dismiss_compact
+            commands::dismiss_compact,
+            #[cfg(feature = "integration-test-hooks")]
+            test_driver::test_report
         ])
         .setup(|app| {
             let handle = app.handle().clone();
+            #[cfg(feature = "integration-test-hooks")]
+            test_driver::install(&handle)?;
             if let Ok(shell) = shell::Shell::install(&handle) {
                 app.manage(shell);
             }

@@ -22,7 +22,9 @@ Daemon prerequisite: commit `068ac48` passed [CI run 42804237207](https://github
 - Architecture checks reject desktop SDKs in inner layers, cross-feature
   implementation imports and factories outside the desktop composition root.
 - CI builds/packages the GUI on Linux, both macOS architectures and Windows,
-  and runs its controller tests. The ordinary native process/Ctrl+C matrices
+  and runs its controller tests. A separate required Linux/macOS/Windows matrix
+  drives the real app and daemon through integration and native screenshot
+  scenarios, comparing tracked platform PNGs; see [desktop tests](../tests/desktop/README.md). The ordinary native process/Ctrl+C matrices
   remain mandatory and unchanged. Packaging checks do not prove GUI behavior.
 
 ## Manual native acceptance

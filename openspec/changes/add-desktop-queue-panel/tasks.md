@@ -44,6 +44,8 @@
 - [x] 6.3 Run the mandatory repository formatting, Clippy, architecture, Ruff, workspace, native interruption, strict OpenSpec, and diff checks from AGENTS.md; retain results and leave failed or unverified implementation tasks unchecked.
 - [ ] 6.4 Open the implementation PR and verify current GitHub Actions CI passed, including native Linux/macOS/Windows process and Ctrl+C suites and applicable desktop packaging checks; preserve reviewable evidence for GUI checks that require a desktop session.
 
+- [ ] 6.5 Add required real native UI/daemon integration and screenshot regression scenarios on Linux/macOS/Windows; inspect and commit platform PNG goldens, verify missing/changed goldens fail with actual/diff artifacts, and retain a current CI pass for every applicable PR.
+
 ## Workflow follow-up
 
 - Implementation is in progress in the stacked desktop PR. A task is checked only after its stated implementation and verification exist; pending native desktop sessions remain explicit in docs/DESKTOP-VERIFICATION.md.

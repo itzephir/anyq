@@ -11,7 +11,7 @@ Workflow [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on PRs and
 | Build & unit tests | Linux, macOS, Windows | Workspace build; unit tests excluding SQLite/file adapters and CLI integration suites |
 | Integration tests | Linux, macOS, Windows | SQLite/file adapter suites; CLI aliases/names/config/autocreate, concurrency, demo; separate required Native Ctrl+C integration tests step |
 | Native distribution | macOS ARM64/Intel, Linux ARM64/x64, Windows x64 | Release build, archive, latest/pinned installation, and download/checksum failure rejection |
-| Desktop packages | Linux, macOS ARM64/Intel, Windows | Feature-enabled controller tests and optional native packages; manual GUI acceptance remains separate |
+| Desktop packages and native UI | Linux, macOS ARM64/Intel, Windows | Controller tests and optional native packages; required real UI/daemon integration and platform PNG comparison on Linux/macOS/Windows; actual/diff artifacts on failure |
 | Website | Linux | EN/RU selection and interaction tests; static container, HTTP, installers, preserving the working version when an update fails |
 | Deploy dev / prod website | Linux, after CI passed | Same-repository PRs update dev.anyq.itzephir.com; main pushes update anyq.itzephir.com. Separate environment keys and forced receiver; HTTPS revision checked after publication |
 | CI passed | Aggregate of all categories | Passes only when Lint, both build/test matrices, distribution, website, and desktop packaging succeed |
