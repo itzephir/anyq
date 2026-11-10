@@ -75,6 +75,17 @@ rollback at the existing adapter boundaries. A slow request or locked database
 must not block cancellation, status or other connections. Owner shutdown cancels
 workers and closes clients with bounded draining; committed ownership survives.
 
+Separate quotas bound 64 command sessions and 64 wait/start-poll sessions. Before
+each operation the connection acquires its new class's permit and releases the
+previous one, preserving chained create/wait/complete behavior. CheckTaskRunning
+moves to waiting capacity after false, and StartTask after Busy, so immediate
+success does not require a waiting permit. Polls retain that permit until a
+different operation or disconnect. Waiting clients
+cannot exhaust command capacity. Eight reserved control connections keep Ping
+and Stop available when command capacity is full; Open requires a command permit
+before opening SQLite. Rejected transitions return a typed error before invoking
+the use case, and session exit releases its permit. No protocol change is needed.
+
 Integration gates move to a feature-only request context with per-session hit
 counts and selected gate directory. A CLI process forwards that context only in
 integration-test-hooks builds; production accepts no test-gate fields. Tests

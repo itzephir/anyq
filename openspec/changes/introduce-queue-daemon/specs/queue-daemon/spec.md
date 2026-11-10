@@ -56,6 +56,14 @@ A blocked client input/output stream or long wait SHALL NOT prevent other client
 - **WHEN** a client stops reading a large response
 - **THEN** unrelated clients remain usable and daemon shutdown can finish without draining that client
 
+#### Scenario: Waiting capacity is full
+- **WHEN** 64 clients wait or poll start for admission while an owner holds their resource
+- **THEN** other clients can inspect the daemon, complete the owner and advance the queue, or stop the daemon without releasing committed ownership
+
+#### Scenario: Command capacity is full
+- **WHEN** all command connections are occupied
+- **THEN** reserved bounded control capacity still allows daemon status and stop without opening another SQLite session
+
 ### Requirement: Recovery and endpoint replacement
 After a daemon crash, the next start SHALL recover persistent state and replace only stale discovery data while holding ownership. It SHALL NOT infer task completion from process death, replay unknown mutations, or perform new admission merely by opening the database.
 
