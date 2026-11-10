@@ -8,6 +8,16 @@ pub struct TestDriver {
     directory: PathBuf,
 }
 
+pub fn isolate_renderer(mut context: tauri::Context) -> tauri::Context {
+    if std::env::var_os("ANYQ_PANEL_TEST_DIR").is_some() {
+        for window in &mut context.config_mut().app.windows {
+            window.incognito = true;
+        }
+    }
+
+    context
+}
+
 fn write_response(driver: &TestDriver, id: u64, value: Value) -> Result<(), String> {
     let temporary = driver.directory.join(format!("response-{id}.tmp"));
     let target = driver.directory.join(format!("response-{id}.json"));
@@ -36,6 +46,13 @@ pub fn test_report(
 
     let outer_position = window.outer_position().map_err(|error| error.to_string())?;
     let outer_size = window.outer_size().map_err(|error| error.to_string())?;
+    let work_area = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?
+        .map(|monitor| {
+            let bounds = monitor.work_area();
+            json!({"x":bounds.position.x,"y":bounds.position.y,"width":bounds.size.width,"height":bounds.size.height})
+        });
     #[cfg(windows)]
     let native_handle = window.hwnd().ok().map(|value| value.0 as usize);
     #[cfg(not(windows))]
@@ -43,7 +60,7 @@ pub fn test_report(
     write_response(
         &driver,
         id,
-        json!({ "payload": payload, "rect": {"x":position.x,"y":position.y,"width":size.width,"height":size.height,"scale":scale}, "tray":tray, "native_handle":native_handle, "outer": {"x":outer_position.x,"y":outer_position.y,"width":outer_size.width,"height":outer_size.height} }),
+        json!({ "payload": payload, "rect": {"x":position.x,"y":position.y,"width":size.width,"height":size.height,"scale":scale}, "tray":tray, "native_handle":native_handle, "work_area":work_area, "outer": {"x":outer_position.x,"y":outer_position.y,"width":outer_size.width,"height":outer_size.height} }),
     )
 }
 

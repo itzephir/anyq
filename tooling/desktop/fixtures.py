@@ -8,7 +8,9 @@ from pathlib import Path
 
 def environment(home, database):
     inherited = {
-        key: value for key, value in os.environ.items() if not key.startswith("ANYQ_")
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("ANYQ_", "WEBVIEW2_"))
     }
     return inherited | {
         "HOME": str(home),

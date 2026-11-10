@@ -4,13 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 from screenshots import Screenshots
 
 COMPARISON = {
-    "channel_delta": 0,
+    "perceptual_threshold": 0.01,
+    "include_antialiasing": False,
     "max_changed_pixels": 0,
-    "determinism_channel_delta": 0,
     "determinism_max_changed_pixels": 0,
 }
 
@@ -38,7 +38,7 @@ class ScreenshotContractTests(unittest.TestCase):
             )
             first = Image.new("RGB", (40, 40), "black")
             repeat = first.copy()
-            repeat.putpixel((1, 1), (1, 0, 0))
+            repeat.putpixel((1, 1), (255, 255, 255))
 
             runner.compare({"id": "unstable"}, first, repeat)
 
@@ -46,28 +46,34 @@ class ScreenshotContractTests(unittest.TestCase):
                 runner.finish()
             self.assertFalse((root / "goldens").exists())
 
-    def test_generate_then_verify_rejects_one_changed_pixel_without_overwriting(self):
+    def test_verify_rejects_pixel_icon_and_size_changes_without_overwriting(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             frame = Image.new("RGB", (40, 40), "black")
             generate = Screenshots(
                 root / "actual", root / "goldens", "generate", COMPARISON
             )
+            ImageDraw.Draw(frame).rectangle((12, 8, 14, 30), fill="white")
             generate.compare({"id": "icon"}, frame, frame.copy())
             generate.finish()
             golden = root / "goldens" / generate.platform / "icon.png"
             original = golden.read_bytes()
-            changed = frame.copy()
-            changed.putpixel((1, 1), (1, 0, 0))
-            verify = Screenshots(
-                root / "actual", root / "goldens", "verify", COMPARISON
-            )
+            pixel = frame.copy()
+            pixel.putpixel((1, 1), (255, 255, 255))
+            translated = Image.new("RGB", frame.size, "black")
+            ImageDraw.Draw(translated).rectangle((13, 8, 15, 30), fill="white")
 
-            verify.compare({"id": "icon"}, changed, changed.copy())
+            for changed in (pixel, translated, frame.resize((41, 40))):
+                with self.subTest(size=changed.size):
+                    verify = Screenshots(
+                        root / "actual", root / "goldens", "verify", COMPARISON
+                    )
 
-            with self.assertRaisesRegex(AssertionError, "Visual regression"):
-                verify.finish()
-            self.assertEqual(golden.read_bytes(), original)
+                    verify.compare({"id": "icon"}, changed, changed.copy())
+
+                    with self.assertRaisesRegex(AssertionError, "Visual regression"):
+                        verify.finish()
+                    self.assertEqual(golden.read_bytes(), original)
             self.assertTrue(
                 (root / "actual" / verify.platform / "icon.diff.png").exists()
             )

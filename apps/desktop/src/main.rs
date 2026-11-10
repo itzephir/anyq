@@ -56,6 +56,10 @@ fn main() {
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let context = tauri::generate_context!();
+    #[cfg(feature = "integration-test-hooks")]
+    let context = test_driver::isolate_renderer(context);
+
     let config_path = anyq_config_impl::paths::home()?.join(".anyq/config.toml");
     let preference_path = anyq_config_impl::paths::home()?.join(".anyq/panel.toml");
     let preferences = anyq_desktop_impl::get_preferences(&preference_path).get();
@@ -156,7 +160,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             tauri::WindowEvent::Focused(true) => window.state::<Arc<Controller>>().refresh(),
             _ => {}
         })
-        .build(tauri::generate_context!())?;
+        .build(context)?;
     app.run(move |_app, event| match event {
         tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => controller.stop(),
         #[cfg(target_os = "macos")]

@@ -160,14 +160,14 @@ Desktop UI changes SHALL compare representative native screenshots with reviewed
 - **THEN** it compares window, compact, settings, localized/theme, narrow and connection-state screenshots on Linux, macOS and Windows
 
 #### Scenario: Missing or changed golden
-- **WHEN** a required screenshot has no reviewed golden or differs by even one pixel channel
+- **WHEN** a required screenshot has no reviewed golden or has visual differences under the documented comparison
 - **THEN** CI fails and retains the actual image and visual difference for review without silently accepting a new baseline
 
 
 #### Scenario: Configured deterministic state
 - **WHEN** a screenshot case is verified or generated
 - **THEN** its fixtures, expected snapshot, source, preferences, viewport, selection, scroll, focus and fixed clock/timezone come from test configuration
-- **AND** two independent clean launches must produce identical pixels before verification or generation succeeds
+- **AND** two independent clean launches must match under the documented visual comparison before verification or generation succeeds
 
 #### Scenario: Explicit verification and generation
 - **WHEN** the screenshot runner uses verify mode

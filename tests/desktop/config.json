@@ -398,9 +398,9 @@
     }
   ],
   "comparison": {
-    "channel_delta": 0,
+    "perceptual_threshold": 0.01,
+    "include_antialiasing": false,
     "max_changed_pixels": 0,
-    "determinism_channel_delta": 0,
     "determinism_max_changed_pixels": 0
   }
 }

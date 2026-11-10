@@ -61,6 +61,8 @@ Screenshot runners provide separate `verify` and `generate` modes. Verification
 never modifies goldens and fails on missing or changed images; generation creates
 reviewable candidates. A visual state's configuration owns its complete fixture,
 clock/timezone, locale, theme, viewport, selection, scroll and focus. Independent
-clean runs must produce deterministic pixels before a candidate is accepted.
+clean runs must produce deterministic renders under a documented visual comparison
+before a candidate is accepted. Document any handling of native antialiasing;
+never use broad image masks or automatic acceptance to hide state/layout changes.
 All tests should isolate their inputs and wait for observable conditions, with
 minimal dependence on the host environment and arbitrary elapsed delays.

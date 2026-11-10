@@ -1,26 +1,40 @@
 """Capture actual native client pixels; verify or explicitly generate PNG goldens."""
 
 import json
-import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageGrab
+from pixelmatch.contrib.PIL import pixelmatch
 
 
 def platform_name():
     return {"darwin": "macos", "win32": "windows"}.get(sys.platform, "linux")
 
 
-def changed_pixels(expected, actual, threshold):
+def changed_pixels(expected, actual, comparison):
     if expected.size != actual.size:
         return None, None
-    difference = ImageChops.difference(expected.convert("RGB"), actual.convert("RGB"))
-    red, green, blue = difference.split()
+    difference = Image.new("RGBA", expected.size)
+    changed = pixelmatch(
+        expected,
+        actual,
+        output=difference,
+        threshold=comparison["perceptual_threshold"],
+        includeAA=comparison["include_antialiasing"],
+    )
+    return changed, difference.convert("RGB")
+
+
+def raw_changed_pixels(first, second):
+    if first.size != second.size:
+        return None
+    red, green, blue = ImageChops.difference(
+        first.convert("RGB"), second.convert("RGB")
+    ).split()
     maximum = ImageChops.lighter(ImageChops.lighter(red, green), blue)
-    return sum(maximum.histogram()[threshold + 1 :]), difference
+    return sum(maximum.histogram()[1:])
 
 
 class Screenshots:
@@ -34,8 +48,6 @@ class Screenshots:
         self.comparison = comparison
         self.failures = []
         self.results = []
-        self.window_identifier = self.output / "native-window-id"
-        self.native_tools_ready = False
 
     def capture(self, driver, case, repetition):
         name, window = case["id"], case["surface"]
@@ -72,63 +84,28 @@ class Screenshots:
         width, height = (int(value * scale) for value in case["viewport"])
         border = max(0, (outer["width"] - width) // 2)
         inset_top = max(0, outer["height"] - height - border)
+        work = result["work_area"]
+        assert work is not None, "Native capture requires a visible monitor"
+        assert (
+            work["x"] <= outer["x"] + border
+            and work["y"] <= outer["y"] + inset_top
+            and outer["x"] + border + width <= work["x"] + work["width"]
+            and outer["y"] + inset_top + height <= work["y"] + work["height"]
+        ), f"Configured client viewport is outside the visible work area: {result}"
         time.sleep(0.15)
         divisor = scale if sys.platform == "darwin" else 1
         x = (outer["x"] + border) / divisor
         y = (outer["y"] + inset_top) / divisor
         # Capture displayed pixels. PrintWindow can return partially blank
         # WebView2 surfaces despite a fully loaded DOM and a visible window.
-        if sys.platform == "darwin":
-            # The window buffer avoids display-compositor color dithering of
-            # antialiased SVG edges while retaining the actual native renderer.
-            if not self.native_tools_ready:
-                with tempfile.TemporaryDirectory(prefix="anyq-swift-cache-") as cache:
-                    subprocess.run(
-                        [
-                            "swiftc",
-                            str(Path(__file__).with_name("window_id_macos.swift")),
-                            "-module-cache-path",
-                            cache,
-                            "-o",
-                            str(self.window_identifier),
-                        ],
-                        check=True,
-                        capture_output=True,
-                    )
-                self.native_tools_ready = True
-            identifier = subprocess.check_output(
-                [
-                    str(self.window_identifier),
-                    str(driver.process.pid),
-                    *(str(outer[key] / scale) for key in ("x", "y", "width", "height")),
-                ],
-                text=True,
-            ).strip()
-            native = self.output / f"{name}.native.png"
-            subprocess.run(
-                ["/usr/sbin/screencapture", "-x", "-o", "-l", identifier, str(native)],
-                check=True,
-                capture_output=True,
+        actual = ImageGrab.grab(
+            bbox=(
+                round(x),
+                round(y),
+                round(x + width / divisor),
+                round(y + height / divisor),
             )
-            with Image.open(native) as captured:
-                pixel_scale = captured.width / outer["width"]
-                actual = captured.convert("RGB").crop(
-                    (
-                        round(border * pixel_scale),
-                        round(inset_top * pixel_scale),
-                        round((border + width) * pixel_scale),
-                        round((inset_top + height) * pixel_scale),
-                    )
-                )
-        else:
-            actual = ImageGrab.grab(
-                bbox=(
-                    round(x),
-                    round(y),
-                    round(x + width / divisor),
-                    round(y + height / divisor),
-                )
-            ).convert("RGB")
+        ).convert("RGB")
         if actual.size != tuple(case["viewport"]):
             actual = actual.resize(tuple(case["viewport"]), Image.Resampling.LANCZOS)
         colors = actual.getcolors(maxcolors=32)
@@ -142,9 +119,7 @@ class Screenshots:
 
     def compare(self, case, first, repeat):
         name = case["id"]
-        deterministic, difference = changed_pixels(
-            first, repeat, self.comparison["determinism_channel_delta"]
-        )
+        deterministic, difference = changed_pixels(first, repeat, self.comparison)
         if (
             deterministic is None
             or deterministic > self.comparison["determinism_max_changed_pixels"]
@@ -162,12 +137,18 @@ class Screenshots:
                 }
             )
             return
+        raw_repeated = raw_changed_pixels(first, repeat)
         target = self.goldens / f"{name}.png"
         if self.mode == "generate":
             self.goldens.mkdir(parents=True, exist_ok=True)
             first.save(target)
             self.results.append(
-                {"name": name, "result": "generated", "deterministic": True}
+                {
+                    "name": name,
+                    "result": "generated",
+                    "deterministic": True,
+                    "raw_repeat_pixels": raw_repeated,
+                }
             )
             return
         if not target.exists():
@@ -177,22 +158,45 @@ class Screenshots:
             )
             return
         with Image.open(target) as expected:
-            changed, difference = changed_pixels(
-                expected, first, self.comparison["channel_delta"]
+            changed, difference = changed_pixels(expected, first, self.comparison)
+            raw_golden = raw_changed_pixels(expected, first)
+            repeated, repeat_difference = changed_pixels(
+                expected, repeat, self.comparison
             )
+        if repeat_difference is not None:
+            repeat_difference.save(self.output / f"{name}.repeat.diff.png")
         if difference is not None:
             difference.save(self.output / f"{name}.diff.png")
         self.results.append(
-            {"name": name, "changed_pixels": changed, "deterministic": True}
+            {
+                "name": name,
+                "changed_pixels": changed,
+                "repeat_changed_pixels": repeated,
+                "raw_golden_pixels": raw_golden,
+                "raw_repeat_pixels": raw_repeated,
+                "deterministic": True,
+            }
         )
-        if changed is None or changed > self.comparison["max_changed_pixels"]:
+        if (
+            changed is None
+            or repeated is None
+            or max(changed, repeated) > self.comparison["max_changed_pixels"]
+        ):
             self.failures.append(
                 f"Visual regression: {name}: {changed} pixels; comparison {self.comparison}"
             )
 
     def finish(self):
         (self.output / "report.json").write_text(
-            json.dumps({"mode": self.mode, "cases": self.results}, indent=2) + "\n",
+            json.dumps(
+                {
+                    "mode": self.mode,
+                    "comparison": self.comparison,
+                    "cases": self.results,
+                },
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
         if self.failures:

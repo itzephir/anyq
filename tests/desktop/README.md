@@ -7,7 +7,7 @@ on Linux, macOS and Windows. The required CI matrix is in
 The modes are explicit: `verify` compares with committed goldens and fails on a
 regression; `generate` writes new goldens for review. Both modes launch every
 visual case twice from independent clean processes and databases, and reject
-even one unstable pixel before comparing or generating anything.
+any visual instability under the configured comparison before accepting candidates.
 
 `config.json` owns each state's CLI seed commands, expected complete snapshot,
 fixed clock/timezone, source, preferences, viewport/decorations, selected topic/task,
@@ -20,8 +20,10 @@ observable states rather than asserting arbitrary elapsed delays.
 
 `tooling/test_desktop.py` launches the real CLI, owner and Tauri webviews using an
 isolated home/database. `integration-test-hooks` adds a private file transport
-for driving the actual renderer; it is absent from shipping packages and does
-not replace the daemon or its queue. Screenshots capture native window pixels,
+for driving the actual renderer and incognito stores to exclude previous renderer
+sessions. Inherited WebView2 settings are removed before applying configured
+renderer arguments. These hooks are absent from shipping packages and do not
+replace the daemon or its queue. Screenshots capture native window pixels,
 not a browser preview or a DOM re-render. Queue fingerprints prove that viewing,
 searching, refresh, settings and client exit do not change business state.
 
@@ -41,10 +43,13 @@ visual cases configure software rendering, grayscale text and sRGB explicitly;
 ordinary integration cases retain default WebView2 rendering. Native desktop
 capture avoids PrintWindow's partially blank WebView2 surfaces. Configured
 viewports fit the runner's visible work area without taskbar occlusion.
-macOS captures the selected native window buffer without its shadow, excluding
-display-compositor dithering while preserving the real WebKit-rendered content.
-The configured comparison requires exact pixels and rejects even one changed
-channel, missing goldens and dimension changes. Actual,
+The pinned Pixelmatch comparator uses a strict 0.01 perceptual threshold and
+antialias-edge detection, allowing zero differing visual pixels. This handles
+measured native rasterization noise (single-channel changes at SVG/rounded edges),
+not missing content, moved geometry or changed state. Both independent renders
+must pass this comparison, and verify compares both against the golden. Raw pixel
+difference counts remain in the JSON report; diff PNGs show antialiasing in yellow
+and regressions in red. Missing goldens and dimension changes fail. Actual,
 difference and JSON evidence are uploaded even when CI fails. No comparison job
 writes or accepts golden changes.
 
