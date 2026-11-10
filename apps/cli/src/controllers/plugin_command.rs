@@ -13,6 +13,10 @@ pub enum PluginCommand {
     Status {
         name: String,
     },
+    #[command(about = "Explicitly inspect bounded plugin-owned metadata state")]
+    State {
+        name: String,
+    },
     Disable {
         name: String,
     },

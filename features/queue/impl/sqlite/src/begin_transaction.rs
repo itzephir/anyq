@@ -1,6 +1,6 @@
 use crate::{checkpoint::checkpoint, storage_error::storage};
 use anyq_queue_api::Result;
-use rusqlite::{Connection, ErrorCode, Transaction, TransactionBehavior};
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use std::{
     sync::atomic::AtomicBool,
     time::{Duration, Instant},
@@ -25,11 +25,9 @@ pub(crate) fn begin_transaction<'connection>(
                 connection.busy_timeout(timeout).map_err(storage)?;
                 return Ok(transaction);
             }
-            Err(error)
-                if error.sqlite_error_code() == Some(ErrorCode::DatabaseBusy)
-                    && Instant::now() < deadline =>
-            {
+            Err(error) if crate::retry_lock::contention(&error) && Instant::now() < deadline => {
                 checkpoint("sqlite.waiting-lock", cancelled)?;
+                std::thread::sleep(Duration::from_millis(10));
             }
             Err(error) => return Err(storage(error)),
         }

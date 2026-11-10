@@ -7,6 +7,7 @@ mod metadata_input;
 mod output;
 mod paths;
 mod plugin_executable;
+mod plugin_presenters;
 mod presenters;
 mod start_task;
 mod task_flow;
@@ -158,28 +159,29 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
                 name,
                 executable,
                 arguments,
-            } => serde_json::to_string_pretty(&anyq_plugin_wire::PluginStatusDto::from(
-                plugins
-                    .enable
-                    .enable(anyq_plugin_api::EnablePluginRequest {
-                        name,
-                        executable,
-                        arguments,
-                    })?,
-            )),
+            } => serde_json::to_string_pretty(&plugin_presenters::status(plugins.enable.enable(
+                anyq_plugin_api::EnablePluginRequest {
+                    name,
+                    executable,
+                    arguments,
+                },
+            )?)),
             PluginCommand::List => serde_json::to_string_pretty(
                 &plugins
                     .list
                     .list()?
                     .into_iter()
-                    .map(anyq_plugin_wire::PluginStatusDto::from)
+                    .map(plugin_presenters::status)
                     .collect::<Vec<_>>(),
             ),
             PluginCommand::Status { name } => serde_json::to_string_pretty(
-                &anyq_plugin_wire::PluginStatusDto::from(plugins.status.status(&name)?),
+                &plugin_presenters::status(plugins.status.status(&name)?),
+            ),
+            PluginCommand::State { name } => serde_json::to_string_pretty(
+                &anyq_plugin_wire::StateDto::from(plugins.status.status(&name)?.state),
             ),
             PluginCommand::Disable { name } => serde_json::to_string_pretty(
-                &anyq_plugin_wire::PluginStatusDto::from(plugins.disable.disable(&name)?),
+                &plugin_presenters::status(plugins.disable.disable(&name)?),
             ),
             PluginCommand::Inspect { name } => serde_json::to_string_pretty(
                 &anyq_daemon_impl::inspect_managed(&path, policy, cancelled.clone(), name)?,

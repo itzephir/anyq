@@ -101,3 +101,9 @@ empty metadata. Verify interrupted migration and metadata/autocreate rollback.
 An older binary cannot open the new schema; rollback uses a backup made before
 upgrade or the new binary to export data, never destructive downgrade. Keep the
 metadata capability as a delta until implementation checks pass.
+
+## Migration delta handoff
+
+The following hooks stage supersedes the already synchronized schema-4 upgrade
+requirement with schema 5. Its delta now owns subsequent migration scenarios;
+metadata keeps its registration/naming changes without reverting that baseline.
