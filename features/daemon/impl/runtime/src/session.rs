@@ -101,8 +101,9 @@ impl Session {
         loop {
             let frame = self.next(receiver)?;
             let class = match &frame.request {
-                QueueRequest::CheckTaskRunning { .. } => SessionClass::Waiting,
-                QueueRequest::StartTask { .. } => self.permit.class,
+                QueueRequest::CheckTaskRunning { .. } | QueueRequest::StartTask { .. } => {
+                    self.permit.class
+                }
                 _ => SessionClass::Command,
             };
             if let Err(error) = self.require_capacity(class) {
@@ -115,7 +116,9 @@ impl Session {
                 Ok(response) => response,
                 Err(error) => QueueResponse::Error(error.into()),
             };
-            if matches!(&response, QueueResponse::Started(outcome) if outcome == "busy") {
+            let waiting = matches!(&response, QueueResponse::Running(false))
+                || matches!(&response, QueueResponse::Started(outcome) if outcome == "busy");
+            if waiting {
                 if let Err(error) = self.require_capacity(SessionClass::Waiting) {
                     self.reply(frame.id, QueueResponse::Error(error.into()))?;
 

@@ -308,6 +308,7 @@ fn full_waiting_capacity_preserves_completion_status_and_shutdown() {
         );
         assert_eq!(queue.state("owner"), "running");
         assert_eq!(queue.state("next"), "queued");
+        queue.call(&["task", "wait", "owner"]);
         let overflow = queue.raw(&["task", "wait", "next"]);
         assert!(!overflow.status.success());
         assert!(

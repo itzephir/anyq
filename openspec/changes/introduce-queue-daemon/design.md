@@ -78,8 +78,8 @@ workers and closes clients with bounded draining; committed ownership survives.
 Separate quotas bound 64 command sessions and 64 wait/start-poll sessions. Before
 each operation the connection acquires its new class's permit and releases the
 previous one, preserving chained create/wait/complete behavior. CheckTaskRunning
-uses waiting capacity; StartTask moves there only after Busy so immediate starts
-do not require a waiting permit. A busy start poll retains that permit until a
+moves to waiting capacity after false, and StartTask after Busy, so immediate
+success does not require a waiting permit. Polls retain that permit until a
 different operation or disconnect. Waiting clients
 cannot exhaust command capacity. Eight reserved control connections keep Ping
 and Stop available when command capacity is full; Open requires a command permit

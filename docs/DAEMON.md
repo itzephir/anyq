@@ -66,8 +66,8 @@ requests invoke individual typed queue use cases. Ping and Stop are independent
 control sessions. Test gate fields exist only in integration-test-hooks builds.
 
 The owner has separate quotas of 64 command sessions and 64 wait/start-poll
-sessions. Wait moves to waiting capacity before observation; start moves there
-only after a Busy outcome, so an immediate start remains available. Other queue
+sessions. Wait moves to waiting capacity after a not-running result; start moves
+there after Busy, so immediate wait/start success remains available. Other queue
 operations acquire command capacity before executing. Connections move between
 these quotas, so waiters do not occupy capacity needed to complete their owner.
 Eight additional connections are reserved for Ping/Stop when command capacity is
