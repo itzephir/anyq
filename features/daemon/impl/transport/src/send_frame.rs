@@ -25,13 +25,21 @@ pub fn send_frame<T: Serialize>(
     let mut bytes = Vec::with_capacity(payload.len() + 4);
     bytes.extend_from_slice(&(payload.len() as u32).to_be_bytes());
     bytes.extend_from_slice(&payload);
-    let deadline = Instant::now() + timeout;
+    let mut idle_deadline = Instant::now() + timeout;
+    let total_deadline = Instant::now() + Duration::from_secs(120);
     let mut written = 0;
     let mut stream = stream;
 
     while written < bytes.len() {
         if cancelled.load(Ordering::SeqCst) {
             return Err(io::Error::new(io::ErrorKind::Interrupted, "interrupted"));
+        }
+
+        if Instant::now() >= total_deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "daemon transfer exceeded total time limit",
+            ));
         }
 
         match stream.write(&bytes[written..]) {
@@ -41,9 +49,12 @@ pub fn send_frame<T: Serialize>(
                     "daemon connection closed",
                 ));
             }
-            Ok(count) => written += count,
+            Ok(count) => {
+                written += count;
+                idle_deadline = Instant::now() + timeout;
+            }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                if Instant::now() >= deadline {
+                if Instant::now() >= idle_deadline {
                     return Err(io::Error::new(
                         io::ErrorKind::TimedOut,
                         "daemon send timed out",

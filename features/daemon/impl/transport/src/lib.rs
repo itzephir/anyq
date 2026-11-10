@@ -12,3 +12,6 @@ mod send_frame;
 pub use send_frame::send_frame;
 
 pub use interprocess::local_socket::{Listener, Stream, traits};
+
+#[cfg(test)]
+mod tests;

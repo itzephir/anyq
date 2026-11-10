@@ -66,6 +66,10 @@ fn status_is_read_only_and_lifecycle_messages_support_both_languages() {
             .starts_with("демон запущен")
     );
 
+    queue.topic("cpu");
+    queue.call(&["--lang", "ru", "task", "localized", "create", "-twc", "cpu"]);
+    assert_eq!(queue.state("localized"), "completed");
+
     queue.call(&["daemon", "stop"]);
     assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
 }

@@ -53,7 +53,9 @@ requests invoke individual typed queue use cases. Ping and Stop are independent
 control sessions. Test gate fields exist only in integration-test-hooks builds.
 
 The owner accepts at most 64 concurrent sessions. Incoming frames have a 30-second
-deadline; response writes have a five-second deadline. IO is nonblocking with
+deadline; response writes have a five-second inactivity deadline and a two-minute
+total transfer limit. Progress renews the inactivity deadline so a consuming
+client can receive a large result under contention. IO is nonblocking with
 cancellation checks. A blocked stream cannot hold up other clients or shutdown.
 Graceful shutdown cancels sessions and allows up to ten seconds for draining.
 If a worker cannot finish within that bound, the owner terminates the process

@@ -147,8 +147,7 @@ impl Endpoint {
         #[cfg(windows)]
         let options = {
             use interprocess::os::windows::{
-                named_pipe::local_socket::ListenerOptionsExt,
-                security_descriptor::SecurityDescriptor,
+                local_socket::ListenerOptionsExt, security_descriptor::SecurityDescriptor,
             };
 
             options.security_descriptor(SecurityDescriptor::deserialize(widestring::u16cstr!(
