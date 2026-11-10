@@ -15,12 +15,16 @@ use std::{
 fn open_session(queue: &Queue) -> Stream {
     queue.call(&["daemon", "start"]);
     let endpoint = Endpoint::resolve(&queue.db).unwrap();
+    open_endpoint(&endpoint)
+}
+
+fn open_endpoint(endpoint: &Endpoint) -> Stream {
     let stream = endpoint.connect().unwrap();
     let request = RequestFrame {
         version: PROTOCOL_VERSION,
         id: 1,
         request: QueueRequest::Open {
-            database_id: endpoint.identity,
+            database_id: endpoint.identity.clone(),
             policy: PolicyDto::from(QueuePolicy::default()),
             #[cfg(feature = "integration-test-hooks")]
             gate: anyq_daemon_api::GateDto {
@@ -261,4 +265,143 @@ fn concurrent_session_open_close_preserves_responsive_owner_and_slots() {
     assert_eq!(queue.state("owner"), "running");
     assert_eq!(queue.state("next"), "queued");
     assert_eq!(queue.usage("cpu"), 1);
+}
+
+fn polling_clients(queue: &Queue, operation: &str, name: &str) -> Vec<TestProcess> {
+    let mut clients = Vec::new();
+
+    for index in 0..64 {
+        let label = format!("capacity-{index}");
+        let mut command = queue.cmd(&["task", operation, name]);
+        if operation == "start" {
+            command.arg("--wait");
+        }
+
+        clients.push(TestProcess::spawn(
+            command
+                .stdout(Stdio::piped())
+                .stderr(std::fs::File::create(queue.log(&label)).unwrap()),
+        ));
+        queue.wait_for_log(&label, "waiting for");
+    }
+
+    for client in &mut clients {
+        client.assert_running();
+    }
+
+    clients
+}
+
+#[test]
+fn full_waiting_capacity_preserves_completion_status_and_shutdown() {
+    for operation in ["wait", "start"] {
+        let queue = Queue::new();
+        queue.topic("cpu");
+        queue.task("owner", &["cpu"]);
+        queue.task("next", &["cpu"]);
+        let clients = polling_clients(&queue, operation, "next");
+
+        assert!(
+            queue
+                .call(&["daemon", "status"])
+                .starts_with("daemon is running")
+        );
+        assert_eq!(queue.state("owner"), "running");
+        assert_eq!(queue.state("next"), "queued");
+        let overflow = queue.raw(&["task", "wait", "next"]);
+        assert!(!overflow.status.success());
+        assert!(
+            String::from_utf8_lossy(&overflow.stderr)
+                .contains("daemon waiting session limit reached")
+        );
+
+        queue.topic("independent");
+        queue.call(&["task", "create", "immediate", "-t", "independent", "--stop"]);
+        queue.call(&["task", "start", "immediate"]);
+        assert_eq!(queue.state("immediate"), "running");
+        queue.call(&["task", "complete", "immediate"]);
+
+        queue.call(&["task", "complete", "owner"]);
+
+        for client in clients {
+            assert!(client.output().status.success());
+        }
+        assert_eq!(queue.state("next"), "running");
+        assert_eq!(queue.usage("cpu"), 1);
+
+        queue.task("tail", &["cpu"]);
+        let clients = polling_clients(&queue, operation, "tail");
+
+        queue.call(&["daemon", "stop"]);
+
+        for client in clients {
+            assert!(!client.output().status.success());
+        }
+        assert_eq!(queue.state("next"), "running");
+        assert_eq!(queue.state("tail"), "queued");
+        assert_eq!(queue.usage("cpu"), 1);
+        queue.call(&["daemon", "start"]);
+        queue.call(&["task", "complete", "next"]);
+        assert_eq!(queue.state("tail"), "running");
+    }
+}
+
+#[test]
+fn full_waiting_capacity_allows_chains_to_reacquire_completion_capacity() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    let mut clients = Vec::new();
+
+    for index in 0..64 {
+        let name = format!("chain{index}");
+        clients.push(TestProcess::spawn(
+            queue
+                .cmd(&["task", "create", &name, "-t", "cpu", "-wc"])
+                .stdout(Stdio::piped())
+                .stderr(std::fs::File::create(queue.log(&name)).unwrap()),
+        ));
+        queue.wait_for_log(&name, "waiting for");
+    }
+
+    queue.call(&["task", "complete", "owner"]);
+
+    for client in clients {
+        let output = client.output();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    for index in 0..64 {
+        assert_eq!(queue.state(&format!("chain{index}")), "completed");
+    }
+    assert_eq!(queue.usage("cpu"), 0);
+}
+
+#[test]
+fn full_command_capacity_preserves_reserved_lifecycle_access() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    let endpoint = Endpoint::resolve(&queue.db).unwrap();
+    let sessions: Vec<_> = (0..64).map(|_| open_endpoint(&endpoint)).collect();
+
+    assert!(
+        queue
+            .call(&["daemon", "status"])
+            .starts_with("daemon is running")
+    );
+    let overflow = queue.raw(&["task", "list"]);
+    assert!(!overflow.status.success());
+    assert!(
+        String::from_utf8_lossy(&overflow.stderr).contains("daemon command session limit reached")
+    );
+
+    queue.call(&["daemon", "stop"]);
+
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+    drop(sessions);
 }

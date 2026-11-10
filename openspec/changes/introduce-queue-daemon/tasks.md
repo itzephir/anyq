@@ -28,6 +28,12 @@
 - [x] 4.2 Open the daemon-only implementation PR and verify current GitHub CI passed, including all native matrices, distribution and website categories, before marking cross-platform acceptance complete.
 - [x] 4.3 Sync only verified daemon behavior into baseline specs; verify strict OpenSpec validation and review the diff for unchanged admission/ownership semantics.
 
+## 5. Review corrections
+
+- [x] 5.1 Separate bounded waiting/command session quotas and reserve lifecycle capacity; verify 64 real wait/start clients, chained completion, quota exhaustion and lifecycle access at full command capacity.
+- [ ] 5.2 Clarify selected anyq database ownership in README and document the session limits; verify mandatory local checks and synchronize only verified lifecycle scenarios.
+- [ ] 5.3 Publish the corrections in PR #14 and verify current native Linux/macOS/Windows CI without merging PRs.
+
 ## Workflow follow-up
 
 - This is stage 1; metadata implementation starts from its branch only after the daemon implementation is reviewable.
