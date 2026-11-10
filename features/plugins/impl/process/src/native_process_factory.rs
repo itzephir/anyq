@@ -9,7 +9,7 @@ pub struct NativeProcessFactory;
 
 impl ProcessFactory for NativeProcessFactory {
     fn spawn(&self, registration: &PluginRegistration) -> Result<Box<dyn PluginProcess>> {
-        let (outgoing, receiver) = mpsc::channel(2);
+        let (outgoing, receiver) = mpsc::channel(32);
         let (sender, incoming) = mpsc::channel(8);
         let cancelled = Arc::new(AtomicBool::new(false));
         let terminated = Arc::new(AtomicBool::new(false));

@@ -186,3 +186,8 @@ Concurrent native sessions use the bundled SQLite 3.51.3 engine, including the
 [upstream Unix VFS lock-order fix](https://www.sqlite.org/releaselog/3_51_2.html).
 The regression suite repeatedly opens/closes real clients while ownership stays
 held; it does not extend response deadlines to hide a blocked engine.
+
+Cancellation is delivered once per unresolved action and live plugin session.
+Reliable stdio transport either delivers it or fails that session; repeated polls
+do not flood a worker while it confirms native tree termination. Responses and
+cancellation have a bounded 32-frame outbound queue.
