@@ -44,6 +44,21 @@ pub(crate) fn handle_result(
                 execution.phase = Phase::Uncertain;
             }
         }
+        ("register", CapabilityResult::Error { category, .. }) if category == "conflict" => {
+            // Domain rejection means completion won launch serialization. Do
+            // not poison delivery of future tasks with a stale running event.
+            if let Some(delivery_id) = execution.delivery.take() {
+                stdio::send(
+                    output,
+                    PluginFrame::Ack {
+                        delivery_id,
+                        state: None,
+                        timers: Vec::new(),
+                    },
+                )?;
+            }
+            execution.phase = Phase::Finished;
+        }
         ("report", CapabilityResult::ManagedWork { work }) => {
             if work.cancellation_requested {
                 execution.cancel()?;

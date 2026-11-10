@@ -477,3 +477,43 @@ fn owner_crash_preserves_uncertain_shell_receipt_and_never_reuses_live_resources
 
     assert_eq!(queue.state("next"), "running");
 }
+
+#[test]
+fn timeout_winning_before_managed_registration_prevents_launch_without_poisoning_delivery() {
+    let queue = Queue::new();
+    let gate = queue.dir.path().join("registration-gate");
+    let clock = queue.dir.path().join("clock");
+    fs::write(&clock, "0").unwrap();
+    let output = TestProcess::spawn(
+        queue
+            .cmd(&["daemon", "start"])
+            .env("ANYQ_TEST_CLOCK_FILE", &clock)
+            .env("ANYQ_SHELL_TEST_CHECKPOINT", "shell.before-register")
+            .env("ANYQ_SHELL_TEST_DIRECTORY", &gate)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
+    assert!(output.status.success());
+    queue.topic("cpu");
+    enable(&queue, "timeout");
+    enable(&queue, "shell");
+    let marker = queue.log("prevented");
+    let config = file(&queue, "prevented.json", json!({"marker":marker}));
+    create(&queue, "owner", plan(&queue, &config, true), Some("10ms"));
+    wait_for_file(&gate.join("ready"), Some("shell.before-register"));
+    wait(|| status(&queue, "timeout")["active_timers"] == 1);
+    let next = clock.with_extension("next");
+    fs::write(&next, "11").unwrap();
+
+    fs::rename(next, &clock).unwrap();
+    wait(|| queue.state("owner") == "completed");
+    fs::write(gate.join("release"), b"continue").unwrap();
+    queue.task("next", &["cpu"]);
+    wait(|| status(&queue, "shell")["lag"] == 0);
+
+    assert!(!marker.exists());
+    assert!(inspect(&queue).is_empty());
+    assert_eq!(status(&queue, "shell")["failures"], 0);
+    assert_eq!(queue.state("next"), "running");
+}

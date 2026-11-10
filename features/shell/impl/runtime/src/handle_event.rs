@@ -39,6 +39,7 @@ pub(crate) fn handle_event(
                     },
                 );
             }
+            crate::checkpoint::checkpoint("shell.before-register")?;
             stdio::send(
                 output,
                 PluginFrame::Request {
