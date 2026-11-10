@@ -166,7 +166,7 @@ fn sequential_commands_stop_after_first_failure_and_native_launch_failure_is_rec
     let MetadataValue::Array(outcomes) = saved.get(Some("outcomes")).unwrap() else {
         panic!()
     };
-    assert_eq!(outcomes.len(), 2);
+    assert_eq!(outcomes.len(), 2, "prepared shell outcome: {saved:?}");
     assert_eq!(
         fs::read_to_string(queue.dir.path().join("order.txt"))
             .unwrap()

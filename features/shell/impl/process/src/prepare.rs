@@ -65,7 +65,8 @@ pub(crate) fn prepare(plan: Plan, origin: Option<ExecutionDirectory>) -> Result<
             })?;
             vec![
                 PathBuf::from(system)
-                    .join("System32/cmd.exe")
+                    .join("System32")
+                    .join("cmd.exe")
                     .to_string_lossy()
                     .into_owned(),
                 "/D".into(),
