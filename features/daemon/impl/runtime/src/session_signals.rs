@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub struct SessionSignals {
     pub cancelled: std::sync::Arc<AtomicBool>,
     pub closed: AtomicBool,
+    pub active: AtomicBool,
 }
 
 impl SessionSignals {

@@ -133,6 +133,7 @@ ALLOWED = {
         "sha2",
         "rustix",
         "widestring",
+        "windows-permissions",
     },
     "anyq-daemon-client": {
         "anyq-plugin-api",

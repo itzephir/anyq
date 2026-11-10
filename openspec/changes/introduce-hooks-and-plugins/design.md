@@ -83,6 +83,14 @@ The runtime supports this contract with a test plugin before shell is introduced
 
 ## Risks / Trade-offs
 
+Background queue/plugin stores retry only failed lock acquisition before invoking
+their transaction closure. Their wait is cancellable by owner shutdown; ordinary
+client stores retain bounded lock waits. A busy live queue transaction therefore
+delays background delivery instead of terminating the owner. Operations and
+commits are never replayed. When shutdown ends a blocked background wait, daemon
+composition treats the resulting interruption as graceful cancellation; committed
+ownership and uncertain managed receipts remain intact.
+
 - [Replay repeats external effects] -> stable IDs and receipts; uncertain
   non-idempotent actions require explicit recovery instead of automatic retry.
 - [Plugin IO stalls queue work] -> separate bounded delivery/process supervision,
