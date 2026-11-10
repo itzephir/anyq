@@ -121,3 +121,12 @@ enable after exponential backoff capped at 60 seconds. Runtime options expose
 response/cancellation/polling and event-retention bounds; default retention is
 10,000 recent events, with disabled cursors, timer origins and unresolved work
 pinning needed history. Daemon IPC advances to version 3.
+
+### Following shell stage
+
+The stacked shell stage extends the shared migration to schema 6 with bounded
+managed execution details and paged protocol-v2 history. Its verified schema
+contract carries forward all schema-5 ownership and receipt scenarios in this
+change's task-queue delta so later archival cannot replace the newer baseline
+with an older migration contract. The hooks implementation PR itself remains
+the schema-5 and protocol-v1 foundation.

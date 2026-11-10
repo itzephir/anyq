@@ -220,7 +220,7 @@ Names, topic links, order, and states SHALL survive opening the database in a ne
 - **THEN** the operation fails and recommends a separate database, original bytes are preserved, and journal files are not created
 
 ### Requirement: Native coordination interface
-Task and topic commands SHALL work natively through the local background queue daemon. The caller SHALL remain responsible for external work. Successful operations SHALL return 0 with a clear message; state and input errors SHALL return nonzero.
+Task and topic commands SHALL work natively through the local background queue daemon. The caller SHALL remain responsible for external work unless it explicitly enables plugin-managed execution through task metadata. Optional shell execution SHALL belong to the plugin, not queue domain or admission use cases. Successful operations SHALL return 0 with a clear message; state and input errors SHALL return nonzero.
 
 #### Scenario: External build
 - **WHEN** the caller registers a task, links it to topics, obtains wait, performs a build, and calls complete
@@ -331,7 +331,7 @@ Create SHALL accept mutually exclusive --start, --stop, and -s. Stop SHALL persi
 - **THEN** the task obtains all slots and then completes; resources are released or passed to eligible successors
 
 ### Requirement: Supported schema upgrade
-Versions 2/3/4 SHALL upgrade to schema 5 atomically, preserving names, registration, links, states, metadata and ownership. Queue events, receipts, managed work and plugin storage SHALL share one schema transaction, without admission or historical running events. Versions 2/3 SHALL receive empty metadata; version 2 SHALL receive task autostart=true/stopped=false with inheriting topics. Interruption SHALL leave the old schema before commit or the complete new schema afterward.
+Versions 2/3/4/5 SHALL upgrade to schema 6 atomically, preserving names, registration, links, states, metadata and ownership. Queue events, receipts, managed work and plugin storage SHALL share one schema transaction, without admission or historical running events. Versions 2/3 SHALL receive empty metadata; version 2 SHALL receive task autostart=true/stopped=false with inheriting topics. Interruption SHALL leave the old schema before commit or the complete new schema afterward.
 
 
 #### Scenario: Existing ownership
@@ -344,8 +344,12 @@ Versions 2/3/4 SHALL upgrade to schema 5 atomically, preserving names, registrat
 
 #### Scenario: Metadata schema with active ownership
 - **WHEN** a schema 4 database containing running tasks and metadata is upgraded
-- **THEN** schema 5 preserves the metadata and all ownership without synthetic running events
+- **THEN** schema 6 preserves the metadata and all ownership without synthetic running events
 
 #### Scenario: Interrupted feature migration
 - **WHEN** initialization fails or is interrupted before schema commit
 - **THEN** outbox, receipts, managed work and plugin storage are all rolled back with the queue schema
+
+#### Scenario: Existing managed receipts
+- **WHEN** schema 5 contains managed actions and active owners
+- **THEN** schema 6 adds empty bounded execution details atomically while preserving action identities, states, ownership and completion receipts

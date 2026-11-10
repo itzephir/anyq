@@ -24,8 +24,8 @@
 ## 4. Integration acceptance
 
 - [x] 4.1 Run all mandatory local checks plus native process-tree/crash/autocomplete tests; retain results and leave unsupported or untested behavior unchecked.
-- [ ] 4.2 Open the shell-only implementation PR and verify current CI passed on Linux/macOS/Windows and all required categories, including native interruption and distribution.
-- [ ] 4.3 Sync only verified shell and platform deltas into baseline specs and verify strict OpenSpec validation without losing prior daemon or timeout wording.
+- [x] 4.2 Open the shell-only implementation PR and verify current CI passed on Linux/macOS/Windows and all required categories, including native interruption and distribution.
+- [x] 4.3 Sync only verified shell and platform deltas into baseline specs and verify strict OpenSpec validation without losing prior daemon or timeout wording.
 
 ## Workflow follow-up
 
