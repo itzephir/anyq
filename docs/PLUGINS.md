@@ -187,7 +187,7 @@ Concurrent native sessions use the bundled SQLite 3.51.3 engine, including the
 The regression suite repeatedly opens/closes real clients while ownership stays
 held; it does not extend response deadlines to hide a blocked engine.
 
-The explicit status command also returns bounded namespaced metadata state. The
+The explicit `plugin state NAME` command returns bounded namespaced metadata state. The
 first-party [timeout plugin](TIMEOUT.md) runs over this same public protocol.
 
 Cancellation is delivered once per unresolved action and live plugin session.

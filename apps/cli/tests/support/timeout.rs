@@ -26,7 +26,7 @@ fn status(queue: &Queue) -> Value {
 
 fn state(queue: &Queue) -> Metadata {
     let dto: anyq_queue_wire::MetadataDto =
-        serde_json::from_value(status(queue)["state"].clone()).unwrap();
+        serde_json::from_str(&queue.call(&["plugin", "state", "timeout"])).unwrap();
     dto.try_into().unwrap()
 }
 

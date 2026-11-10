@@ -7,6 +7,7 @@ anyq plugin enable timeout /absolute/path/to/anyq plugin-runtime timeout
 anyq topic create cpu --meta timeout 30m
 anyq task create build -t cpu --meta timeout 2h
 anyq plugin status timeout
+anyq plugin state timeout
 ```
 
 The shortest timeout from the committed task and separate topic snapshots wins:
@@ -14,9 +15,9 @@ this example expires after 30 minutes. A duration is a positive integer followed
 by `ms`, `s`, `m`, `h`, or `d`. Zero, negative, fractional, missing-unit, non-string
 and overflowing values are invalid. Missing metadata does nothing. Invalid values
 leave ownership held and are reported with their source and original value in
-`state.last_error`; metadata itself is unchanged. Saved state uses the public
+`plugin state timeout` as `last_error`; metadata itself is unchanged. Saved state uses the public
 metadata wire representation (objects are key/value pairs, numbers are exact text).
-The explicit status command includes plugin-owned state; treat that output like
+The explicit `plugin state NAME` command includes plugin-owned state; treat that output like
 the task metadata it contains.
 
 One durable timer uses the running event ID. Its deadline is the **original
