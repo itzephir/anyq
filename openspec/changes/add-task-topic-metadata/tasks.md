@@ -24,8 +24,8 @@
 ## 4. Integration acceptance
 
 - [x] 4.1 Run the complete mandatory local checks including the native interruption suite; verify metadata/migration coverage and record actual results.
-- [ ] 4.2 Open the metadata-only implementation PR against its predecessor and verify current CI passed on all native matrices and required categories.
-- [ ] 4.3 Sync only verified metadata behavior into baseline specs and verify strict OpenSpec validation with every later plugin task still unchecked.
+- [x] 4.2 Open the metadata-only implementation PR against its predecessor and verify current CI passed on all native matrices and required categories.
+- [x] 4.3 Sync only verified metadata behavior into baseline specs and verify strict OpenSpec validation with every later plugin task still unchecked.
 
 ## Workflow follow-up
 
