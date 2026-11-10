@@ -151,3 +151,19 @@ fn incoming_request_limit_counts_all_continuation_chunks() {
 
     server.join().unwrap();
 }
+
+#[test]
+fn owner_lifetime_probe_observes_contention_without_creating_or_releasing_ownership() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = crate::Endpoint::resolve(&directory.path().join("probe.db")).unwrap();
+
+    assert!(!crate::OwnerLock::is_held(&endpoint).unwrap());
+    assert!(!endpoint.lock_path().exists());
+    let owner = crate::OwnerLock::acquire(&endpoint).unwrap();
+    assert!(crate::OwnerLock::is_held(&endpoint).unwrap());
+    assert!(crate::OwnerLock::acquire(&endpoint).is_err());
+    drop(owner);
+
+    assert!(!crate::OwnerLock::is_held(&endpoint).unwrap());
+    assert!(crate::OwnerLock::acquire(&endpoint).is_ok());
+}

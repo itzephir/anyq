@@ -59,7 +59,19 @@ pub(crate) fn start_owner(endpoint: &Endpoint, cancelled: &AtomicBool) -> io::Re
             return Ok(stream);
         }
 
-        let _ = child.try_wait();
+        if child.try_wait()?.is_some() && !anyq_daemon_transport::OwnerLock::is_held(endpoint)? {
+            #[cfg(unix)]
+            {
+                child = command.spawn()?;
+            }
+
+            #[cfg(windows)]
+            {
+                child = command.spawn_with(SpawnOptions::new().creation_flags(
+                    CreationFlags::DETACHED_PROCESS | CreationFlags::NEW_PROCESS_GROUP,
+                ))?;
+            }
+        }
 
         if Instant::now() >= deadline {
             return Err(io::Error::new(
