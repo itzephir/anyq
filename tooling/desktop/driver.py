@@ -23,8 +23,10 @@ class Driver:
         self.sequence = 0
         self.log = None
 
-    def start(self, status="live", viewport=(1000, 620)):
-        (self.directory / "command.json").unlink(missing_ok=True)
+    def start(self, status="live", viewport=(1000, 620), decorations=None):
+        self.sequence = 0
+        for message in self.directory.glob("*.json"):
+            message.unlink()
         self.log = (self.home / "panel.log").open("ab")
         self.process = subprocess.Popen(
             [str(self.executable)],
@@ -33,7 +35,7 @@ class Driver:
             stderr=self.log,
         )
         self.wait("return Boolean(window.__TAURI__?.core);")
-        self.resize(*viewport)
+        self.resize(*viewport, decorations=decorations)
         self.wait(
             f"return (await window.__TAURI__.core.invoke('get_panel_state')).status === {json.dumps(status)};"
         )
@@ -42,9 +44,9 @@ class Driver:
     def call(self, script="return null;", window="main", **native):
         self.sequence += 1
         command = {"id": self.sequence, "window": window, "script": script} | native
-        temporary = self.directory / "command.tmp"
+        temporary = self.directory / f"command-{self.sequence}.tmp"
         temporary.write_text(json.dumps(command), encoding="utf-8")
-        temporary.replace(self.directory / "command.json")
+        temporary.replace(self.directory / f"command-{self.sequence}.json")
         response = self.directory / f"response-{self.sequence}.json"
         deadline = time.monotonic() + 25
         while not response.exists():
@@ -70,7 +72,7 @@ class Driver:
                 raise AssertionError(f"Native UI condition timed out: {script}")
             time.sleep(0.05)
 
-    def resize(self, width, height, window="main"):
+    def resize(self, width, height, window="main", decorations=None):
         requested_width, requested_height = width, height
         for _ in range(3):
             self.call(
@@ -78,6 +80,7 @@ class Driver:
                 native="resize",
                 width=requested_width,
                 height=requested_height,
+                **({"decorations": decorations} if decorations is not None else {}),
             )
             result = self.wait(
                 "return innerWidth > 0 && innerHeight > 0 ? [innerWidth,innerHeight] : false;",

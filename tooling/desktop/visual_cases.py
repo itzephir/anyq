@@ -47,6 +47,7 @@ def run(cli, panel, output, goldens, configuration, mode):
                         viewport=case["viewport"]
                         if case["surface"] == "main"
                         else configuration["visual_defaults"]["viewport"],
+                        decorations=case["decorations"],
                     )
                     if case.get("after_live"):
                         assert case["after_live"] == "database-unavailable"

@@ -292,6 +292,7 @@
     "theme": "dark",
     "language": "en",
     "viewport": [1000, 620],
+    "decorations": false,
     "source": "automatic",
     "fixture": "primary",
     "status": "live",
@@ -395,8 +396,8 @@
     }
   ],
   "comparison": {
-    "channel_delta": 8,
-    "max_changed_pixels": 50,
+    "channel_delta": 0,
+    "max_changed_pixels": 0,
     "determinism_channel_delta": 0,
     "determinism_max_changed_pixels": 0
   }

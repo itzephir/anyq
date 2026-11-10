@@ -60,7 +60,9 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         let mut seen = 0;
         while !app.state::<Arc<Controller>>().session().stopped {
             let driver = app.state::<TestDriver>();
-            let command = fs::read(driver.directory.join("command.json"))
+            // Each request has its own immutable file: Windows can keep a reader
+            // open without blocking publication of the next request.
+            let command = fs::read(driver.directory.join(format!("command-{}.json", seen + 1)))
                 .ok()
                 .filter(|bytes| bytes.len() <= 65_536)
                 .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
@@ -81,6 +83,11 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                             Some("resize") => window
                                 .show()
                                 .and_then(|()| window.set_focus())
+                                .and_then(|()| {
+                                    command["decorations"]
+                                        .as_bool()
+                                        .map_or(Ok(()), |enabled| window.set_decorations(enabled))
+                                })
                                 .and_then(|()| {
                                     window
                                         .set_position(tauri::LogicalPosition::new(10.0, 30.0))

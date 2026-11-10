@@ -8,8 +8,8 @@ from PIL import Image
 from screenshots import Screenshots
 
 COMPARISON = {
-    "channel_delta": 8,
-    "max_changed_pixels": 50,
+    "channel_delta": 0,
+    "max_changed_pixels": 0,
     "determinism_channel_delta": 0,
     "determinism_max_changed_pixels": 0,
 }
@@ -46,7 +46,7 @@ class ScreenshotContractTests(unittest.TestCase):
                 runner.finish()
             self.assertFalse((root / "goldens").exists())
 
-    def test_generate_then_verify_rejects_a_changed_icon_without_overwriting(self):
+    def test_generate_then_verify_rejects_one_changed_pixel_without_overwriting(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             frame = Image.new("RGB", (40, 40), "black")
@@ -58,9 +58,7 @@ class ScreenshotContractTests(unittest.TestCase):
             golden = root / "goldens" / generate.platform / "icon.png"
             original = golden.read_bytes()
             changed = frame.copy()
-            for x in range(8):
-                for y in range(8):
-                    changed.putpixel((x, y), (255, 255, 255))
+            changed.putpixel((1, 1), (1, 0, 0))
             verify = Screenshots(
                 root / "actual", root / "goldens", "verify", COMPARISON
             )

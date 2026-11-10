@@ -160,7 +160,7 @@ Desktop UI changes SHALL compare representative native screenshots with reviewed
 - **THEN** it compares window, compact, settings, localized/theme, narrow and connection-state screenshots on Linux, macOS and Windows
 
 #### Scenario: Missing or changed golden
-- **WHEN** a required screenshot has no reviewed golden or differs beyond the documented tolerance
+- **WHEN** a required screenshot has no reviewed golden or differs by even one pixel channel
 - **THEN** CI fails and retains the actual image and visual difference for review without silently accepting a new baseline
 
 

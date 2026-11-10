@@ -56,3 +56,11 @@ Missing goldens and visual differences fail CI and retain actual/diff artifacts.
 Explicit golden updates are reviewed as code; comparison jobs never rewrite or
 auto-accept the baseline. Package builds, unit/controller tests and manually saved
 screenshots supplement these required checks rather than replace them.
+
+Screenshot runners provide separate `verify` and `generate` modes. Verification
+never modifies goldens and fails on missing or changed images; generation creates
+reviewable candidates. A visual state's configuration owns its complete fixture,
+clock/timezone, locale, theme, viewport, selection, scroll and focus. Independent
+clean runs must produce deterministic pixels before a candidate is accepted.
+All tests should isolate their inputs and wait for observable conditions, with
+minimal dependence on the host environment and arbitrary elapsed delays.
