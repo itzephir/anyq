@@ -15,6 +15,9 @@ def environment(home, database):
     return inherited | {
         "HOME": str(home),
         "USERPROFILE": str(home),
+        "XDG_DATA_HOME": str(Path(home) / "xdg-data"),
+        "XDG_CONFIG_HOME": str(Path(home) / "xdg-config"),
+        "XDG_CACHE_HOME": str(Path(home) / "xdg-cache"),
         "ANYQ_DB": str(database),
         "TZ": "UTC",
         "PYTHONUTF8": "1",

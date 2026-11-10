@@ -20,7 +20,9 @@ observable states rather than asserting arbitrary elapsed delays.
 
 `tooling/test_desktop.py` launches the real CLI, owner and Tauri webviews using an
 isolated home/database. `integration-test-hooks` adds a private file transport
-for driving the actual renderer and incognito stores to exclude previous renderer
+for driving the actual renderer. macOS/Windows use incognito stores; Linux uses
+an independent XDG data/cache/config directory for each fixture, preserving GTK's
+shared URI-scheme registration for both windows. These exclude previous renderer
 sessions. Inherited WebView2 settings are removed before applying configured
 renderer arguments. These hooks are absent from shipping packages and do not
 replace the daemon or its queue. Screenshots capture native window pixels,
@@ -43,6 +45,8 @@ visual cases configure software rendering, grayscale text and sRGB explicitly;
 ordinary integration cases retain default WebView2 rendering. Native desktop
 capture avoids PrintWindow's partially blank WebView2 surfaces. Configured
 viewports fit the runner's visible work area without taskbar occlusion.
+The product styles its scrollbars explicitly, avoiding macOS's asynchronous
+native scrollbar expansion/fading during updates without masking scrollable content.
 The pinned Pixelmatch comparator uses a strict 0.01 perceptual threshold and
 antialias-edge detection, allowing zero differing visual pixels. This handles
 measured native rasterization noise (single-channel changes at SVG/rounded edges),

@@ -11,7 +11,9 @@ pub struct TestDriver {
 pub fn isolate_renderer(mut context: tauri::Context) -> tauri::Context {
     if std::env::var_os("ANYQ_PANEL_TEST_DIR").is_some() {
         for window in &mut context.config_mut().app.windows {
-            window.incognito = true;
+            // GTK protocol registration is shared by the data-directory context;
+            // isolate its ordinary profile through the test's private XDG paths.
+            window.incognito = !cfg!(target_os = "linux");
         }
     }
 

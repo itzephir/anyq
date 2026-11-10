@@ -75,7 +75,13 @@ class Driver:
             if result["payload"].get("value"):
                 return result
             if time.monotonic() >= deadline:
-                raise AssertionError(f"Native UI condition timed out: {script}")
+                diagnostic = self.call(
+                    "return {url:location.href,text:document.body.innerText,html:document.documentElement.outerHTML.slice(0,4000)};",
+                    window,
+                )
+                raise AssertionError(
+                    f"Native UI condition timed out: {script}; document: {diagnostic}"
+                )
             time.sleep(0.05)
 
     def resize(self, width, height, window="main", decorations=None):
