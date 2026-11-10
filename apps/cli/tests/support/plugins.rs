@@ -256,3 +256,23 @@ fn start_with_clock(queue: &Queue, clock: &Path) {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn slow_managed_cancellation_is_not_flooded_or_killed_before_confirmed_stop() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    let log = queue.log("slow-worker");
+    enable(&queue, "slow", "managed-slow", &log);
+    queue.task("owner", &["cpu"]);
+    wait_for_file(&log.with_extension("marker"), Some("started"));
+    queue.task("next", &["cpu"]);
+
+    queue.call(&["task", "complete", "owner"]);
+
+    assert_eq!(
+        fs::read_to_string(log.with_extension("marker")).unwrap(),
+        "stopped"
+    );
+    assert_eq!(status(&queue, "slow")["failures"], 0);
+    assert_eq!(queue.state("next"), "running");
+}

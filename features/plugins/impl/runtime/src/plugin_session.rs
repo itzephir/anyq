@@ -9,5 +9,6 @@ pub(crate) struct PluginSession {
     pub pending: Option<PendingDelivery>,
     pub last_cancellation: Instant,
     pub cancellation_cursor: usize,
+    pub sent_cancellations: std::collections::BTreeSet<String>,
     pub draining_since: Option<Instant>,
 }
