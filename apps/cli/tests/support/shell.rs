@@ -275,8 +275,8 @@ fn topic_commands_and_invalid_task_plans_never_launch_work() {
     assert!(!marker.exists());
     assert_eq!(queue.state("invalid"), "running");
     assert!(
-        status(&queue, "shell")["state"]
-            .to_string()
+        queue
+            .call(&["plugin", "state", "shell"])
             .contains("exactly one")
     );
 }

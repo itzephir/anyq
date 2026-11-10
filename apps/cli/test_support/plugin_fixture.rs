@@ -178,6 +178,7 @@ fn main() {
                         send(PluginFrame::Request {
                             id: "stop".into(),
                             request: CapabilityRequest::ManagedReport {
+                                details: None,
                                 action_id: work.action_id,
                                 state: "stopped".into(),
                             },
