@@ -1,0 +1,71 @@
+# Local queue daemon
+
+The same native `anyq` executable provides CLI and daemon modes. Each canonical
+database has one owner, protected by a lifetime OS file lock. Ordinary queue
+commands start it automatically and communicate through a private local endpoint.
+The owner continues running after clients exit. Config, help and version remain
+local and do not start it or open SQLite.
+
+```sh
+anyq --db ./queue.db daemon status
+anyq --db ./queue.db daemon start
+anyq --db ./queue.db topic create cpu
+anyq --db ./queue.db task create build -t cpu
+anyq --db ./queue.db daemon stop
+anyq --db ./queue.db task build
+# The owner restarts; build still holds cpu.
+anyq --db ./queue.db task complete build
+anyq --db ./queue.db daemon stop
+```
+
+Use `anyq daemon run --db PATH` to serve in the foreground under a process
+supervisor. The foreground owner handles native Ctrl+C. A background Windows
+owner has no console; use `daemon stop` for graceful shutdown. Login services and
+remote clients are not installed. Lifecycle messages accept `--lang en/ru` or
+`ANYQ_LANG`, default English. `status` and `stop` accept an explicit --db/ANYQ_DB
+even when config is damaged, allowing cleanup without reading that file.
+
+## Identity and access
+
+Existing symlinks and relative paths resolve to a canonical database identity.
+The owner lock is a persistent `.anyq-owner.lock` sidecar; its existence alone
+does not mean an owner runs. The OS releases the actual lock when the process
+dies. Stale endpoint replacement occurs only after obtaining that lock.
+
+Unix endpoints are sockets in `/tmp/anyq-UID`, a checked owner-only directory,
+with socket mode 0600 and peer effective-user verification on both sides.
+Windows uses native named pipes with a protected owner-rights ACL. Endpoint names
+contain a digest of the canonical path; the full identity is verified during
+session opening. No IP listener, access token or network service is exposed.
+
+Do not concurrently use pre-daemon anyq binaries on the same database: those
+binaries do not participate in the owner lock. Stop the daemon before rolling
+back to an older compatible binary. This stage retains schema 3, including
+the existing atomic schema-2 upgrade, and never resets running ownership.
+
+## Protocol and failure boundaries
+
+Protocol version 1 uses a four-byte big-endian JSON payload length followed by a
+UTF-8 JSON frame, bounded to 16 MiB. Every request/response has version and numeric
+request ID. A queue connection begins with Open (database identity and policy
+snapshot); ready is returned only after its SQLite session initializes. Further
+requests invoke individual typed queue use cases. Ping and Stop are independent
+control sessions. Test gate fields exist only in integration-test-hooks builds.
+
+The owner accepts at most 64 concurrent sessions. Incoming frames have a 30-second
+deadline; response writes have a five-second deadline. IO is nonblocking with
+cancellation checks. A blocked stream cannot hold up other clients or shutdown.
+Graceful shutdown cancels sessions and allows up to ten seconds for draining.
+If a worker cannot finish within that bound, the owner terminates the process
+before releasing its lifetime lock; SQLite recovers unfinished transactions.
+CLI chains retain separate requests/commits; wait/start-w poll narrow contracts
+without holding a transaction while awaiting resources.
+
+A successful mutation response follows commit. If its response is lost, the CLI
+reports that the outcome is uncertain and never replays the sent request. Inspect
+task/topic state before deciding to retry. Client cancellation reaches only its
+own session; before commit it rolls back, afterward ownership remains durable.
+See [INTERRUPTIONS.md](INTERRUPTIONS.md) for native signal boundaries and tests.
+
+Metadata, lifecycle event delivery and plugins are separate later stages of the
+[roadmap](PLUGIN-ROADMAP.md); starting the daemon does not execute external work.

@@ -7,7 +7,7 @@ use std::{
     fs,
     io::Read,
     path::PathBuf,
-    process::{Command, Output, Stdio},
+    process::{Output, Stdio},
 };
 
 static NEXT_GATE: AtomicUsize = AtomicUsize::new(0);
@@ -46,27 +46,12 @@ impl InterruptProcess {
         child
     }
 
-    pub fn interrupt(mut self) -> Output {
-        let pid = self.process.child.as_ref().unwrap().id();
-        let python = if cfg!(windows) { "python" } else { "python3" };
-        let helper =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tooling/send_interrupt.py");
-        let signal = Command::new(python)
-            .arg(helper)
-            .arg(pid.to_string())
-            .output()
-            .unwrap();
+    pub fn interrupt(self) -> Output {
+        self.process.interrupt()
+    }
 
-        assert!(
-            signal.status.success(),
-            "interrupt sender: {}",
-            String::from_utf8_lossy(&signal.stderr)
-        );
-        self.process.wait_for_exit();
-        let output = self.process.output();
-        assert_eq!(output.status.code(), Some(130));
-
-        output
+    pub fn output(self) -> Output {
+        self.process.output()
     }
 
     pub fn release(self) -> Output {

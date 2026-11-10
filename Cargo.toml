@@ -9,6 +9,11 @@ members = [
   "features/config/impl/dispatch",
   "features/config/impl/file",
   "features/config/impl/composition",
+  "features/daemon/api",
+  "features/daemon/impl/transport",
+  "features/daemon/impl/client",
+  "features/daemon/impl/runtime",
+  "features/daemon/impl/composition",
   "apps/cli",
   "tooling/architecture-lint",
   "tooling/integration-test-hooks"

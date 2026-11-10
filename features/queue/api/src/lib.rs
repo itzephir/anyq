@@ -94,3 +94,5 @@ pub use start_task::StartTask;
 
 mod set_topic_autostart;
 pub use set_topic_autostart::SetTopicAutostart;
+mod queue_services;
+pub use queue_services::QueueServices;

@@ -27,44 +27,51 @@ def main():
         def queue(*args):
             subprocess.run([str(binary), *args], env=environment, check=True)
 
-        for topic in ["large-builds", "itzdesign-repo-lock", "pixel-10-emulator"]:
-            queue("topic", "create", topic)
+        try:
+            for topic in ["large-builds", "itzdesign-repo-lock", "pixel-10-emulator"]:
+                queue("topic", "create", topic)
 
-        queue("topic", "--list")
+            queue("topic", "--list")
 
-        for name, topics, description in [
-            ("build-revision-001", ["large-builds", "itzdesign-repo-lock"], "Build"),
-            (
-                "smoke-revision-001",
-                ["pixel-10-emulator", "itzdesign-repo-lock"],
-                "Test",
-            ),
-        ]:
-            queue("task", "create", name)
+            for name, topics, description in [
+                (
+                    "build-revision-001",
+                    ["large-builds", "itzdesign-repo-lock"],
+                    "Build",
+                ),
+                (
+                    "smoke-revision-001",
+                    ["pixel-10-emulator", "itzdesign-repo-lock"],
+                    "Test",
+                ),
+            ]:
+                queue("task", "create", name)
 
-            queue("task", "link", name, *topics)
+                queue("task", "link", name, *topics)
 
-            queue("task", name)
-            queue("topic", topics[0])
+                queue("task", name)
+                queue("topic", topics[0])
 
-            queue("task", "wait", name)
+                queue("task", "wait", name)
 
-            try:
-                # This process belongs to the caller. anyq only granted resource admission.
-                subprocess.run(
-                    [
-                        sys.executable,
-                        "-c",
-                        f"print('{description} completed by the caller')",
-                    ],
-                    check=True,
-                )
-            finally:
-                queue("task", "complete", name)
+                try:
+                    # This process belongs to the caller. anyq only granted resource admission.
+                    subprocess.run(
+                        [
+                            sys.executable,
+                            "-c",
+                            f"print('{description} completed by the caller')",
+                        ],
+                        check=True,
+                    )
+                finally:
+                    queue("task", "complete", name)
 
-        queue("task", "create", "probe-001", "-twc", "large-builds")
-        queue("task", "-l")
-        queue("topic", "capacity", "large-builds")
+            queue("task", "create", "probe-001", "-twc", "large-builds")
+            queue("task", "-l")
+            queue("topic", "capacity", "large-builds")
+        finally:
+            queue("daemon", "stop")
 
 
 if __name__ == "__main__":

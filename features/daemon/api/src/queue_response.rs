@@ -1,0 +1,23 @@
+use crate::{QueueError, TaskDto, TopicDto, TopicQueueDto};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(
+    tag = "result",
+    content = "value",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+pub enum QueueResponse {
+    Ready { pid: u32, database_id: String },
+    Stopped,
+    Task(TaskDto),
+    Tasks(Vec<TaskDto>),
+    Topic(TopicDto),
+    Topics(Vec<TopicDto>),
+    Names(Vec<String>),
+    TopicQueue(TopicQueueDto),
+    Running(bool),
+    Started(String),
+    Error(QueueError),
+}

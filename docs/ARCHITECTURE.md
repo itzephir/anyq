@@ -1,6 +1,6 @@
 # anyq architecture
 
-anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by the queue and config domain features, then by layer; api and impl have separate Cargo crates. Cross-feature dependencies may target api only; both features are independent in the current graph.
+anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config and daemon features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
 
 | Module | Responsibility |
 | --- | --- |
@@ -12,6 +12,11 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | config/impl/dispatch | GetConfig, GetConfigValue, SetConfigValue, UnsetConfigValue, and consumer-owned Store |
 | config/impl/file | TOML, file locking, atomic replacement |
 | config/impl/composition | Explicit assembly of individual config interactors |
+| daemon/api | Versioned wire DTOs and explicit exports of narrow queue service handles |
+| daemon/impl/transport | Private native endpoints, canonical database identity, lifetime locks and bounded framing |
+| daemon/impl/client | Separate remote adapter for each queue use-case contract |
+| daemon/impl/runtime | Concurrent cancellable sessions and outer transport routing through injected QueueFactory |
+| daemon/impl/composition | Explicit client assembly and server queue factory; only this root imports queue impl |
 | apps/cli | Syntax, text responses, path resolution, blocking CheckTaskRunning polling, and signals |
 | tooling/architecture-lint | Rust structure checks |
 | tooling/integration-test-hooks | Optional external integration-test checkpoints only |
@@ -32,7 +37,7 @@ ConfigKey also defines valid containers as strict prefixes of known keys. The TO
 
 ## Use cases and atomicity
 
-Every use case has its own contract and interactor. There is no generic execute(Command) -> Output. QueueModule and ConfigModule contain explicitly constructed handles without business behavior, string lookup, or a service locator.
+Every use case has its own contract and interactor. There is no generic execute(Command) -> Output. QueueServices in queue API and ConfigModule contain explicitly constructed handles without business behavior, string lookup, or a service locator. QueueModule remains an alias of QueueServices for local composition. Both local and remote composition use the same passive typed handle inventory.
 
 RegisterTask accepts RegisterTaskRequest with a name and initial topics. Topic validation, registration, and all links are saved atomically. AddTaskToTopic uses the same boundary for one link. Autocreate runs inside the main transaction: failed wait/complete/link operations also roll back new entities. A successful lookup may create a missing entity when a setting explicitly allows it.
 
@@ -50,13 +55,21 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 11 crates, including two development tools.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 16 crates, including two development tools. CLI no longer imports queue impl; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to the technical daemon boundary, not queue/config domain APIs.
+
+One daemon holds the lifetime owner lock for each canonical database. CLI sessions
+send an Open frame with the canonical identity and validated policy snapshot;
+the owner initializes that session's SQLite connection before returning ready.
+Each subsequent wire operation routes to one typed use case. Initial connection
+discovery can start a detached owner, but no sent operation is automatically
+replayed after response loss. Private native IPC, framing and shutdown limits
+are documented in [DAEMON.md](DAEMON.md).
 
 CLI normalizes command-first/name-first forms, link directions, and short flags while preserving arguments. Flag dependencies are checked before opening the database. create/link → wait → complete chains invoke separate use cases sequentially. Stages have separate commits; they are not one transaction. Complete does not execute an external command.
 
 CLI retries CheckTaskRunning after false with a short pause without holding a transaction. It returns 0 when it observes running, including repeated and concurrent waits. For batch topic link -wc, tasks are awaited and completed in registration order. The caller launches external work. CLI exit, crashes, and elapsed time do not release slots.
 
-The first Ctrl+C sets an external cancellation token. Adapters check it at IO/commit boundaries and while waiting for locks; RAII rolls back the open transaction and removes the temporary file. Committed state survives even if CLI returns 130. A second Ctrl+C forcibly terminates the process. Boundary semantics and checks are described in [INTERRUPTIONS.md](INTERRUPTIONS.md).
+The first Ctrl+C sets an external cancellation token. A client sends cancellation to its own daemon session and waits for a safe-boundary response; EOF also cancels that session. Adapters check its separate token at IO/commit boundaries and while waiting for locks; RAII rolls back the open transaction and removes the temporary file. Committed state survives even if CLI returns 130. A second Ctrl+C forcibly terminates the process. The foreground owner's first signal cancels and drains sessions without releasing ownership. Boundary semantics and checks are described in [INTERRUPTIONS.md](INTERRUPTIONS.md).
 
 stdout/stderr writes, including help, run in a separate thread owning only its message. The main thread waits for the result through a channel with a short timeout and checks the cancellation token. On cancellation it releases its resources and returns 130 without joining a blocked writer; the writer terminates with CLI. During normal execution, the next step begins only after the write result. Standard Rust streams retain their platform behavior; no business state is passed to the writer.
 
@@ -64,6 +77,6 @@ SQLite stores topics/tasks/task_topics. Schema 3 adds task.autostart_default/sto
 
 ## Checks
 
-One standalone type per file; see [CODE-RULES.md](CODE-RULES.md). The Rust AST linter checks structure and prohibits a generic dispatcher. The Python checker verifies the Cargo graph, inward dependencies, and factories only in main.
+One standalone type per file; see [CODE-RULES.md](CODE-RULES.md). The Rust AST linter checks structure and prohibits a generic business dispatcher. The Python checker verifies the Cargo graph, inward dependencies, CLI factories only in main, and no direct CLI queue implementation access. Wire routing is an external adapter and never replaces typed use cases.
 
-Domain/use-case tests verify rules without infrastructure. SQLite and file integration suites use real data, failures, and independent writers. CLI workflow and native Ctrl+C suites run real processes on Linux/macOS/Windows. Test hooks are enabled by a separate feature in external adapters only; they are absent from the normal binary.
+Domain/use-case tests verify rules without infrastructure. SQLite and file integration suites use real data, failures, and independent writers. CLI workflow and native Ctrl+C suites run real clients and owners on Linux/macOS/Windows. Test hooks are enabled by a separate feature in external adapters only; they are absent from the normal binary and production protocol. Daemon gates use thread-scoped session context and hit counts without changing global environment. Fixtures stop every isolated owner before removing its database directory.

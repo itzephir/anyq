@@ -23,5 +23,8 @@ context: |
   Keep one standalone type per file and separate logical phases with blank lines.
   SQL executes exact filters; the domain decides admission and state transitions.
   Reject incompatible databases before changing their data or journal mode.
-  Runtime requires neither a server nor Python/Node; Node is pinned OpenSpec development tooling.
+  A bundled local daemon owns each canonical queue database; CLI uses private native IPC.
+  Queue/config inner layers remain independent of transport, serialization and process execution.
+  Daemon composition may assemble queue impl; other cross-feature consumers use API only.
+  Runtime requires no external server package or Python/Node; Node is pinned OpenSpec development tooling.
   Do not mark unverified tasks complete or sync unfinished behavior into baseline specs.

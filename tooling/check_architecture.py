@@ -38,10 +38,43 @@ ALLOWED = {
         "anyq-config-dispatch",
         "anyq-config-file",
     },
-    "anyq-integration-test-hooks": set(),
-    "anyq": {
+    "anyq-daemon-api": {"anyq-queue-api", "serde"},
+    "anyq-daemon-transport": {
+        "anyq-daemon-api",
+        "interprocess",
+        "fs2",
+        "serde",
+        "serde_json",
+        "sha2",
+        "rustix",
+        "widestring",
+    },
+    "anyq-daemon-client": {
+        "anyq-daemon-api",
+        "anyq-daemon-transport",
+        "anyq-queue-api",
+    },
+    "anyq-daemon-runtime": {
+        "anyq-daemon-api",
+        "anyq-daemon-transport",
+        "anyq-queue-api",
+        "anyq-integration-test-hooks",
+    },
+    "anyq-daemon-impl": {
+        "anyq-daemon-api",
+        "anyq-daemon-client",
+        "anyq-daemon-runtime",
+        "anyq-daemon-transport",
         "anyq-queue-api",
         "anyq-queue-impl",
+    },
+    "anyq-integration-test-hooks": set(),
+    "anyq": {
+        "anyq-daemon-api",
+        "anyq-daemon-transport",
+        "serde_json",
+        "anyq-queue-api",
+        "anyq-daemon-impl",
         "anyq-config-api",
         "anyq-config-impl",
         "anyq-integration-test-hooks",
@@ -53,6 +86,7 @@ ALLOWED = {
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
+    "anyq-daemon-api",
     "anyq-queue-api",
     "anyq-queue-dispatch",
     "anyq-config-api",
@@ -90,9 +124,12 @@ def check(graph, sources):
             if (
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
-                and re.search(r"\banyq_(?:queue|config)_impl\b", source)
+                and re.search(r"\banyq_(?:daemon|queue|config)_impl\b", source)
             ):
                 errors.append(f"{path}: factory imports belong only to main.rs")
+
+            if name == "anyq" and re.search(r"\banyq_queue_impl\b", source):
+                errors.append(f"{path}: CLI queue IO belongs behind the daemon")
 
     # Cargo rejects cycles too; check here for readable diagnostics/negative tests.
     def visit(name, trail):
@@ -158,6 +195,9 @@ def main():
         ("anyq-config-api", "anyq-config-file"),
         ("anyq-config-dispatch", "toml"),
         ("anyq-queue-dispatch", "anyq-integration-test-hooks"),
+        ("anyq-daemon-api", "interprocess"),
+        ("anyq-daemon-runtime", "anyq-queue-impl"),
+        ("anyq", "anyq-queue-impl"),
     ]:
         mutant = copy.deepcopy(graph)
         mutant[owner].add(dep)

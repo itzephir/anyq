@@ -1,4 +1,7 @@
 mod cli;
+mod daemon_args;
+mod daemon_command;
+pub use daemon_command::DaemonCommand;
 mod config_action;
 mod config_args;
 mod config_command;

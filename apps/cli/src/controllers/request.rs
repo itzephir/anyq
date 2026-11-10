@@ -5,6 +5,7 @@ use anyq_queue_api::{RegisterTaskRequest, StartPreference, Topic};
 
 /// Parsed CLI syntax, routed only in the outer composition root.
 pub enum Request {
+    Daemon(super::DaemonCommand),
     Config(ConfigCommand),
     ListTopics,
     ListTasks,
@@ -60,6 +61,7 @@ impl TryFrom<Commands> for Request {
 
     fn try_from(command: Commands) -> Result<Self> {
         match command {
+            Commands::Daemon(args) => Ok(Self::Daemon(args.command)),
             Commands::Config(args) => {
                 let command = match (
                     args.list,
