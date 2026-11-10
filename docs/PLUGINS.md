@@ -194,3 +194,7 @@ Cancellation is delivered once per unresolved action and live plugin session.
 Reliable stdio transport either delivers it or fails that session; repeated polls
 do not flood a worker while it confirms native tree termination. Responses and
 cancellation have a bounded 32-frame outbound queue.
+
+Protocol 2 stores bounded managed-action details and pages `managed-list` one
+action at a time. Supply the returned `next` action ID as `after`; an empty page
+ends recovery. This keeps long execution histories within the frame limit.

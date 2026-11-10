@@ -1,7 +1,8 @@
-use anyq_queue_api::{CompletionReceipt, ManagedWork, Result};
+use anyq_queue_api::{CompletionReceipt, ManagedWork, ManagedWorkFilter, Result};
 
 pub trait WorkRecords {
-    fn managed(&mut self, owner: Option<&str>, task: Option<&str>) -> Result<Vec<ManagedWork>>;
+    /// Return matching rows in owner/action order, applying the exact page bound.
+    fn managed(&mut self, filter: &ManagedWorkFilter) -> Result<Vec<ManagedWork>>;
 
     fn save_managed(&mut self, work: &ManagedWork) -> Result<()>;
 

@@ -517,3 +517,38 @@ fn timeout_winning_before_managed_registration_prevents_launch_without_poisoning
     assert_eq!(status(&queue, "shell")["failures"], 0);
     assert_eq!(queue.state("next"), "running");
 }
+
+#[test]
+fn large_durable_history_is_recovered_in_bounded_pages_without_blocking_new_work() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("history", &["cpu"]);
+    queue.call(&["task", "complete", "history"]);
+    let mut stored = Metadata::default();
+    stored
+        .set("status", MetadataValue::String("exited".into()))
+        .unwrap();
+    stored
+        .set("autocomplete", MetadataValue::Bool(false))
+        .unwrap();
+    stored
+        .set("padding", MetadataValue::String("x".repeat(400_000)))
+        .unwrap();
+    let payload = serde_json::to_string(&anyq_queue_wire::MetadataDto::from(stored)).unwrap();
+    let mut connection = rusqlite::Connection::open(&queue.db).unwrap();
+    let transaction = connection.transaction().unwrap();
+    for index in 0..48 {
+        transaction.execute("INSERT INTO managed_work(owner,action_id,task_name,state,cancellation_requested,details) VALUES ('shell',?1,'history','stopped',0,?2)",rusqlite::params![format!("history-{index:03}"),payload]).unwrap();
+    }
+    transaction.commit().unwrap();
+    enable(&queue, "shell");
+    let marker = queue.log("fresh");
+    let config = file(&queue, "fresh.json", json!({"marker":marker}));
+
+    create(&queue, "fresh", plan(&queue, &config, true), None);
+    wait(|| queue.state("fresh") == "completed");
+
+    assert_eq!(status(&queue, "shell")["failures"], 0);
+    assert_eq!(status(&queue, "shell")["running"], true);
+    assert!(marker.exists());
+}

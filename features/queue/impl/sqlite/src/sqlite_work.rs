@@ -1,5 +1,7 @@
 use crate::storage_error::storage;
-use anyq_queue_api::{CompletionReceipt, Error, ManagedWork, ManagedWorkState, Result};
+use anyq_queue_api::{
+    CompletionReceipt, Error, ManagedWork, ManagedWorkFilter, ManagedWorkState, Result,
+};
 use anyq_queue_dispatch::ports::WorkRecords;
 use anyq_queue_wire::TaskDto;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -10,19 +12,33 @@ pub(crate) struct SqliteWork<'a> {
 }
 
 impl WorkRecords for SqliteWork<'_> {
-    fn managed(&mut self, owner: Option<&str>, task: Option<&str>) -> Result<Vec<ManagedWork>> {
-        let mut statement = self.connection.prepare("SELECT owner,action_id,task_name,state,cancellation_requested,details FROM managed_work WHERE (?1 IS NULL OR owner=?1) AND (?2 IS NULL OR task_name=?2) ORDER BY owner,action_id").map_err(storage)?;
+    fn managed(&mut self, filter: &ManagedWorkFilter) -> Result<Vec<ManagedWork>> {
+        let mut statement = self.connection.prepare("SELECT owner,action_id,task_name,state,cancellation_requested,details FROM managed_work WHERE (?1 IS NULL OR owner=?1) AND (?2 IS NULL OR task_name=?2) AND (?3 IS NULL OR action_id=?3) AND (?4 IS NULL OR action_id>?4) AND (?6 OR state IN (?7,?8,?9,?10)) ORDER BY owner,action_id LIMIT ?5").map_err(storage)?;
         let rows = statement
-            .query_map(params![owner, task], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, bool>(4)?,
-                    row.get::<_, String>(5)?,
-                ))
-            })
+            .query_map(
+                params![
+                    filter.owner,
+                    filter.task,
+                    filter.action,
+                    filter.after,
+                    filter.limit.map(|limit| limit as i64).unwrap_or(-1),
+                    filter.states.is_empty(),
+                    filter.states.first().map(|state| state.as_str()),
+                    filter.states.get(1).map(|state| state.as_str()),
+                    filter.states.get(2).map(|state| state.as_str()),
+                    filter.states.get(3).map(|state| state.as_str())
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, bool>(4)?,
+                        row.get::<_, String>(5)?,
+                    ))
+                },
+            )
             .map_err(storage)?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(storage)?;

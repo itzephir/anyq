@@ -105,3 +105,7 @@ Unix reserves group identity with a private live anchor outside the target group
 and requires the kernel empty-group result; Windows uses a
 suspended windows-spawn child, kill-on-close job, retained root handle and separate win32job member query.
 Both pipe drains and native termination must be confirmed before stopped reports.
+
+Managed-action recovery reads one bounded details record per protocol response.
+Queue-owned filters select exact action IDs and blocking states before SQL IO;
+completed history is not repeatedly loaded during cancellation or retention checks.

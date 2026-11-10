@@ -19,7 +19,11 @@ impl<S: Store> BeginCompletion for BeginCompletionInteractor<S> {
             let mut validated = task.clone();
             validated.complete(request.force)?;
             records.work().request_completion(task.name())?;
-            let work = records.work().managed(None, Some(task.name()))?;
+            let work = records.work().managed(&ManagedWorkFilter {
+                task: Some(task.name().into()),
+                states: ManagedWorkState::BLOCKING_STATES.to_vec(),
+                ..Default::default()
+            })?;
 
             Ok(work.iter().any(|work| work.state.blocks_completion()))
         })

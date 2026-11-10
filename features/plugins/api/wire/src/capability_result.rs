@@ -21,6 +21,7 @@ pub enum CapabilityResult {
     },
     ManagedList {
         work: Vec<ManagedWorkDto>,
+        next: Option<String>,
     },
     Error {
         category: String,

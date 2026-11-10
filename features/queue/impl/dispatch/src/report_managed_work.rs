@@ -17,7 +17,11 @@ impl<S: Store> ReportManagedWork for ReportManagedWorkInteractor<S> {
             validate_action_identity(&request.owner, &request.action_id)?;
             let mut work = records
                 .work()
-                .managed(Some(&request.owner), None)?
+                .managed(&ManagedWorkFilter {
+                    owner: Some(request.owner.clone()),
+                    action: Some(request.action_id.clone()),
+                    ..Default::default()
+                })?
                 .into_iter()
                 .find(|work| work.action_id == request.action_id)
                 .ok_or_else(|| Error::NotFound("managed action is absent for this owner".into()))?;

@@ -2,6 +2,8 @@ use crate::admit_queued_tasks::admit_queued_tasks;
 use crate::record_event::task_event;
 use crate::{lookup_task::lookup_task, ports::Store};
 use anyq_queue_api::AutoCreatePolicy;
+use anyq_queue_api::ManagedWorkFilter;
+use anyq_queue_api::ManagedWorkState;
 use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::QueuePolicy;
 use anyq_queue_api::{CompleteTask, Result, Task};
@@ -45,7 +47,11 @@ pub(crate) fn complete_in_transaction(
     policy: QueuePolicy,
 ) -> Result<Task> {
     let mut task = lookup_task(records, name, policy)?;
-    let work = records.work().managed(None, Some(task.name()))?;
+    let work = records.work().managed(&ManagedWorkFilter {
+        task: Some(task.name().into()),
+        states: ManagedWorkState::BLOCKING_STATES.to_vec(),
+        ..Default::default()
+    })?;
 
     task.require_completion_permit(work.iter().map(|work| work.state))?;
     task.complete(force)?;

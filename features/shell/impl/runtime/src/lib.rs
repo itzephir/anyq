@@ -81,7 +81,7 @@ pub fn run(
                         output,
                         PluginFrame::Request {
                             id: "recovery".into(),
-                            request: CapabilityRequest::ManagedList,
+                            request: CapabilityRequest::ManagedList { after: None },
                         },
                     )?;
                 }
@@ -102,7 +102,7 @@ pub fn run(
                 }
                 HostFrame::Result {
                     id,
-                    result: CapabilityResult::ManagedList { work },
+                    result: CapabilityResult::ManagedList { work, next },
                 } if id == "recovery" => {
                     for work in work {
                         let details: Metadata = work.details.try_into()?;
@@ -122,6 +122,15 @@ pub fn run(
                                 },
                             )?;
                         }
+                    }
+                    if let Some(after) = next {
+                        stdio::send(
+                            output,
+                            PluginFrame::Request {
+                                id: "recovery".into(),
+                                request: CapabilityRequest::ManagedList { after: Some(after) },
+                            },
+                        )?;
                     }
                 }
                 HostFrame::Result { id, result } => {
