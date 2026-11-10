@@ -13,7 +13,7 @@ anyq-queue-api = { path = "../../api" }
 anyq-queue-dispatch = { path = "../dispatch" }
 anyq-queue-metadata = { path = "../metadata" }
 anyq-integration-test-hooks = { path = "../../../../tooling/integration-test-hooks", optional = true }
-rusqlite = { version = "0.38", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 [dev-dependencies]
 tempfile = "3"

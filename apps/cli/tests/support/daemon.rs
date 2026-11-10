@@ -241,3 +241,26 @@ fn blocked_daemon_response_does_not_block_other_clients_or_shutdown() {
     queue.call(&["daemon", "stop"]);
     assert!(started.elapsed() < Duration::from_secs(5));
 }
+
+#[test]
+fn concurrent_session_open_close_preserves_responsive_owner_and_slots() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    queue.task("next", &["cpu"]);
+
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            let queue = &queue;
+            scope.spawn(move || {
+                for _ in 0..10 {
+                    assert_eq!(queue.call(&["task", "list"]), "- next\n- owner");
+                }
+            });
+        }
+    });
+
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.state("next"), "queued");
+    assert_eq!(queue.usage("cpu"), 1);
+}
