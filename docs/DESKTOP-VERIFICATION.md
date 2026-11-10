@@ -5,7 +5,7 @@ The implementation is stacked as [daemon #14](https://github.com/itzephir/anyq/p
 → [desktop #15](https://github.com/itzephir/anyq/pull/15). Each PR targets its
 immediate predecessor; no baseline desktop behavior is declared complete yet.
 
-Daemon prerequisite: commit `068ac48` passed [CI run 42804237207](https://github.com/itzephir/anyq/actions/runs/42804237207), including native process and interruption matrices.
+Daemon prerequisite: commit `b6fb8b7` passed [CI run 42896501151](https://github.com/itzephir/anyq/actions/runs/42896501151), including native process and interruption matrices. The observation and desktop branches merge this daemon head rather than relying on the earlier implementation.
 
 ## Automated coverage
 
@@ -18,7 +18,9 @@ Daemon prerequisite: commit `068ac48` passed [CI run 42804237207](https://github
   invalid values, malformed future files and atomic failure preservation.
 - Controller tests block an old source response, coalesce 100 refresh requests,
   switch sources with the same topic identity, reject stale data, preserve the
-  active source on failed persistence, and recover a stale snapshot.
+  active source on failed persistence, and recover a stale snapshot. A blocked
+  read also reaches the real controller deadline, observes cancellation without
+  overlapping refreshes, and recovers to a live snapshot with a fixed display clock.
 - Architecture checks reject desktop SDKs in inner layers, cross-feature
   implementation imports and factories outside the desktop composition root.
 - CI builds/packages the GUI on Linux, both macOS architectures and Windows,
@@ -34,7 +36,7 @@ passed real native application/daemon integration and 15 configured visual state
 each repeated in two independent clean processes and databases. All 45 reviewed
 PNG files are recorded in [the golden directories](../tests/desktop/goldens);
 downloaded ZIP digests matched GitHub's artifact digests. Full [PR CI run 42891577193](https://github.com/itzephir/anyq/actions/runs/42891577193)
-passed on `afd232f`, including native integration and verification against the
+passed on `afd232f`; the restacked `954b782` also passed [CI run 42894507898](https://github.com/itzephir/anyq/actions/runs/42894507898), including native integration and verification against the
 committed goldens on all three operating systems, four GUI package builds and
 the ordinary native process/Ctrl+C matrices. Later commits must pass the same
 required PR workflow; this evidence does not waive current-head checks.
@@ -47,7 +49,7 @@ The kerning failure changed a line's advance by 13 font units despite identical
 text and loaded fonts. The product now sets its text policy explicitly; tests
 assert that policy and retain measured line rectangles and font metadata.
 
-Observation prerequisite: `01705d8` passed [CI run 42866310020](https://github.com/itzephir/anyq/actions/runs/42866310020)
+Observation prerequisite: `b3d3be2` passed [CI run 42894005440](https://github.com/itzephir/anyq/actions/runs/42894005440)
 on Linux/macOS/Windows, including native process and interruption suites. Its
 existing-only disappearance fixture joins the old owner before launching a fresh
 owner without a SQLite session and also passed 20 independent local native runs.
@@ -87,6 +89,17 @@ Pending native configurations remain explicit:
 These rows require actual desktop sessions. A build, mock or headless controller
 test is not a substitute. Corresponding OpenSpec tasks remain unchecked until
 that evidence exists; the implementation PR remains a draft meanwhile.
+
+The local macOS menu-bar follow-up could not proceed because the screen was
+locked. The main window was accessible before the lock; no additional tray or
+file-picker acceptance is inferred from that partial session. Its isolated panel
+and owner processes were stopped afterward.
+
+Task 2.3 also remains unchecked: ordinary transport process tests cover bounded
+frames, incompatible versions, cancellation and slow clients, but dedicated
+observation-session evidence for every listed boundary is still required. The
+new observation capacity scenario verifies that 64 read-only sessions cannot
+consume the reserved lifecycle quota, and stopping the owner preserves slots.
 
 
 The initial desktop implementation passed [CI run 42829086558](https://github.com/itzephir/anyq/actions/runs/42829086558)
