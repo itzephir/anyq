@@ -22,7 +22,7 @@ Task has a unique name, an immutable monotonic registration sequence, a state, a
 
 Task owns transitions, resource-set completeness, and the prohibition on changing running/completed membership. ResourceAvailability checks free slots and queued predecessors. The same registration order applies across all topics. A queued task keeps its place without an active wait; remove an unwanted task with complete --force.
 
-parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/wait/complete/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
+parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/start/autostart/wait/complete/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
 
 Storage and ports use canonical strings. Task::restore and Topic::restore restore an already parsed name without stripping backticks again and validate the aggregate's structural invariants. format_name produces a reversible representation of a canonical name. CLI and SQL do not duplicate naming rules.
 

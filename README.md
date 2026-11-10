@@ -54,7 +54,7 @@ Create accepts repeated --topic/-t. The task and all initial links are saved in 
 
 ```bash
 anyq task create build-001 -t itzdesign-commands -t itzdesign-repo-lock
-# queued, without ownership
+# running when autostart and resources allow; otherwise queued without ownership
 anyq task complete build-001 -f
 
 anyq task create build-002 -tw itzdesign-commands -t itzdesign-repo-lock
@@ -70,7 +70,7 @@ anyq task create probe-001 -twc pixel-10-emulator
 
 ## Names
 
-Tasks and topics share domain naming rules. A bare name starts with Latin a-z/A-Z; remaining characters are unrestricted, including spaces, Unicode, and backslashes. The bare words list/create/capacity/link/add/wait/complete/config/help are reserved. A leading hyphen requires a wrapper.
+Tasks and topics share domain naming rules. A bare name starts with Latin a-z/A-Z; remaining characters are unrestricted, including spaces, Unicode, and backslashes. The bare words list/create/capacity/link/add/start/autostart/wait/complete/config/help are reserved. A leading hyphen requires a wrapper.
 
 One literal outer pair of backticks allows any content: an empty string, Unicode, command words, leading hyphens, and nested backticks. It is removed exactly once: build and `build` identify the same entity. Inner escapes are not interpreted. Output provides a reversible spelling of the canonical name.
 

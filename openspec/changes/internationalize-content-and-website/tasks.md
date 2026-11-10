@@ -12,7 +12,7 @@
 
 ## 3. Delivery verification
 
-- [ ] 3.1 Run mandatory repository checks and website tests; open a PR and verify GitHub Actions and the dev deployment without merging.
+- [x] 3.1 Run mandatory repository checks and website tests; open a PR and verify GitHub Actions and the dev deployment without merging.
 
 ## Workflow follow-up
 
