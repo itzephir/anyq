@@ -91,7 +91,13 @@ See [INTERRUPTIONS.md](INTERRUPTIONS.md) for native signal boundaries and tests.
 
 Metadata is described in [METADATA.md](METADATA.md). Lifecycle event delivery
 and plugins are separate later stages of the [roadmap](PLUGIN-ROADMAP.md);
-starting the daemon resumes explicitly enabled executable plugins. Their managed work follows the completion barrier documented in [PLUGINS.md](PLUGINS.md).
+starting the daemon resumes explicitly enabled executable plugins. Their managed
+work follows the completion barrier documented in [PLUGINS.md](PLUGINS.md).
+
+The bundled SQLite engine is 3.51.3 through rusqlite 0.39. This includes the
+[upstream Unix VFS deadlock fix](https://www.sqlite.org/releaselog/3_51_2.html)
+needed for concurrent session connection open/close. Native CI exercises that
+connection churn while a task retains its resource ownership.
 
 Stop waits for the lifetime database lock to be released, including managed-plugin
 drain after the endpoint has closed. Initial discovery can retry a competing owner
