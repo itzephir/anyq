@@ -19,6 +19,7 @@ rustix = { version = "1", features = ["process"] }
 
 [target.'cfg(windows)'.dependencies]
 widestring = "1"
+windows-permissions = "=0.2.4"
 
 [lints]
 workspace = true

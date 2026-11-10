@@ -35,6 +35,10 @@ Daemon communication SHALL be restricted to the invoking account and local machi
 - **WHEN** an unauthorised, oversized, malformed or incompatible request reaches the endpoint
 - **THEN** it is rejected without database changes and valid clients can continue
 
+#### Scenario: Windows server identity
+- **WHEN** a Windows client connects to a pipe whose handle reports another account's owner SID or whose ownership cannot be read
+- **THEN** the client rejects the connection before sending Open or queue operations, independently of the server-supplied database identity
+
 ### Requirement: Request results reflect persistence
 A successful mutation response SHALL be sent only after its commit. Loss of a response SHALL NOT imply rollback. The client SHALL report an uncertain outcome after losing an in-flight mutation response and SHALL NOT automatically replay that mutation. Explicit queries SHALL allow the caller to inspect durable state.
 
@@ -48,6 +52,14 @@ Client cancellation or disconnect SHALL cancel only its active request at a safe
 #### Scenario: Cancel one of two clients
 - **WHEN** one waiting client receives Ctrl+C while another client queries the queue
 - **THEN** the first exits 130, the other succeeds, and existing ownership is unchanged
+
+#### Scenario: Operation outlasts the input idle deadline
+- **WHEN** a connected client waits for an operation lasting longer than the input-idle deadline without sending cancellation
+- **THEN** empty input does not cancel that operation and its committed response can be followed by the next command in the same chain
+
+#### Scenario: Incomplete input during execution
+- **WHEN** a client begins another input frame while its operation is executing and leaves the frame incomplete
+- **THEN** the frame-completion deadline remains bounded and cancellation, disconnect and owner shutdown remain observable
 
 ### Requirement: Nonblocking owner lifecycle
 A blocked client input/output stream or long wait SHALL NOT prevent other clients from querying or mutating the queue. Graceful daemon shutdown SHALL stop accepting requests, cancel unfinished work at persistence boundaries and preserve committed ownership.

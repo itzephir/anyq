@@ -8,7 +8,11 @@ mod owner_lock;
 pub use owner_lock::OwnerLock;
 
 mod frame_reader;
+mod receive_deadline;
 pub use frame_reader::FrameReader;
+
+#[cfg(windows)]
+mod windows_peer;
 
 mod send_frame;
 pub use send_frame::send_frame;
