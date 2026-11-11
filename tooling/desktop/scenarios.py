@@ -20,6 +20,8 @@ def run(cli, panel, home, output, configuration):
     empty = fixtures.create("empty")
     missing = fixtures.create("missing")
     incompatible = fixtures.create("incompatible")
+    uninitialized = fixtures.create("uninitialized")
+    scrolling = fixtures.create("scrolling")
 
     def call(*arguments, db=database):
         return fixtures.call(list(arguments), db)
@@ -119,13 +121,17 @@ def run(cli, panel, home, output, configuration):
             )["payload"]["value"]
             == 4
         )
+        settings()
+        driver.select("#theme", "light")
         driver.call(
             "[...document.querySelectorAll('[data-open-topic]')].find(button=>button.querySelector('.mono').textContent==='emulator').click();",
             "compact",
         )
         driver.wait(
-            "return document.querySelector('.content-header h1')?.textContent==='emulator';"
+            "return !document.querySelector('#save') && document.querySelector('.content-header h1')?.textContent==='emulator';"
         )
+        assert driver.state()["preferences"]["theme"] == "dark"
+        assert ui("return document.documentElement.dataset.theme;") == "dark"
         assert ui("return document.querySelectorAll('[data-task]').length;") == 2
         ui(
             "[...document.querySelectorAll('[data-topic]')].find(button=>button.querySelector('.topic-name').textContent==='repo').click();"
@@ -140,6 +146,30 @@ def run(cli, panel, home, output, configuration):
         )
         settings()
         driver.click("#cancel")
+        source(scrolling)
+        driver.wait("return document.querySelectorAll('[data-topic]').length===16;")
+        vertical = ui(
+            "const list=document.querySelector('.topic-list');list.scrollTop=200;return list.scrollTop;"
+        )
+        assert vertical == 200
+        call("topic", "create", "topic-new", db=scrolling)
+        driver.wait(
+            "return [...document.querySelectorAll('.topic-name')].some(element=>element.textContent==='topic-new');"
+        )
+        assert ui("return document.querySelector('.topic-list').scrollTop;") == vertical
+        driver.resize(360, 650)
+        horizontal = ui(
+            "const list=document.querySelector('.topic-list');list.scrollLeft=300;return list.scrollLeft;"
+        )
+        assert horizontal == 300
+        call("topic", "create", "topic-newer", db=scrolling)
+        driver.wait(
+            "return [...document.querySelectorAll('.topic-name')].some(element=>element.textContent==='topic-newer');"
+        )
+        assert (
+            ui("return document.querySelector('.topic-list').scrollLeft;") == horizontal
+        )
+        driver.resize(*configuration["visual_defaults"]["viewport"])
         source(empty)
         assert driver.state()["snapshot"]["topics"] == []
         source(missing, "error")
@@ -149,6 +179,9 @@ def run(cli, panel, home, output, configuration):
         source(incompatible, "error")
         assert driver.state()["error_kind"] == "incompatible"
         assert incompatible.read_bytes() == b"not an anyq SQLite database\n"
+        source(uninitialized, "error")
+        assert driver.state()["error_kind"] == "incompatible"
+        assert uninitialized.read_bytes() == b""
         source(None, language="en", theme="dark")
         assert fingerprint(database) == original, (
             "Read-only UI actions changed queue state"
@@ -270,10 +303,13 @@ def run(cli, panel, home, output, configuration):
                         "details",
                         "search",
                         "shared-surfaces",
+                        "compact-topic-leaves-settings-without-saving-draft",
+                        "topic-scroll-preserved-on-live-updates",
                         "localization",
                         "themes",
                         "missing-no-create",
                         "incompatible-no-rewrite",
+                        "uninitialized-no-create-or-rewrite",
                         "stale-recovery",
                         "owner-restart",
                         "narrow-layout",

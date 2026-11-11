@@ -5,7 +5,7 @@ The implementation is stacked as [daemon #14](https://github.com/itzephir/anyq/p
 → [desktop #15](https://github.com/itzephir/anyq/pull/15). Each PR targets its
 immediate predecessor; no baseline desktop behavior is declared complete yet.
 
-Daemon prerequisite: commit `b6fb8b7` passed [CI run 42896501151](https://github.com/itzephir/anyq/actions/runs/42896501151), including native process and interruption matrices. The observation and desktop branches merge this daemon head rather than relying on the earlier implementation.
+Daemon prerequisite: commit `2ab8cb6` passed [CI run 42910987965](https://github.com/itzephir/anyq/actions/runs/42910987965), including native process and interruption matrices. The observation and desktop branches merge this daemon head, including request-timeout and Windows pipe-ownership corrections.
 
 ## Automated coverage
 
@@ -61,6 +61,20 @@ slow reader alongside concurrent commands and owner shutdown. The capacity
 scenario verifies that 64 read-only sessions cannot consume the reserved
 lifecycle quota. Native Linux/macOS/Windows CI passed these cases and all 73 CLI
 workflows and 27 interruption scenarios; stopping the owner preserves slots.
+
+## Review regressions
+
+Real owner-process cases reject both zero-byte files and empty unversioned SQLite
+files before WAL changes or schema initialization, preserve their bytes and leave
+no SQLite sidecars. They also verify that ordinary CLI startup can initialize the
+same files and make observation available afterward.
+
+Native application integration covers vertical and horizontal topic-list scroll
+positions across CLI updates, and selecting a compact-view topic while the main
+window has an unsaved settings draft. Navigation opens the requested queue and
+discards the draft without saving it. The `main-dark-en` screenshot now reaches
+its reviewed state through this navigation; all existing PNGs remain the verify
+baseline. These regressions run in the required Linux/macOS/Windows matrices.
 
 ## Manual native acceptance
 

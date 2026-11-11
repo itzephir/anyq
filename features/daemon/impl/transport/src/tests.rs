@@ -167,3 +167,156 @@ fn owner_lifetime_probe_observes_contention_without_creating_or_releasing_owners
     assert!(!crate::OwnerLock::is_held(&endpoint).unwrap());
     assert!(crate::OwnerLock::acquire(&endpoint).is_ok());
 }
+
+fn accept(listener: &crate::Listener) -> crate::Stream {
+    let deadline = Instant::now() + Duration::from_secs(5);
+
+    loop {
+        match listener.accept() {
+            Ok(stream) => return stream,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(2));
+            }
+            Err(error) => panic!("accept failed: {error}"),
+        }
+    }
+}
+
+#[test]
+fn active_worker_pauses_only_an_empty_inputs_idle_deadline() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = Endpoint::resolve(&directory.path().join("queue.db")).unwrap();
+    let listener = endpoint.listen().unwrap();
+    let client = endpoint.connect().unwrap();
+    let stream = accept(&listener);
+    let server = thread::spawn(move || {
+        FrameReader::default()
+            .receive_request::<String>(
+                &stream,
+                &AtomicBool::new(false),
+                &AtomicBool::new(true),
+                Duration::from_millis(100),
+            )
+            .unwrap()
+    });
+
+    thread::sleep(Duration::from_millis(250));
+    send_frame(
+        &client,
+        &"next request",
+        &AtomicBool::new(false),
+        Duration::from_secs(1),
+    )
+    .unwrap();
+
+    assert_eq!(server.join().unwrap(), "next request");
+}
+
+#[test]
+fn incomplete_input_expires_even_while_the_worker_is_active() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = Endpoint::resolve(&directory.path().join("queue.db")).unwrap();
+    let listener = endpoint.listen().unwrap();
+    let mut client = endpoint.connect().unwrap();
+    let stream = accept(&listener);
+    let started = Instant::now();
+    let server = thread::spawn(move || {
+        FrameReader::default()
+            .receive_request::<String>(
+                &stream,
+                &AtomicBool::new(false),
+                &AtomicBool::new(true),
+                Duration::from_millis(100),
+            )
+            .unwrap_err()
+    });
+
+    loop {
+        match client.write(&[0, 0]) {
+            Ok(2) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(started.elapsed() < Duration::from_secs(5));
+                thread::sleep(Duration::from_millis(2));
+            }
+            result => panic!("incomplete prefix write failed: {result:?}"),
+        }
+    }
+
+    assert_eq!(server.join().unwrap().kind(), std::io::ErrorKind::TimedOut);
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+#[test]
+fn idle_input_expires_after_the_worker_finishes() {
+    use std::sync::{Arc, atomic::Ordering};
+
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = Endpoint::resolve(&directory.path().join("queue.db")).unwrap();
+    let listener = endpoint.listen().unwrap();
+    let _client = endpoint.connect().unwrap();
+    let stream = accept(&listener);
+    let active = Arc::new(AtomicBool::new(true));
+    let worker = active.clone();
+    let server = thread::spawn(move || {
+        FrameReader::default()
+            .receive_request::<String>(
+                &stream,
+                &AtomicBool::new(false),
+                &active,
+                Duration::from_millis(100),
+            )
+            .unwrap_err()
+    });
+
+    thread::sleep(Duration::from_millis(250));
+    assert!(!server.is_finished());
+    worker.store(false, Ordering::SeqCst);
+
+    assert_eq!(server.join().unwrap().kind(), std::io::ErrorKind::TimedOut);
+}
+
+#[test]
+fn active_input_still_observes_disconnect_and_shutdown() {
+    use std::sync::{Arc, atomic::Ordering};
+
+    for shutdown in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let endpoint = Endpoint::resolve(&directory.path().join("queue.db")).unwrap();
+        let listener = endpoint.listen().unwrap();
+        let mut client = Some(endpoint.connect().unwrap());
+        let stream = accept(&listener);
+        let closed = Arc::new(AtomicBool::new(false));
+        let signal = closed.clone();
+        let server = thread::spawn(move || {
+            FrameReader::default()
+                .receive_request::<String>(
+                    &stream,
+                    &closed,
+                    &AtomicBool::new(true),
+                    Duration::from_millis(100),
+                )
+                .unwrap_err()
+        });
+
+        if shutdown {
+            signal.store(true, Ordering::SeqCst);
+        } else {
+            drop(client.take());
+        }
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !server.is_finished() {
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(
+            server.join().unwrap().kind(),
+            if shutdown {
+                std::io::ErrorKind::Interrupted
+            } else {
+                std::io::ErrorKind::UnexpectedEof
+            }
+        );
+    }
+}

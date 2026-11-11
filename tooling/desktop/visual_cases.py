@@ -92,9 +92,20 @@ def run(cli, panel, output, goldens, configuration, mode):
                         f"return document.documentElement.lang === {json.dumps(case['language'])} && document.documentElement.dataset.theme === {json.dumps(case['theme'])};"
                     )
                     if case["topic"] is not None:
-                        driver.call(
-                            f"[...document.querySelectorAll('[data-topic]')].find(el=>el.querySelector('.topic-name').textContent === {json.dumps(case['topic'])}).click();"
-                        )
+                        if case.get("topic_from_compact_settings"):
+                            driver.click("#settings")
+                            driver.call(window="compact", native="compact")
+                            driver.call(
+                                f"[...document.querySelectorAll('[data-open-topic]')].find(el=>el.querySelector('.mono').textContent === {json.dumps(case['topic'])}).click();",
+                                "compact",
+                            )
+                            driver.wait(
+                                f"return !document.querySelector('#save') && document.querySelector('.content-header h1')?.textContent === {json.dumps(case['topic'])};"
+                            )
+                        else:
+                            driver.call(
+                                f"[...document.querySelectorAll('[data-topic]')].find(el=>el.querySelector('.topic-name').textContent === {json.dumps(case['topic'])}).click();"
+                            )
                     if case["task"] is not None:
                         driver.click(f'[data-task="{case["task"]}"]')
                     if case["settings"]:

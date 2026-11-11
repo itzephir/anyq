@@ -36,6 +36,11 @@ Scenarios cover current/empty queues, full membership, text escaping, search,
 shared window/compact state, en/ru, both themes, narrow layout, missing/incompatible
 sources, stale recovery, owner restart, concurrent CLI completion, oversized
 results, source generations, preference restart/reset and close/reopen/quit.
+Regressions also cover unchanged zero-byte files, vertical/horizontal topic-list
+scroll positions across real CLI updates, and compact-topic navigation out of
+settings without saving the abandoned draft. The `main-dark-en` screenshot is
+reached through that settings-to-compact navigation before comparing its existing
+reviewed PNG, rather than selecting the topic directly.
 
 PNG goldens are tracked in `goldens/linux`, `goldens/macos` and `goldens/windows`.
 Only configured source-path regions are masked; the fixed update time remains

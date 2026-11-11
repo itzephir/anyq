@@ -181,7 +181,7 @@ async function command(command, args = {}) {
   }
 }
 
-function render() {
+function render(preserveTopicScroll = true) {
   strings = state.preferences.language === "ru" ? ru : en;
   document.documentElement.lang =
     state.preferences.language === "ru" ? "ru" : "en";
@@ -198,12 +198,16 @@ function render() {
   const cursor =
     active instanceof HTMLInputElement ? active.selectionStart : null;
   const top = document.querySelector(".content")?.scrollTop || 0;
+  const topics = document.querySelector(".topic-list");
+  const topicLeft = preserveTopicScroll ? topics?.scrollLeft || 0 : 0;
+  const topicTop = preserveTopicScroll ? topics?.scrollTop || 0 : 0;
   document.getElementById("app").innerHTML = settingsOpen
     ? settingsWindow()
     : surface === "compact"
       ? compactWindow()
       : mainWindow();
   if (top) document.querySelector(".content")?.scrollTo(0, top);
+  document.querySelector(".topic-list")?.scrollTo(topicLeft, topicTop);
   if (focusId) {
     const next = document.getElementById(focusId);
     next?.focus({ preventScroll: true });
@@ -227,7 +231,7 @@ function bind() {
     document.getElementById(id)?.addEventListener(event, handler);
   on("topic-search", "input", (event) => {
     topicFilter = event.target.value;
-    render();
+    render(false);
   });
   on("task-search", "input", (event) => {
     taskFilter = event.target.value;
@@ -345,7 +349,7 @@ function accept(next) {
     selectedTopic = topics[0]?.name ?? null;
   if (!state.snapshot?.tasks.some((task) => task.sequence === selectedTask))
     selectedTask = null;
-  render();
+  render(!changed);
 }
 
 document.addEventListener("keydown", (event) => {
@@ -358,13 +362,18 @@ document.addEventListener("keydown", (event) => {
     render();
   }
 });
-matchMedia("(prefers-color-scheme:dark)").addEventListener("change", render);
+matchMedia("(prefers-color-scheme:dark)").addEventListener("change", () =>
+  render(),
+);
 if (invoke) {
   window.__TAURI__.event
     .listen("panel-state", (event) => accept(event.payload))
     .then(() => command("get_panel_state").then(accept));
   window.__TAURI__.event.listen("panel-navigation", ({ payload }) => {
     if (payload.topic !== null) {
+      settingsOpen = false;
+      draft = null;
+      settingsError = "";
       selectedTopic = payload.topic;
       selectedTask = null;
       taskFilter = "";
@@ -374,7 +383,7 @@ if (invoke) {
       settingsOpen = true;
       draft = { ...state.preferences };
     }
-    render();
+    render(false);
   });
 } else {
   selectedTopic = state.snapshot?.topics[0]?.name ?? null;
