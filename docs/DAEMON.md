@@ -28,6 +28,11 @@ even when config is damaged, allowing cleanup without reading that file.
 An ordinary protocol stop lets a foreground owner return 0; native Ctrl+C returns
 130. Both preserve committed task ownership.
 
+After the first successful session, one initialized queue-service context is
+retained until owner shutdown. Its disconnected client releases its stream and
+quota immediately. This keeps SQLite's storage lifetime independent of client
+connection churn, without holding a transaction or repeating any operation.
+
 Background Windows startup uses an explicit handle allowlist through the
 `windows-spawn` adapter. Only its null standard streams are transferred; the
 caller's output pipes and other inherited handles are excluded, so capturing
