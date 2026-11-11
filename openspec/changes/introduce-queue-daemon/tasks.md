@@ -47,6 +47,10 @@
 - [x] 7.2 Resolve equivalent new database paths through a regular owner sidecar and refresh startup discovery; verify foreground and concurrent first clients share the owner before SQLite exists, including case-insensitive native filesystems.
 - [x] 7.3 Run mandatory local checks and current native Linux/macOS/Windows CI, synchronize verified scenarios and publish the corrections in PR #14 without merging it.
 
+## 8. Native storage lifetime verification
+
+- [x] 8.1 Retain one initialized queue-service context until owner shutdown after releasing the disconnected client's stream and quota; verify native connection churn, lifecycle draining and full-capacity access without replaying operations on Linux/macOS/Windows CI.
+
 ## Workflow follow-up
 
 - This is stage 1; metadata implementation starts from its branch only after the daemon implementation is reviewable.

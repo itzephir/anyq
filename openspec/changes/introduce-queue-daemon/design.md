@@ -111,6 +111,14 @@ and Stop available when command capacity is full; Open requires a command permit
 before opening SQLite. Rejected transitions return a typed error before invoking
 the use case, and session exit releases its permit. No protocol change is needed.
 
+The first disconnected initialized session retains its opaque queue-service
+context until owner shutdown. Its stream and permit are released before that
+idle wait; only one worker is elected per owner, and no transaction is held or
+operation invoked. Keeping an initialized storage connection alive avoids tying
+WAL teardown and recreation to client connection churn. The owner joins this
+worker during the same bounded shutdown as other sessions. Inner layers remain
+independent of this transport lifetime policy.
+
 Integration gates move to a feature-only request context with per-session hit
 counts and selected gate directory. A CLI process forwards that context only in
 integration-test-hooks builds; production accepts no test-gate fields. Tests

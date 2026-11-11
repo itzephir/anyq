@@ -23,6 +23,7 @@ pub(crate) struct Session {
     pub factory: Arc<dyn QueueFactory>,
     pub signals: Arc<SessionSignals>,
     pub shutdown: Arc<AtomicBool>,
+    pub retained: Arc<AtomicBool>,
     pub permit: SessionPermit,
 }
 
@@ -89,8 +90,9 @@ impl Session {
         receiver: &Receiver<RequestFrame>,
         id: u64,
         policy: QueuePolicy,
+        retained_services: &mut Option<QueueServices>,
     ) -> Result<()> {
-        let mut services: QueueServices = match self.factory.open(
+        let services = match self.factory.open(
             &self.endpoint.database,
             policy,
             self.signals.cancelled.clone(),
@@ -102,7 +104,10 @@ impl Session {
                 return Ok(());
             }
         };
+
+        *retained_services = Some(services);
         self.reply(id, self.ready())?;
+        let services = retained_services.as_mut().expect("queue services opened");
 
         loop {
             let frame = self.next(receiver)?;
@@ -118,7 +123,7 @@ impl Session {
                 return Ok(());
             }
 
-            let response = match route(frame.request, &mut services) {
+            let response = match route(frame.request, services) {
                 Ok(response) => response,
                 Err(error) => QueueResponse::Error(error.into()),
             };
@@ -136,7 +141,11 @@ impl Session {
         }
     }
 
-    fn handle(&mut self, receiver: &Receiver<RequestFrame>) -> Result<()> {
+    fn handle(
+        &mut self,
+        receiver: &Receiver<RequestFrame>,
+        services: &mut Option<QueueServices>,
+    ) -> Result<()> {
         let frame = self.next(receiver)?;
         match frame.request {
             QueueRequest::Ping => self.reply(frame.id, self.ready()),
@@ -185,12 +194,12 @@ impl Session {
                     );
 
                     anyq_integration_test_hooks::with_context(context, || {
-                        self.queue_loop(receiver, frame.id, policy.into())
+                        self.queue_loop(receiver, frame.id, policy.into(), services)
                     })
                 }
 
                 #[cfg(not(feature = "integration-test-hooks"))]
-                self.queue_loop(receiver, frame.id, policy.into())
+                self.queue_loop(receiver, frame.id, policy.into(), services)
             }
             _ => self.reply(
                 frame.id,
@@ -229,8 +238,23 @@ impl Session {
             signals.cancelled.store(true, Ordering::SeqCst);
         });
 
-        let _ = self.handle(&receiver);
+        let mut services = None;
+        let _ = self.handle(&receiver, &mut services);
         self.signals.close();
         let _ = reader.join();
+
+        let retain = services.is_some() && !self.retained.swap(true, Ordering::SeqCst);
+        let shutdown = self.shutdown.clone();
+        drop(self);
+
+        // Keep one initialized storage context for the owner's lifetime. Client
+        // EOF releases its stream and permit before this otherwise idle wait.
+        if retain {
+            while !shutdown.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+
+        drop(services);
     }
 }
