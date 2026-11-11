@@ -21,7 +21,11 @@ pub struct Sqlite {
     pub(crate) cancelled: Arc<AtomicBool>,
 }
 
-fn compatible_version(connection: &Connection, cancelled: &AtomicBool) -> Result<i64> {
+fn compatible_version(
+    connection: &Connection,
+    cancelled: &AtomicBool,
+    allow_initialization: bool,
+) -> Result<i64> {
     let version: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, || {
         connection.pragma_query_value(None, "user_version", |row| row.get(0))
     })?;
@@ -43,6 +47,13 @@ fn compatible_version(connection: &Connection, cancelled: &AtomicBool) -> Result
         if tables != 0 {
             return Err(Error::Storage(
                 "unversioned nonempty database; choose a separate database with --db".into(),
+            ));
+        }
+
+        if !allow_initialization {
+            return Err(Error::Storage(
+                "selected database schema is uninitialized; initialize it with the CLI before observing"
+                    .into(),
             ));
         }
     }
@@ -84,12 +95,13 @@ impl Sqlite {
         let mut connection = Connection::open_with_flags(path, flags).map_err(storage)?;
         checkpoint("sqlite.after-open", &cancelled)?;
         connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
+        let allow_initialization = flags.contains(OpenFlags::SQLITE_OPEN_CREATE);
 
         // Check an existing database in one read snapshot before changing journal mode or schema.
         let read = connection
             .transaction_with_behavior(TransactionBehavior::Deferred)
             .map_err(storage)?;
-        compatible_version(&read, &cancelled)?;
+        compatible_version(&read, &cancelled, allow_initialization)?;
         read.commit().map_err(storage)?;
 
         connection
@@ -102,7 +114,7 @@ impl Sqlite {
         let tx = begin_transaction(&connection, &cancelled, LOCK_TIMEOUT)?;
 
         // Another opener may have initialized the database since the read-only check.
-        match compatible_version(&tx, &cancelled)? {
+        match compatible_version(&tx, &cancelled, allow_initialization)? {
             0 => {
                 tx.execute_batch(include_str!("schema.sql"))
                     .map_err(storage)?;

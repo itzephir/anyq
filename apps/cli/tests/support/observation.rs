@@ -203,6 +203,58 @@ fn owner_refuses_missing_existing_only_target_after_discovery() {
 }
 
 #[test]
+fn observation_rejects_uninitialized_files_without_writes_and_cli_can_initialize_them() {
+    for sqlite_header in [false, true] {
+        let queue = Queue::new();
+        if sqlite_header {
+            rusqlite::Connection::open(&queue.db)
+                .unwrap()
+                .execute_batch("VACUUM")
+                .unwrap();
+        } else {
+            std::fs::write(&queue.db, []).unwrap();
+        }
+        let original = std::fs::read(&queue.db).unwrap();
+        let _owner = queue.spawn_owner();
+        let endpoint = Endpoint::resolve(&queue.db).unwrap();
+        let stream = endpoint.connect().unwrap();
+
+        let response = request(
+            &stream,
+            1,
+            QueueRequest::OpenObservation {
+                database_id: endpoint.identity,
+            },
+        );
+
+        assert!(matches!(
+            response,
+            QueueResponse::Error(QueueError::Storage(ref message)) if message.contains("schema is uninitialized")
+        ));
+        assert_eq!(std::fs::read(&queue.db).unwrap(), original);
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(!std::path::PathBuf::from(format!("{}{suffix}", queue.db.display())).exists());
+        }
+
+        queue.topic("cpu");
+
+        assert!(queue.call(&["topic", "list"]).contains("cpu"));
+        let observer = open_observer(&Endpoint::resolve(&queue.db).unwrap());
+        assert!(matches!(
+            request(
+                &observer,
+                2,
+                QueueRequest::ObserveQueue {
+                    max_entities: 10_000,
+                    max_text_bytes: 1024 * 1024
+                }
+            ),
+            QueueResponse::Observation { .. }
+        ));
+    }
+}
+
+#[test]
 fn observation_rejects_foreign_identity_and_versions_and_accepts_cancellation() {
     let queue = Queue::new();
     queue.topic("cpu");

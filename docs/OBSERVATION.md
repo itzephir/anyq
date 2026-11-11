@@ -13,6 +13,9 @@ and returns only `ObserveQueue`. The selected database must already exist.
 Discovery can start the bundled owner, but the owner opens this session's file
 without SQLite's create flag. A missing file, including one removed between
 discovery and opening, cannot be replaced by an empty database.
+Existing zero-byte files and empty SQLite files without an initialized anyq
+schema are rejected before journal-mode changes or schema initialization. Their
+bytes remain unchanged; ordinary CLI startup can still initialize them explicitly.
 
 The client executable must support the internal `daemon run --db PATH` launch
 form, as the CLI does. The desktop composition root supplies that internal mode

@@ -25,6 +25,9 @@ remote clients are not installed. CLI messages and help are English-only, with
 no language setting. `status` and `stop` accept an explicit --db/ANYQ_DB
 even when config is damaged, allowing cleanup without reading that file.
 
+An ordinary protocol stop lets a foreground owner return 0; native Ctrl+C returns
+130. Both preserve committed task ownership.
+
 Background Windows startup uses an explicit handle allowlist through the
 `windows-spawn` adapter. Only its null standard streams are transferred; the
 caller's output pipes and other inherited handles are excluded, so capturing
@@ -42,6 +45,12 @@ with socket mode 0600 and peer effective-user verification on both sides.
 Windows uses native named pipes with a protected owner-rights ACL. Endpoint names
 contain a digest of the canonical path; the full identity is verified during
 session opening. No IP listener, access token or network service is exposed.
+
+Windows listeners explicitly assign their owner to the current process's user
+SID. Before sending Open, clients read the connected pipe handle's owner and
+require that same SID. A mismatch, missing owner or unreadable security descriptor
+fails closed. The descriptor check uses the connected handle, not a process ID
+or a second lookup by pipe name; the listener ACL separately restricts callers.
 
 Do not concurrently use pre-daemon anyq binaries on the same database: those
 binaries do not participate in the owner lock. Stop the daemon before rolling
@@ -74,7 +83,10 @@ Eight additional connections are reserved for Ping/Stop when command capacity is
 full; Open must obtain command capacity before initializing SQLite. Exhausted
 quotas return an explicit capacity error without releasing task ownership.
 Permits are released when sessions close, bounding the owner to 136 sessions.
-Incoming frames have a 30-second deadline; response writes have a five-second
+Empty input has a 30-second idle deadline, paused while its worker executes a
+request or sends its response. The first byte starts a separate 30-second whole
+frame deadline, including continuation chunks, even while the worker is active.
+EOF, Cancel and shutdown remain observable during execution. Response writes have a five-second
 inactivity deadline and a two-minute
 total transfer limit. Progress renews the inactivity deadline so a consuming
 client can receive a large result under contention. IO is nonblocking with

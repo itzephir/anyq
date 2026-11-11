@@ -51,6 +51,14 @@ handshake, preventing digest collisions from connecting to the wrong queue.
 Do not expose an IP listener; it would add authentication and firewall concerns
 without a remote-client requirement.
 
+Windows assigns each pipe's owner explicitly to the current process user SID,
+including elevated launches whose default object owner could otherwise be a
+group. Clients query the connected handle's owner through a safe Windows API
+adapter and compare it with their own user SID before sending Open. Missing or
+unreadable ownership fails closed. Listener ACLs restrict incoming clients;
+neither a matching public path digest nor the listener ACL authenticates a server
+that another account created first. No PID-based ownership inference is used.
+
 ### Bounded typed request/response frames
 
 Use length-delimited versioned JSON frames with typed request/response variants,
@@ -59,6 +67,13 @@ frame, connection and response-write limits. Preserve canonical names without
 reparsing during DTO restoration. A successful response follows commit. Retry
 connection/start discovery before sending, but never replay a mutation whose
 response was lost; return an inspectable uncertain-result error.
+
+The reader pauses only an empty input's idle deadline while a queued/active
+request runs or its response is sent. Any first byte starts a separate fixed
+whole-frame deadline; partial input cannot extend it. A per-session atomic flag
+is set before delivery and when the worker takes a frame, and cleared only after
+the response finishes. The reader continues detecting EOF, Cancel and shutdown.
+Client response deadlines remain independent of input-idle timing.
 
 The CLI reads config and resolves db.path/ANYQ_DB/--db as today, passing the
 validated QueuePolicy snapshot per request. Config/help/version remain local.
@@ -102,6 +117,10 @@ commands auto-start and wait for readiness without inheriting CLI stdout/stderr
 pipes. Lifecycle messages and help remain English-only, without language settings;
 wire error kinds stay separate from presentation. Preserve existing
 text and exit codes, including first Ctrl+C = 130 and forced second interruption.
+
+Protocol Stop uses an internal shutdown flag separate from the CLI's native
+interrupt token. Both drain the same sessions, but ordinary foreground shutdown
+returns 0 and native Ctrl+C retains exit 130.
 
 ## Risks / Trade-offs
 
