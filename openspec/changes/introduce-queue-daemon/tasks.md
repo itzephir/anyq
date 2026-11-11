@@ -49,7 +49,7 @@
 
 ## 8. Native storage lifetime verification
 
-- [ ] 8.1 Retain one initialized queue-service context until owner shutdown after releasing the disconnected client's stream and quota; verify native connection churn, lifecycle draining and full-capacity access without replaying operations on Linux/macOS/Windows CI.
+- [x] 8.1 Retain one initialized queue-service context until owner shutdown after releasing the disconnected client's stream and quota; verify native connection churn, lifecycle draining and full-capacity access without replaying operations on Linux/macOS/Windows CI.
 
 ## Workflow follow-up
 
