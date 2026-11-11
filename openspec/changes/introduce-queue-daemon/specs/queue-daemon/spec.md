@@ -17,6 +17,10 @@ The system SHALL allow one daemon owner per canonical database path. Concurrent 
 - **WHEN** clients use relative, absolute or symbolic-link paths to the same database
 - **THEN** they resolve to the same owner
 
+#### Scenario: Equivalent new database names
+- **WHEN** a foreground owner exists before SQLite creation and a client uses an equivalent spelling on a case-insensitive filesystem
+- **THEN** discovery uses the same owner, status remains read-only and the first queue operation succeeds without another owner
+
 ### Requirement: Automatic startup and explicit lifecycle
 Queue commands SHALL ensure a daemon is available. `daemon start` SHALL start or reuse it, `daemon run` SHALL serve in the foreground, `daemon status` SHALL report running/stopped without starting it, and `daemon stop` SHALL stop it without releasing task ownership. Ordinary client exit SHALL leave the daemon alive.
 
@@ -93,6 +97,10 @@ Existing task/topic command forms, output, errors, path precedence and separatel
 #### Scenario: Config without owner
 - **WHEN** config is changed or nested help is requested while no daemon runs
 - **THEN** the operation succeeds independently and creates no queue database or endpoint
+
+#### Scenario: Client pauses between chain operations
+- **WHEN** a live CLI pauses longer than the initial input deadline after a committed chain operation, including while its output is blocked
+- **THEN** the same session can execute the next operation without replay or lost completion and disconnect, cancellation and shutdown remain observable
 
 ### Requirement: Native daemon verification
 Native tests SHALL exercise client cancellation, owner interruption, singleton contention, stale endpoint recovery and blocked output on Linux, macOS and Windows without skip/ignore. Daemon and client SHALL require no Python, Node, bash or WSL at runtime.

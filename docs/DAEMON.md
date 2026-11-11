@@ -36,6 +36,11 @@ a CLI command's output does not wait for the daemon to exit.
 ## Identity and access
 
 Existing symlinks and relative paths resolve to a canonical database identity.
+Before SQLite exists, a regular owner sidecar provides canonical filename
+spelling on case-insensitive filesystems. The owner refreshes its endpoint after
+acquiring the lock, and clients refresh discovery when that anchor appears, so
+foreground and competing first clients share the same owner.
+Status does not create either file; symlink sidecars do not redirect the database.
 The owner lock is a persistent `.anyq-owner.lock` sidecar; its existence alone
 does not mean an owner runs. The OS releases the actual lock when the process
 dies. Stale endpoint replacement occurs only after obtaining that lock.
@@ -88,9 +93,12 @@ Eight additional connections are reserved for Ping/Stop when command capacity is
 full; Open must obtain command capacity before initializing SQLite. Exhausted
 quotas return an explicit capacity error without releasing task ownership.
 Permits are released when sessions close, bounding the owner to 136 sessions.
-Empty input has a 30-second idle deadline, paused while its worker executes a
-request or sends its response. The first byte starts a separate 30-second whole
-frame deadline, including continuation chunks, even while the worker is active.
+Initial empty input has a 30-second idle deadline. After a complete request is
+queued, the session stays alive until disconnect, cancellation or shutdown;
+established queue sessions survive long client output pauses between chain
+operations. Invalid/control sessions close after handling, and session quotas
+still apply. The first byte starts a separate 30-second whole-frame deadline,
+including continuation chunks, even in an established session.
 EOF, Cancel and shutdown remain observable during execution. Response writes have a five-second
 inactivity deadline and a two-minute
 total transfer limit. Progress renews the inactivity deadline so a consuming
