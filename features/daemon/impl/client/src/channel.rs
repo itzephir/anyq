@@ -19,7 +19,7 @@ impl Channel {
         policy: QueuePolicy,
         cancelled: Arc<AtomicBool>,
     ) -> Result<Self> {
-        let stream = start_owner(endpoint, &cancelled).map_err(|error| {
+        let (endpoint, stream) = start_owner(endpoint, &cancelled).map_err(|error| {
             if error.kind() == std::io::ErrorKind::Interrupted {
                 Error::Interrupted
             } else {

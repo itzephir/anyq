@@ -50,7 +50,6 @@ impl Session {
             Duration::from_secs(5),
         )
         .map_err(|error| Error::Storage(error.to_string()))?;
-        self.signals.active.store(false, Ordering::SeqCst);
 
         Ok(())
     }
@@ -70,7 +69,7 @@ impl Session {
 
             match receiver.recv_timeout(Duration::from_millis(10)) {
                 Ok(frame) if frame.version == PROTOCOL_VERSION => {
-                    self.signals.active.store(true, Ordering::SeqCst);
+                    self.signals.keep_alive.store(true, Ordering::SeqCst);
 
                     return Ok(frame);
                 }
@@ -201,14 +200,16 @@ impl Session {
             while let Ok(frame) = reader.receive_request::<RequestFrame>(
                 &stream,
                 &signals.closed,
-                &signals.active,
+                &signals.keep_alive,
                 Duration::from_secs(30),
             ) {
                 if matches!(frame.request, QueueRequest::Cancel) {
                     break;
                 }
 
-                signals.active.store(true, Ordering::SeqCst);
+                // Replies can be followed by a long CLI output pause. Keep a
+                // complete session alive until EOF, cancellation or shutdown.
+                signals.keep_alive.store(true, Ordering::SeqCst);
                 if sender.try_send(frame).is_err() {
                     break;
                 }

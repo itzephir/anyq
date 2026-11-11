@@ -7,16 +7,16 @@ use std::{
 pub(crate) struct ReceiveDeadline<'a> {
     expires: Instant,
     timeout: Duration,
-    active: Option<&'a AtomicBool>,
+    keep_alive: Option<&'a AtomicBool>,
     started: bool,
 }
 
 impl<'a> ReceiveDeadline<'a> {
-    pub fn new(timeout: Duration, active: Option<&'a AtomicBool>, started: bool) -> Self {
+    pub fn new(timeout: Duration, keep_alive: Option<&'a AtomicBool>, started: bool) -> Self {
         Self {
             expires: Instant::now() + timeout,
             timeout,
-            active,
+            keep_alive,
             started,
         }
     }
@@ -24,8 +24,8 @@ impl<'a> ReceiveDeadline<'a> {
     pub fn check(&mut self) -> io::Result<()> {
         if !self.started
             && self
-                .active
-                .is_some_and(|active| active.load(Ordering::SeqCst))
+                .keep_alive
+                .is_some_and(|keep_alive| keep_alive.load(Ordering::SeqCst))
         {
             self.expires = Instant::now() + self.timeout;
         }
@@ -41,7 +41,7 @@ impl<'a> ReceiveDeadline<'a> {
     }
 
     pub fn progress(&mut self) {
-        if !self.started && self.active.is_some() {
+        if !self.started && self.keep_alive.is_some() {
             self.expires = Instant::now() + self.timeout;
         }
 
