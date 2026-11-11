@@ -42,8 +42,15 @@ is the initial candidate; enforce private directory/socket permissions and a
 current-user pipe ACL rather than relying on endpoint-name secrecy. Use an OS
 file lock for the canonical database identity, held for the owner's lifetime.
 Resolve existing database symlinks or the nearest existing parent plus filename
-before discovering the owner. Atomically publish discovery only after bind and
-compatible database initialization. Remove stale discovery under the lock only.
+before discovering the owner. Before SQLite exists, an existing regular owner
+sidecar anchors the filesystem's canonical filename spelling; symlink sidecars
+do not redirect the selected database. The owner resolves its endpoint again
+after acquiring the lock, since a competing opener may have created the sidecar
+with another equivalent spelling. Client startup refreshes discovery as the
+anchor appears, and Open uses that refreshed identity. Status does not create
+the anchor or the database. Publish the endpoint after bind and return Open
+readiness after compatible session initialization. Remove stale discovery under
+the lock only.
 
 Use a per-user private runtime directory and a stable digest of the canonical
 path to avoid socket length limits. Verify the canonical identity in the
@@ -68,12 +75,15 @@ reparsing during DTO restoration. A successful response follows commit. Retry
 connection/start discovery before sending, but never replay a mutation whose
 response was lost; return an inspectable uncertain-result error.
 
-The reader pauses only an empty input's idle deadline while a queued/active
-request runs or its response is sent. Any first byte starts a separate fixed
-whole-frame deadline; partial input cannot extend it. A per-session atomic flag
-is set before delivery and when the worker takes a frame, and cleared only after
-the response finishes. The reader continues detecting EOF, Cancel and shutdown.
-Client response deadlines remain independent of input-idle timing.
+The initial empty input has an idle deadline. Once a complete request is queued,
+a keep-alive flag suspends that empty-input deadline until the session closes.
+Valid Open sessions can therefore survive long client output pauses between
+separately committed operations; invalid/control sessions close after handling.
+Any first byte starts a separate fixed whole-frame deadline; partial input cannot
+extend it even in an established session. Connection quotas bound retained
+sessions. The reader continues detecting EOF, Cancel and shutdown. Client
+response deadlines remain independent of input-idle timing, and no mutation is
+replayed to recover from an idle client pause.
 
 The CLI reads config and resolves db.path/ANYQ_DB/--db as today, passing the
 validated QueuePolicy snapshot per request. Config/help/version remain local.

@@ -9,6 +9,33 @@ use std::fs;
 use support::queue::Queue;
 
 #[test]
+fn chain_survives_idle_client_between_committed_operations() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    let owner = queue.call(&["daemon", "status"]);
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "paused", "-t", "cpu", "-wc"],
+        "cli.after-registration",
+        1,
+    );
+    assert_eq!(queue.state("paused"), "running");
+
+    std::thread::sleep(std::time::Duration::from_secs(31));
+    assert_eq!(queue.call(&["daemon", "status"]), owner);
+    let output = client.release();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(queue.call(&["task", "list"]), "- paused");
+    assert_eq!(queue.state("paused"), "completed");
+    assert_eq!(queue.usage("cpu"), 0);
+}
+
+#[test]
 fn active_request_survives_the_incoming_frame_idle_timeout() {
     let queue = Queue::new();
     queue.topic("cpu");

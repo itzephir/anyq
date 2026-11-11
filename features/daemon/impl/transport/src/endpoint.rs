@@ -1,4 +1,4 @@
-use crate::{Listener, Stream, io_runtime::io_runtime};
+use crate::{Listener, OwnerLock, Stream, io_runtime::io_runtime};
 use interprocess::local_socket::{
     GenericFilePath, GenericNamespaced, ListenerOptions, Name, prelude::*,
     traits::tokio::Stream as _,
@@ -57,7 +57,28 @@ fn canonical_database(path: &Path) -> io::Result<PathBuf> {
         std::env::current_dir()?.join(path)
     };
 
-    resolve(&absolute)
+    let database = resolve(&absolute)?;
+    if database.try_exists()? {
+        return Ok(database);
+    }
+
+    // Before SQLite exists, the regular owner sidecar anchors native spelling
+    // on case-insensitive filesystems. Discovery itself must not create a file.
+    let lock = OwnerLock::path(&database);
+    match fs::symlink_metadata(&lock) {
+        Ok(metadata) if metadata.is_file() => {
+            let canonical = lock.canonicalize()?;
+            let anchored = canonical.with_extension("").with_extension("");
+            if canonical.parent() == database.parent() && OwnerLock::path(&anchored) == canonical {
+                return Ok(anchored);
+            }
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+
+    Ok(database)
 }
 
 impl Endpoint {
@@ -175,10 +196,7 @@ impl Endpoint {
     }
 
     pub fn lock_path(&self) -> PathBuf {
-        let mut name = self.database.as_os_str().to_owned();
-        name.push(".anyq-owner.lock");
-
-        name.into()
+        OwnerLock::path(&self.database)
     }
 }
 
