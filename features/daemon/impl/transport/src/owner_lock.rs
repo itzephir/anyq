@@ -3,6 +3,7 @@ use fs2::FileExt;
 use std::{
     fs::{self, File, OpenOptions},
     io,
+    path::{Path, PathBuf},
 };
 
 pub struct OwnerLock {
@@ -10,6 +11,13 @@ pub struct OwnerLock {
 }
 
 impl OwnerLock {
+    pub(crate) fn path(database: &Path) -> PathBuf {
+        let mut name = database.as_os_str().to_owned();
+        name.push(".anyq-owner.lock");
+
+        name.into()
+    }
+
     pub fn is_held(endpoint: &Endpoint) -> io::Result<bool> {
         let file = match OpenOptions::new()
             .read(true)

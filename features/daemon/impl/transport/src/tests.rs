@@ -320,3 +320,18 @@ fn active_input_still_observes_disconnect_and_shutdown() {
         );
     }
 }
+#[cfg(unix)]
+#[test]
+fn symlink_owner_sidecar_does_not_redirect_a_missing_database() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = crate::Endpoint::resolve(&directory.path().join("selected.db")).unwrap();
+    let other = crate::Endpoint::resolve(&directory.path().join("other.db")).unwrap();
+    std::fs::write(other.lock_path(), "unrelated").unwrap();
+    std::os::unix::fs::symlink(other.lock_path(), endpoint.lock_path()).unwrap();
+
+    let resolved = crate::Endpoint::resolve(&endpoint.database).unwrap();
+
+    assert_eq!(resolved.database, endpoint.database);
+    assert_eq!(resolved.identity, endpoint.identity);
+    assert!(!resolved.database.exists());
+}
