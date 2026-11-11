@@ -12,9 +12,13 @@ use std::process::{Command, Stdio};
 #[cfg(windows)]
 use windows_spawn::{Command, CreationFlags, SpawnOptions, Stdio};
 
-pub(crate) fn start_owner(endpoint: &Endpoint, cancelled: &AtomicBool) -> io::Result<Stream> {
+pub(crate) fn start_owner(
+    endpoint: &Endpoint,
+    cancelled: &AtomicBool,
+) -> io::Result<(Endpoint, Stream)> {
+    let mut endpoint = Endpoint::resolve(&endpoint.database)?;
     if let Ok(stream) = endpoint.connect() {
-        return Ok(stream);
+        return Ok((endpoint, stream));
     }
 
     let mut command = Command::new(std::env::current_exe()?);
@@ -53,13 +57,14 @@ pub(crate) fn start_owner(endpoint: &Endpoint, cancelled: &AtomicBool) -> io::Re
             return Err(io::Error::new(io::ErrorKind::Interrupted, "interrupted"));
         }
 
+        endpoint = Endpoint::resolve(&endpoint.database)?;
         if let Ok(stream) = endpoint.connect() {
             let _ = child.try_wait();
 
-            return Ok(stream);
+            return Ok((endpoint, stream));
         }
 
-        if child.try_wait()?.is_some() && !anyq_daemon_transport::OwnerLock::is_held(endpoint)? {
+        if child.try_wait()?.is_some() && !anyq_daemon_transport::OwnerLock::is_held(&endpoint)? {
             #[cfg(unix)]
             {
                 child = command.spawn()?;

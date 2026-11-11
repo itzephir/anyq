@@ -21,7 +21,7 @@ impl Channel {
     ) -> Result<Self> {
         let caller_directory =
             std::env::current_dir().map_err(|error| Error::Storage(error.to_string()))?;
-        let stream = start_owner(endpoint, &cancelled).map_err(|error| {
+        let (endpoint, stream) = start_owner(endpoint, &cancelled).map_err(|error| {
             if error.kind() == std::io::ErrorKind::Interrupted {
                 Error::Interrupted
             } else {
