@@ -61,7 +61,11 @@ class Package:
             )
         elif sys.platform == "win32":
             subprocess.run(
-                [str(self.source), "/S", f"/D={self.installed}"], check=True, timeout=90
+                subprocess.list2cmdline([str(self.source)])
+                + f" /S /D={self.installed}",
+                executable=str(self.source),
+                check=True,
+                timeout=90,
             )
         else:
             subprocess.run(
@@ -72,7 +76,13 @@ class Package:
             )
             assert str(self.executable) in files.splitlines()
             assert any(path.endswith(".desktop") for path in files.splitlines())
-        assert self.executable.is_file(), self.executable
+        deadline = time.monotonic() + 30
+        while not self.executable.is_file():
+            assert time.monotonic() < deadline, (
+                self.executable,
+                list(self.executable.parent.glob("*")),
+            )
+            time.sleep(0.05)
 
     def remove(self):
         if sys.platform == "darwin":

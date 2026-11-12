@@ -72,3 +72,5 @@ jobs:
     uses: ./.github/workflows/desktop-ui.yml
     with:
       mode: verify
+  shell:
+    uses: ./.github/workflows/desktop-shell.yml

@@ -36,9 +36,14 @@ def monitors():
     def visit(handle, _dc, _bounds, _data):
         info = MonitorInfo()
         info.size = c.sizeof(info)
-        assert user.GetMonitorInfoW(handle, c.byref(info))
+        assert user.GetMonitorInfoW(w.HMONITOR(handle), c.byref(info))
         x, y = w.UINT(), w.UINT()
-        assert c.windll.shcore.GetDpiForMonitor(handle, 0, c.byref(x), c.byref(y)) == 0
+        assert (
+            c.windll.shcore.GetDpiForMonitor(
+                w.HMONITOR(handle), 0, c.byref(x), c.byref(y)
+            )
+            == 0
+        )
         result.append(rect(info.work) | {"scale": x.value / 96, "device": info.device})
         return True
 
@@ -52,10 +57,10 @@ def windows(pid):
     @c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
     def visit(handle, _data):
         owner = w.DWORD()
-        user.GetWindowThreadProcessId(handle, c.byref(owner))
-        if owner.value == pid and user.IsWindowVisible(handle):
+        user.GetWindowThreadProcessId(w.HWND(handle), c.byref(owner))
+        if owner.value == pid and user.IsWindowVisible(w.HWND(handle)):
             bounds = w.RECT()
-            assert user.GetWindowRect(handle, c.byref(bounds))
+            assert user.GetWindowRect(w.HWND(handle), c.byref(bounds))
             result.append(rect(bounds) | {"handle": handle, "layer": 0})
         return True
 
@@ -95,6 +100,10 @@ def perform(command):
     action = command["action"]
     if action == "monitors":
         return monitors()
+    if action == "configure-displays":
+        from windows_monitors import configure
+
+        return configure()
     if action == "windows":
         return windows(command["pid"])
     if action == "tray":

@@ -50,10 +50,23 @@ def run(cli, panel, home, output, configuration, profile):
     try:
         if profile["displays"]:
             native.call("displays", displays=profile["displays"])
+        if sys.platform == "win32":
+            native.wait(
+                "monitors",
+                predicate=lambda items: len(items) >= profile["minimum_monitors"],
+            )
+            native.call("configure-displays")
         monitors = native.wait(
             "monitors",
             predicate=lambda items: len(items) >= profile["minimum_monitors"],
         )
+        if sys.platform == "win32":
+            monitors = native.wait(
+                "monitors",
+                predicate=lambda items: {1, 1.5}.issubset(
+                    {item["scale"] for item in items}
+                ),
+            )
         if host:
             host.start()
         driver.start(viewport=configuration["visual_defaults"]["viewport"])

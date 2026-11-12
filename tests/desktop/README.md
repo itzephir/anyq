@@ -23,6 +23,22 @@ the production app uses public AppKit screen APIs. Native input and capture
 permissions are environmental requirements, and a denied operation fails the
 scenario rather than simulating a click or accepting incomplete evidence.
 
+Windows display CI installs only the checksum-pinned driver-only archive from
+[Virtual Display Driver 25.7.23](https://github.com/VirtualDrivers/Virtual-Display-Driver/releases/tag/25.7.23)
+on its disposable runner, verifies the signed catalog, and registers the UMDF
+device through native SetupAPI. It never disables driver-signature enforcement
+or enables test signing. Display setup logs and signer/digest information are
+retained. Per-display DPI is configured through native DisplayConfig packets,
+following the interfaces exercised by [SetDPI](https://github.com/imniko/SetDPI).
+No driver, native input helper or test transport is shipped with the panel.
+
+The NSIS fixture passes its final `/D=` argument without quotes, including for
+the configured installation path with spaces, as required by the
+[NSIS command-line contract](https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage).
+This is a direct CreateProcess call with an explicit executable, without a shell.
+macOS review bundles are ad-hoc sealed as complete bundles and checked again
+after installation; Developer ID signing/notarization remains release work.
+
 The modes are explicit: `verify` compares with committed goldens and fails on a
 regression; `generate` writes new goldens for review. Both modes launch every
 visual case twice from independent clean processes and databases, and reject

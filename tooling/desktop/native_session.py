@@ -52,6 +52,11 @@ class NativeSession:
     def _read(self):
         for line in self.process.stdout:
             self.responses.put(line)
+        self.responses.put(
+            json.dumps(
+                {"ok": False, "error": "Native helper exited; inspect native.log"}
+            )
+        )
 
     def call(self, action, **values):
         self.process.stdin.write(json.dumps({"action": action} | values) + "\n")
