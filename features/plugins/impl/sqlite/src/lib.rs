@@ -11,3 +11,6 @@ mod storage;
 
 #[cfg(test)]
 mod tests;
+
+mod validate_existing;
+pub use validate_existing::validate_existing;

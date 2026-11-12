@@ -18,6 +18,9 @@ mod automatic_admission;
 #[path = "support/autostart.rs"]
 mod autostart;
 
+#[path = "support/observation.rs"]
+mod observation;
+
 use rusqlite::Connection;
 use std::{
     fs,
@@ -914,3 +917,7 @@ mod timeout;
 #[cfg(feature = "integration-test-hooks")]
 #[path = "support/shell.rs"]
 mod shell;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/runtime_bootstrap.rs"]
+mod runtime_bootstrap;

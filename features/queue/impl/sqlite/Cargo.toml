@@ -17,8 +17,6 @@ anyq-queue-dispatch = { path = "../dispatch" }
 anyq-queue-metadata = { path = "../metadata" }
 anyq-integration-test-hooks = { path = "../../../../tooling/integration-test-hooks", optional = true }
 rusqlite = { version = "0.39", features = ["bundled"] }
-
-[dev-dependencies]
 tempfile = "3"
 
 [lints]

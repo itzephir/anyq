@@ -33,6 +33,13 @@
 - [x] 5.1 Keep background pre-mutation lock acquisition retryable until shutdown; verify a 31-second transaction commits once, lifecycle remains responsive and stopping under contention cancels safely without replay or slot release.
 - [x] 5.2 Verify current native Linux/macOS/Windows CI and synchronize the verified background-contention scenario without merging PRs.
 
+## 6. Existing queue runtime bootstrap
+
+- [x] 6.1 Add existing-only schema-6 bootstrap with explicit missing, uninitialized, upgrade-required and incompatible outcomes; verify adapter tests reject incomplete queue/work/plugin storage without changing selected files or migrating legacy schemas.
+- [x] 6.2 Start persisted plugin delivery without a queue RPC and serialize bootstrap with normal initialization; verify native process tests recover deadlines and pending events while preserving disabled registrations, receipts and uncertain work. Document bootstrap states and recovery limits.
+- [x] 6.3 Run all mandatory local checks and record their results for the integration handoff.
+- [ ] 6.4 Verify the combined observation/plugin build on Linux, macOS and Windows, including a panel-first launch with no queue RPC; synchronize only verified bootstrap scenarios into the baseline specs.
+
 ## Workflow follow-up
 
 - This is stage 3 and depends on the daemon and metadata implementations.

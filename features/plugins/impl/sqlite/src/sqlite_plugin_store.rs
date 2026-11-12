@@ -1,7 +1,7 @@
 use crate::{sqlite_records::SqliteRecords, storage::storage};
 use anyq_plugin_dispatch::{Records, Store};
 use anyq_queue_api::{Error, Result};
-use rusqlite::{Connection, ErrorCode, Transaction, TransactionBehavior};
+use rusqlite::{Connection, ErrorCode, OpenFlags, Transaction, TransactionBehavior};
 use std::{
     cell::RefCell,
     path::Path,
@@ -30,7 +30,8 @@ impl SqlitePluginStore {
     }
 
     fn open_with_wait_policy(path: &Path, stop_waiting: Option<Arc<AtomicBool>>) -> Result<Self> {
-        let connection = Connection::open(path).map_err(storage)?;
+        let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+        let connection = Connection::open_with_flags(path, flags).map_err(storage)?;
         connection
             .busy_timeout(if stop_waiting.is_some() {
                 Duration::from_millis(100)

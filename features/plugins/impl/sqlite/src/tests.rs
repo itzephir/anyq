@@ -164,3 +164,33 @@ fn rejected_timer_batch_rolls_back_cursor_state_and_all_partial_timer_writes() {
         128
     );
 }
+
+#[test]
+fn existing_validation_requires_all_plugin_tables_columns_and_version() {
+    for mutation in [
+        "DROP TABLE plugin_schema",
+        "DROP TABLE plugins",
+        "DROP TABLE plugin_timers",
+        "ALTER TABLE plugins DROP COLUMN state",
+        "UPDATE plugin_schema SET version=99",
+        "DELETE FROM plugin_schema",
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("plugins.db");
+        database(&path);
+        let connection = Connection::open(&path).unwrap();
+        crate::validate_existing(&connection).unwrap();
+        connection.execute_batch(mutation).unwrap();
+
+        assert!(crate::validate_existing(&connection).is_err(), "{mutation}");
+    }
+}
+
+#[test]
+fn plugin_store_never_creates_a_missing_queue_database() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("missing.db");
+
+    assert!(SqlitePluginStore::open(&path).is_err());
+    assert!(!path.exists());
+}

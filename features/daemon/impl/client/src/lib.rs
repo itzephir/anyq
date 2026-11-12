@@ -5,6 +5,9 @@ mod start_owner;
 
 pub use channel::Channel;
 
+mod remote_observe_queue;
+pub use remote_observe_queue::RemoteObserveQueue;
+
 mod lifecycle;
 pub use lifecycle::{status, stop};
 

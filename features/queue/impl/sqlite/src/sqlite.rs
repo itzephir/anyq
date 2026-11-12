@@ -5,7 +5,7 @@ use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
 use anyq_queue_api::{Error, ExecutionDirectory, Result};
 use anyq_queue_dispatch::ports::Clock;
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 use std::{
     cell::RefCell,
     path::Path,
@@ -20,7 +20,7 @@ const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Clone)]
 pub struct Sqlite {
     pub(crate) connection: Rc<RefCell<Connection>>,
-    cancelled: Arc<AtomicBool>,
+    pub(crate) cancelled: Arc<AtomicBool>,
     stop_waiting: Option<Arc<AtomicBool>>,
     clock: Rc<dyn Clock>,
     directory: Option<ExecutionDirectory>,
@@ -80,6 +80,41 @@ fn enable_wal(
 }
 
 impl Sqlite {
+    /// Open only an already complete schema 6; validation never changes the
+    /// selected database. The caller must serialize this with normal opening.
+    pub fn open_existing_for_runtime(
+        path: &Path,
+        stop_waiting: Arc<AtomicBool>,
+        validate: fn(&Connection) -> Result<()>,
+    ) -> Result<crate::RuntimeOpen> {
+        crate::runtime_open::open(path, stop_waiting, validate)
+    }
+
+    pub(crate) fn from_runtime_connection(
+        connection: Connection,
+        stop_waiting: Arc<AtomicBool>,
+    ) -> Result<Self> {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        connection
+            .busy_timeout(Duration::from_millis(100))
+            .map_err(storage)?;
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .map_err(storage)?;
+        enable_wal(&connection, &cancelled, Some(&stop_waiting))?;
+        connection
+            .pragma_update(None, "synchronous", "FULL")
+            .map_err(storage)?;
+
+        Ok(Self {
+            connection: Rc::new(RefCell::new(connection)),
+            cancelled,
+            stop_waiting: Some(stop_waiting),
+            clock: Rc::new(SystemClock),
+            directory: None,
+        })
+    }
+
     pub fn with_clock(mut self, clock: Rc<dyn Clock>) -> Self {
         self.clock = clock;
 
@@ -94,6 +129,34 @@ impl Sqlite {
 
     pub fn open(path: &Path) -> Result<Self> {
         Self::open_with_cancellation(path, Arc::new(AtomicBool::new(false)))
+    }
+
+    pub fn open_existing(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        checkpoint("sqlite.before-open", &cancelled)?;
+        let mut connection =
+            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(storage)?;
+        connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
+
+        let read = connection
+            .transaction_with_behavior(TransactionBehavior::Deferred)
+            .map_err(storage)?;
+        let version: i64 = crate::retry_lock::retry(&cancelled, LOCK_TIMEOUT, None, || {
+            read.pragma_query_value(None, "user_version", |row| row.get(0))
+        })?;
+        if ![3, 4, 5, 6].contains(&version) {
+            return Err(Error::Storage(format!(
+                "unsupported observation schema version {version}; initialize or upgrade with a compatible CLI"
+            )));
+        }
+        read.commit().map_err(storage)?;
+
+        Ok(Self {
+            connection: Rc::new(RefCell::new(connection)),
+            cancelled,
+            stop_waiting: None,
+            clock: Rc::new(SystemClock),
+            directory: None,
+        })
     }
 
     pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {

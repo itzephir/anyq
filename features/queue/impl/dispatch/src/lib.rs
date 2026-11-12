@@ -103,3 +103,6 @@ pub use resolve_managed_work::ResolveManagedWorkInteractor;
 
 mod cancel_managed_work;
 pub use cancel_managed_work::CancelManagedWorkInteractor;
+
+mod observe_queue;
+pub use observe_queue::ObserveQueueInteractor;

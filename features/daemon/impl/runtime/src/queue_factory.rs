@@ -8,6 +8,12 @@ use std::{
 pub trait QueueFactory: Send + Sync {
     fn background(&self, path: &Path, shutdown: Arc<AtomicBool>) -> Result<()>;
 
+    fn observe(
+        &self,
+        path: &Path,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>>;
+
     fn open(
         &self,
         path: &Path,

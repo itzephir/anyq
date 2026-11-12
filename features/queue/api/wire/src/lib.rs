@@ -17,3 +17,11 @@ pub use caller_directory_dto::CallerDirectoryDto;
 
 mod event_dto;
 pub use event_dto::EventDto;
+
+mod decode_task_state;
+
+mod observed_task_dto;
+pub use observed_task_dto::ObservedTaskDto;
+
+mod observed_topic_dto;
+pub use observed_topic_dto::ObservedTopicDto;

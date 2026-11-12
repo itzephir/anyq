@@ -14,7 +14,24 @@ pub fn send_frame<T: Serialize>(
     cancelled: &AtomicBool,
     timeout: Duration,
 ) -> io::Result<()> {
+    send_bounded_frame(stream, value, cancelled, timeout, usize::MAX)
+}
+
+pub fn send_bounded_frame<T: Serialize>(
+    stream: &Stream,
+    value: &T,
+    cancelled: &AtomicBool,
+    timeout: Duration,
+    max_bytes: usize,
+) -> io::Result<()> {
     let payload = serde_json::to_vec(value).map_err(io::Error::other)?;
+    if payload.len() > max_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "daemon response exceeds encoded size limit",
+        ));
+    }
+
     let mut idle_deadline = Instant::now() + timeout;
     let total_deadline = Instant::now() + Duration::from_secs(120);
     let mut offset = 0;

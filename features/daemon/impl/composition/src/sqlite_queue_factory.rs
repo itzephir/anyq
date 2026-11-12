@@ -4,7 +4,7 @@ use anyq_queue_api::{Error, ExecutionDirectory, QueuePolicy, Result};
 use std::{
     path::Path,
     sync::{
-        Arc,
+        Arc, Mutex, MutexGuard, TryLockError,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -14,9 +14,18 @@ use std::{
 #[derive(Default)]
 pub(crate) struct SqliteQueueFactory {
     initialized: AtomicBool,
+    initialization: Mutex<()>,
 }
 
 impl QueueFactory for SqliteQueueFactory {
+    fn observe(
+        &self,
+        path: &Path,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
+        anyq_queue_impl::observe_existing(path, cancelled)
+    }
+
     fn open(
         &self,
         path: &Path,
@@ -24,6 +33,7 @@ impl QueueFactory for SqliteQueueFactory {
         cancelled: Arc<AtomicBool>,
         directory: ExecutionDirectory,
     ) -> Result<DaemonServices> {
+        let _initialization = self.lock_initialization(&cancelled)?;
         let store = anyq_queue_sqlite::Sqlite::open_with_initializer(
             path,
             cancelled.clone(),
@@ -61,18 +71,55 @@ impl QueueFactory for SqliteQueueFactory {
 }
 
 impl SqliteQueueFactory {
+    fn lock_initialization(&self, cancelled: &AtomicBool) -> Result<MutexGuard<'_, ()>> {
+        loop {
+            if cancelled.load(Ordering::SeqCst) {
+                return Err(Error::Interrupted);
+            }
+            match self.initialization.try_lock() {
+                Ok(guard) => return Ok(guard),
+                Err(TryLockError::WouldBlock) => thread::sleep(Duration::from_millis(10)),
+                Err(TryLockError::Poisoned(_)) => {
+                    return Err(Error::Storage("owner initialization lock poisoned".into()));
+                }
+            }
+        }
+    }
+
     fn run_plugins(&self, path: &Path, shutdown: Arc<AtomicBool>) -> Result<()> {
+        let existing = {
+            let _initialization = self.lock_initialization(&shutdown)?;
+            if self.initialized.load(Ordering::SeqCst) {
+                None
+            } else {
+                match anyq_queue_sqlite::Sqlite::open_existing_for_runtime(
+                    path,
+                    shutdown.clone(),
+                    anyq_plugin_impl::validate_existing,
+                )? {
+                    anyq_queue_sqlite::RuntimeOpen::Ready(store) => {
+                        self.initialized.store(true, Ordering::SeqCst);
+                        Some(store)
+                    }
+                    _ => None,
+                }
+            }
+        };
+
         while !self.initialized.load(Ordering::SeqCst) {
             if shutdown.load(Ordering::SeqCst) {
                 return Ok(());
             }
             thread::sleep(Duration::from_millis(10));
         }
-        let store = anyq_queue_sqlite::Sqlite::open_background(
-            path,
-            shutdown.clone(),
-            anyq_plugin_impl::initialize,
-        )?;
+        let store = match existing {
+            Some(store) => store,
+            None => anyq_queue_sqlite::Sqlite::open_background(
+                path,
+                shutdown.clone(),
+                anyq_plugin_impl::initialize,
+            )?,
+        };
         let store = with_fixture_clock(store);
         let queue = anyq_queue_impl::compose(store.clone(), QueuePolicy::default());
 

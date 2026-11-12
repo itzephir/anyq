@@ -13,7 +13,14 @@ pub enum QueueResponse {
     Plugins(Vec<anyq_plugin_wire::PluginStatusDto>),
     ManagedWork(anyq_plugin_wire::ManagedWorkDto),
     ManagedList(Vec<anyq_plugin_wire::ManagedWorkDto>),
-    Ready { pid: u32, database_id: String },
+    Ready {
+        pid: u32,
+        database_id: String,
+    },
+    Observation {
+        database_id: String,
+        snapshot: crate::QueueSnapshotDto,
+    },
     Stopped,
     Metadata(MetadataDto),
     Task(TaskDto),

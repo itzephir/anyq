@@ -7,6 +7,7 @@ use anyq_plugin_process::NativeProcessFactory;
 use anyq_plugin_runtime::{Host, HostOptions};
 use anyq_plugin_sqlite::SqlitePluginStore;
 pub use anyq_plugin_sqlite::initialize;
+pub use anyq_plugin_sqlite::validate_existing;
 use anyq_queue_api::{GetTask, ReadQueueEvents, Result};
 use std::{
     path::Path,

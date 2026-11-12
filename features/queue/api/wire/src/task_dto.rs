@@ -1,5 +1,5 @@
 use crate::MetadataDto;
-use anyq_queue_api::{Error, Task, TaskState};
+use anyq_queue_api::{Error, Task};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,13 +32,7 @@ impl TryFrom<TaskDto> for Task {
     type Error = Error;
 
     fn try_from(value: TaskDto) -> Result<Self, Error> {
-        let state = match value.state.as_str() {
-            "registered" => TaskState::Registered,
-            "queued" => TaskState::Queued,
-            "running" => TaskState::Running,
-            "completed" => TaskState::Completed,
-            _ => return Err(Error::Storage("invalid daemon task state".into())),
-        };
+        let state = crate::decode_task_state::decode(&value.state)?;
 
         Self::restore_with_metadata(
             value.sequence,

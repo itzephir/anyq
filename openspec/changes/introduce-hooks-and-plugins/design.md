@@ -138,3 +138,40 @@ contract carries forward all schema-5 ownership and receipt scenarios in this
 change's task-queue delta so later archival cannot replace the newer baseline
 with an older migration contract. The hooks implementation PR itself remains
 the schema-5 and protocol-v1 foundation.
+
+### Observation integration: existing-only bootstrap
+
+The shell-stage schema-6 runtime must recover independently of queue RPCs, so an
+observation-first owner starts enabled plugin supervision immediately. Queue
+SQLite exposes `open_existing_for_runtime`, returning `RuntimeOpen` with ready,
+missing, uninitialized, upgrade-required or incompatible outcomes. The daemon
+injects the plugin schema validator; the queue adapter validates queue/work
+storage without importing plugin implementations. No initializer runs on this
+path. Plugin store handles also open without `CREATE`.
+
+SQLite can create WAL/SHM files even on read-only opening; immutable opening can
+miss a committed crash-persisted WAL. Preflight therefore streams a private copy
+of the main file plus WAL, never SHM, and validates it in a read snapshot. Only
+complete current storage permits a real non-creating handle, whose own read
+snapshot rechecks version and mandatory columns before configuration. This costs
+temporary disk proportional to database plus WAL, uses bounded memory and checks
+shutdown during copying. Direct external writers are outside the owner contract.
+
+A cancellable factory initialization mutex serializes this one-time preflight
+with ordinary queue opening. Non-ready storage leaves the owner available and
+waits for successful normal initialization; it is not repeatedly copied or
+migrated in the polling loop. Existing host recovery owns cursor/timer replay,
+receipt reuse and conversion of unresolved managed work to uncertain state.
+
+This follow-up is prepared on the shell-stage base for integration into the
+observation stack. Its combined panel-first and three-platform CI acceptance
+remains tracked separately; it does not amend verified baseline specs yet.
+
+Local bootstrap acceptance passed on macOS: all mandatory formatting, Clippy,
+workspace tests, architecture checks, Ruff and strict OpenSpec validation;
+106 feature-enabled CLI/plugin workflows and all 35 native interruption tests.
+Seven new queue adapter tests and two plugin storage tests cover preflight,
+committed WAL, missing tables/columns, replacement revalidation and non-creating
+handles. Five new native workflows exercise owner-only recovery and preservation.
+Combined observation/panel behavior and Linux/Windows execution remain pending
+integration CI; task 6.4 stays unchecked until that evidence exists.

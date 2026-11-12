@@ -1,4 +1,7 @@
-use anyq_daemon_api::{PROTOCOL_VERSION, QueueRequest, QueueResponse, RequestFrame, ResponseFrame};
+use anyq_daemon_api::{
+    MAX_OBSERVATION_RESPONSE_BYTES, PROTOCOL_VERSION, QueueRequest, QueueResponse, RequestFrame,
+    ResponseFrame,
+};
 use anyq_daemon_transport::{FrameReader, Stream, send_frame};
 use anyq_queue_api::{Error, Result};
 use std::{
@@ -40,6 +43,10 @@ impl ClientSession {
     pub fn request(&mut self, request: QueueRequest) -> Result<QueueResponse> {
         self.next_id += 1;
         let id = self.next_id;
+        let observation = matches!(
+            request,
+            QueueRequest::OpenObservation { .. } | QueueRequest::ObserveQueue { .. }
+        );
         let frame = RequestFrame {
             version: PROTOCOL_VERSION,
             id,
@@ -53,7 +60,11 @@ impl ClientSession {
         )
         .map_err(|error| transport_error(error, false))?;
 
-        let mut reader = FrameReader::for_responses();
+        let mut reader = if observation {
+            FrameReader::for_bounded_responses(MAX_OBSERVATION_RESPONSE_BYTES)
+        } else {
+            FrameReader::for_responses()
+        };
         let received: io::Result<ResponseFrame> =
             reader.receive(&self.stream, &self.cancelled, Duration::from_secs(120));
         let response = match received {

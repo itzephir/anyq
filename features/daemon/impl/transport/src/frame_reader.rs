@@ -80,6 +80,10 @@ impl FrameReader {
         Self::with_limit(usize::MAX)
     }
 
+    pub fn for_bounded_responses(max_bytes: usize) -> Self {
+        Self::with_limit(max_bytes)
+    }
+
     pub fn receive<T: DeserializeOwned>(
         &mut self,
         stream: &Stream,

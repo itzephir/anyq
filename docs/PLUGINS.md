@@ -31,6 +31,44 @@ managed-action counts, consecutive failures and a bounded failure description.
 Ordinary status does not include metadata, plugin state, stderr or script output.
 `inspect` lists managed action identities and states for explicit recovery.
 
+## Owner startup and existing databases
+
+Starting the daemon resumes enabled plugins from a complete schema-6 queue,
+including saved deliveries and overdue timers, without a queue command. This
+also applies when an observation client starts the owner. First enable still
+uses the future-event watermark; startup never synthesizes historical starts.
+Disabled registrations retain their state and deadlines without launching.
+Completion receipts remain reusable, and uncertain managed work keeps its slots
+until explicit confirmed cleanup. Restart does not authorize relaunching it.
+
+The existing-only runtime opener distinguishes these storage outcomes:
+
+| Outcome | Background behavior |
+| --- | --- |
+| Ready | Resume persisted plugin supervision and delivery. |
+| Missing | Keep the owner available; do not create the database or its parent. |
+| Uninitialized | Leave empty or unversioned storage unchanged. |
+| Upgrade required | Leave schema 2/3/4/5 unchanged until a normal queue request upgrades it. |
+| Incompatible | Leave unsupported, malformed or incomplete storage unchanged. |
+
+Non-ready outcomes do not stop lifecycle or observation sessions. A successful
+normal queue request can initialize or upgrade storage and release the waiting
+background runtime. Startup probes once, rather than copying or retrying an
+incompatible database on every polling interval. Replacing or repairing storage
+externally requires an owner restart or an ordinary queue request; observation
+does not trigger initialization or upgrades.
+
+Validation checks every required queue, work and plugin table and column before
+runtime configuration or recovery. It uses a private temporary copy of the main
+database and any committed WAL: SQLite read-only opening can create auxiliary
+files, while immutable opening can omit committed WAL data. No SHM file is copied.
+The real handle opens without `CREATE` and validates again in one read snapshot
+before changing connection settings or journal mode. Daemon composition serializes
+this with normal initialization. Copying uses bounded memory and cancellable IO,
+but requires temporary disk space proportional to the database plus WAL. The
+single-owner contract excludes concurrent direct writers or external replacement
+while the runtime is active.
+
 ## Events
 
 Queue schema 5 adds a persistent random database identity, monotonically ordered

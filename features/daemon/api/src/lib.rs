@@ -1,6 +1,7 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 7;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_OBSERVATION_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
 pub use anyq_queue_wire::MetadataDto;
 
@@ -23,6 +24,13 @@ pub use queue_error::QueueError;
 
 mod queue_request;
 pub use queue_request::QueueRequest;
+
+mod queue_snapshot_dto;
+pub use queue_snapshot_dto::QueueSnapshotDto;
+
+pub use anyq_queue_wire::ObservedTaskDto;
+
+pub use anyq_queue_wire::ObservedTopicDto;
 
 mod queue_response;
 pub use queue_response::QueueResponse;

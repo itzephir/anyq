@@ -21,3 +21,6 @@ pub use event_records::EventRecords;
 
 mod work_records;
 pub use work_records::WorkRecords;
+
+mod observation_store;
+pub use observation_store::ObservationStore;

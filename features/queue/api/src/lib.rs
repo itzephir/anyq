@@ -234,3 +234,18 @@ pub use cancel_managed_work::CancelManagedWork;
 
 mod managed_work_filter;
 pub use managed_work_filter::ManagedWorkFilter;
+
+mod observe_queue;
+pub use observe_queue::ObserveQueue;
+
+mod observe_queue_request;
+pub use observe_queue_request::ObserveQueueRequest;
+
+mod queue_snapshot;
+pub use queue_snapshot::QueueSnapshot;
+
+mod observed_task;
+pub use observed_task::ObservedTask;
+
+mod observed_topic;
+pub use observed_topic::ObservedTopic;
