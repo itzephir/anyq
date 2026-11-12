@@ -2,11 +2,11 @@
 
 import json
 import tempfile
-import time
+from contextlib import ExitStack
 from pathlib import Path
 
 from driver import Driver
-from fixtures import Fixtures, same_source_path
+from fixtures import Fixtures, same_source_path, unavailable_observation
 from screenshots import Screenshots
 
 
@@ -46,7 +46,7 @@ def run(cli, panel, output, goldens, configuration, mode):
                     configuration["clock_ms"],
                     case["windows_browser_arguments"],
                 )
-                paused = None
+                faults = ExitStack()
                 try:
                     driver.start(
                         status="live" if case.get("after_live") else case["status"],
@@ -56,17 +56,8 @@ def run(cli, panel, output, goldens, configuration, mode):
                         decorations=case["decorations"],
                     )
                     if case.get("after_live"):
-                        assert case["after_live"] == "database-unavailable"
-                        fixtures.call(["daemon", "stop"], observed)
-                        paused = home / "paused.db"
-                        deadline = time.monotonic() + 10
-                        while True:
-                            try:
-                                observed.rename(paused)
-                                break
-                            except PermissionError:
-                                assert time.monotonic() < deadline
-                                time.sleep(0.02)
+                        assert case["after_live"] == "queue-storage-unavailable"
+                        faults.enter_context(unavailable_observation(observed))
                         driver.wait(
                             "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='stale';"
                         )
@@ -122,8 +113,7 @@ def run(cli, panel, output, goldens, configuration, mode):
                         )
                     images.append(screenshots.capture(driver, case, repetition))
                 finally:
-                    if paused and paused.exists():
-                        paused.rename(observed)
+                    faults.close()
                     if driver.process and driver.process.poll() is None:
                         driver.stop()
                     if driver.log:

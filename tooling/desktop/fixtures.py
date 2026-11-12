@@ -2,8 +2,10 @@
 
 import json
 import os
+import sqlite3
 import subprocess
 import time
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 
@@ -57,6 +59,19 @@ def same_source_path(actual, expected):
         return os.path.normcase(value)
 
     return normalized(actual) == normalized(expected)
+
+
+@contextmanager
+def unavailable_observation(database):
+    with closing(sqlite3.connect(database, timeout=10)) as connection, connection:
+        connection.execute("ALTER TABLE topics RENAME TO anyq_test_unavailable_topics")
+    try:
+        yield
+    finally:
+        with closing(sqlite3.connect(database, timeout=10)) as connection, connection:
+            connection.execute(
+                "ALTER TABLE anyq_test_unavailable_topics RENAME TO topics"
+            )
 
 
 class Fixtures:

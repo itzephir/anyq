@@ -41,6 +41,10 @@ scroll positions across real CLI updates, and compact-topic navigation out of
 settings without saving the abandoned draft. The `main-dark-en` screenshot is
 reached through that settings-to-compact navigation before comparing its existing
 reviewed PNG, rather than selecting the topic directly.
+The stale fixture temporarily renames the isolated queue's topics table and
+restores it after the real owner reports a read failure. It preserves task data
+and source identity, works with Windows SQLite sharing, and retains the existing
+reviewed stale-state PNG. It does not replace the owner or its observation adapter.
 
 The canonical-alias scenario retargets a Unix directory symlink or Windows
 junction between two configured databases with the same task sequence, checking

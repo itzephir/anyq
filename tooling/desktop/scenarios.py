@@ -8,7 +8,12 @@ from contextlib import closing
 from pathlib import Path
 
 from driver import Driver
-from fixtures import Fixtures, directory_alias, same_source_path
+from fixtures import (
+    Fixtures,
+    directory_alias,
+    same_source_path,
+    unavailable_observation,
+)
 from screenshots import platform_name
 
 
@@ -220,23 +225,11 @@ def run(cli, panel, home, output, configuration):
         assert compact_alias["snapshot"] == after_alias["snapshot"]
         assert "running" in call("daemon", "status", db=alias_primary)
         source(None)
-        # Observe a genuine source failure after a successful snapshot.
-        paused = home / "paused.db"
-        deadline = time.monotonic() + 10
-        while True:
-            try:
-                database.rename(paused)
-                break
-            except PermissionError:
-                assert time.monotonic() < deadline
-                time.sleep(0.05)
-        try:
+        with unavailable_observation(database):
             driver.wait(
                 "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='stale';"
             )
             assert driver.state()["snapshot"]["running"] == 2
-        finally:
-            paused.rename(database)
         driver.wait(
             "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='live';"
         )

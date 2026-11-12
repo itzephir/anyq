@@ -575,7 +575,7 @@
     {
       "id": "stale-dark-en",
       "status": "stale",
-      "after_live": "database-unavailable"
+      "after_live": "queue-storage-unavailable"
     },
     {
       "id": "narrow-dark-en",
