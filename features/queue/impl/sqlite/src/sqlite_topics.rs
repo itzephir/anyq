@@ -1,7 +1,9 @@
 use crate::checkpoint::checkpoint;
+use crate::restore_metadata::restore_metadata;
 use crate::storage_error::storage;
 use anyq_queue_api::{Error, Result, Topic};
 use anyq_queue_dispatch::ports::TopicRecords;
+use anyq_queue_metadata::to_json;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::atomic::AtomicBool;
 
@@ -10,36 +12,40 @@ pub(crate) struct SqliteTopics<'a> {
     pub cancelled: &'a AtomicBool,
 }
 
-fn restore_topic((name, capacity, autostart): (String, u32, Option<bool>)) -> Result<Topic> {
-    Topic::restore(name, capacity)
-        .map(|mut topic| {
-            topic.autostart = autostart;
-            topic
-        })
-        .map_err(|error| Error::Storage(error.to_string()))
+fn restore_topic(
+    (name, capacity, autostart, metadata): (String, u32, Option<bool>, String),
+) -> Result<Topic> {
+    let mut topic =
+        Topic::restore(name, capacity).map_err(|error| Error::Storage(error.to_string()))?;
+    topic.autostart = autostart;
+    topic.metadata = restore_metadata(&metadata)?;
+
+    Ok(topic)
 }
 
 impl TopicRecords for SqliteTopics<'_> {
     fn topics(&mut self) -> Result<Vec<Topic>> {
         let mut s = self
             .connection
-            .prepare("SELECT name, capacity, autostart FROM topics ORDER BY name")
+            .prepare("SELECT name, capacity, autostart, metadata FROM topics ORDER BY name")
             .map_err(storage)?;
-        s.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-            .map_err(storage)?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(storage)?
-            .into_iter()
-            .map(restore_topic)
-            .collect()
+        s.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .map_err(storage)?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(storage)?
+        .into_iter()
+        .map(restore_topic)
+        .collect()
     }
 
     fn topic(&mut self, name: &str) -> Result<Option<Topic>> {
         self.connection
             .query_row(
-                "SELECT name, capacity, autostart FROM topics WHERE name=?1",
+                "SELECT name, capacity, autostart, metadata FROM topics WHERE name=?1",
                 [name],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()
             .map_err(storage)?
@@ -53,9 +59,9 @@ impl TopicRecords for SqliteTopics<'_> {
 
         self.connection
             .execute(
-                "INSERT INTO topics(name, capacity, autostart) VALUES (?1,?2,?3)
-                 ON CONFLICT(name) DO UPDATE SET capacity=excluded.capacity, autostart=excluded.autostart",
-                params![topic.name, topic.capacity, topic.autostart],
+                "INSERT INTO topics(name, capacity, autostart, metadata) VALUES (?1,?2,?3,?4)
+                 ON CONFLICT(name) DO UPDATE SET capacity=excluded.capacity, autostart=excluded.autostart, metadata=excluded.metadata",
+                params![topic.name, topic.capacity, topic.autostart, to_json(t.metadata.value())?],
             )
             .map_err(storage)?;
 

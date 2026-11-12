@@ -74,6 +74,10 @@ jobs:
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
+      - run: python examples/metadata.py
+      - run: python examples/plugins.py
+      - run: python examples/timeout.py
+      - run: python examples/shell.py
   distribution:
     uses: ./.github/workflows/distribution.yml
   website:

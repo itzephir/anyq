@@ -28,8 +28,9 @@ language selection. Website language support remains a separate concern.
 
 The planning PR contains all five proposals, delta specifications, designs, and
 unchecked implementation tasks. Each implementation gets its own subsequent PR,
-in the order above. Before prerequisites merge, PRs may be stacked against their
-predecessor. Opening a PR does not authorize merging it. Completed behavior is
+in the order above. Implementation PRs must form a stack: each PR targets its
+immediate predecessor's branch. Retarget a successor after its predecessor merges,
+updating it without rewriting published history. Opening a PR does not authorize merging it. Completed behavior is
 synced into baseline specifications only after verification; unfinished stages
 remain changes. Changes are archived after their implementation is merged.
 

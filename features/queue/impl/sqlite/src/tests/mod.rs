@@ -27,6 +27,7 @@ fn topic(store: &Sqlite, name: &str, capacity: u32) {
 fn register(store: &Sqlite, name: &str) {
     RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            metadata: Default::default(),
             start: anyq_queue_api::StartPreference::Default,
             name: name.into(),
             topics: Vec::new(),
@@ -76,6 +77,7 @@ fn canonical_names_survive_reopening_without_parsing_backticks_twice() {
     topic(&store, "``resource``", 1);
     RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            metadata: Default::default(),
             start: anyq_queue_api::StartPreference::Default,
             name: "``job``".into(),
             topics: vec!["``resource``".into()],
@@ -119,6 +121,7 @@ fn topic_storage_validates_capacity_and_preserves_canonical_keyword_names() {
 
     let result = store.clone().transaction(|records| {
         records.topics().put_topic(&Topic {
+            metadata: Default::default(),
             name: "cpu".into(),
             capacity: 0,
             autostart: None,
@@ -209,6 +212,7 @@ fn failed_initial_membership_rolls_back_registration_and_all_links() {
         )
         .unwrap();
     let request = RegisterTaskRequest {
+        metadata: Default::default(),
         start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["cpu".into(), "repo".into()],
@@ -291,6 +295,7 @@ fn every_lifecycle_state_and_global_order_survive_reopening() {
     assert!(
         RegisterTaskInteractor::new(reopened.clone())
             .register(RegisterTaskRequest {
+                metadata: Default::default(),
                 start: anyq_queue_api::StartPreference::Default,
                 name: "done".into(),
                 topics: Vec::new()
@@ -438,7 +443,7 @@ fn transaction_failure_rolls_back_prior_writes_and_ownership() {
 
 #[test]
 fn incompatible_databases_are_rejected_without_changing_their_bytes() {
-    for version in [0, 1, 4] {
+    for version in [0, 1, 7] {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("incompatible.db");
         let connection = Connection::open(&path).unwrap();
@@ -780,7 +785,7 @@ fn schema_v2_upgrade_preserves_states_order_memberships_and_ownership() {
         .borrow()
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 6);
 
     complete(&store, "owner", false);
 
@@ -799,4 +804,11 @@ fn read_only_running_check_never_admits_a_legacy_queued_task_on_a_free_resource(
     assert_eq!(task(&store, "legacy").state(), TaskState::Queued);
     assert_eq!(usage(&store, "cpu"), 0);
 }
+mod metadata;
+
+mod events;
+
+mod managed;
+
 mod observation;
+mod runtime;

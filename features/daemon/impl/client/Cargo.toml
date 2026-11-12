@@ -9,6 +9,7 @@ license.workspace = true
 integration-test-hooks = ["anyq-daemon-api/integration-test-hooks"]
 
 [dependencies]
+anyq-plugin-api = { path = "../../../plugins/api" }
 anyq-daemon-api = { path = "../../api" }
 anyq-daemon-transport = { path = "../transport" }
 anyq-queue-api = { path = "../../../queue/api" }

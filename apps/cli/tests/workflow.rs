@@ -1,5 +1,8 @@
 mod support;
 
+#[path = "support/metadata.rs"]
+mod metadata;
+
 #[path = "support/config_regressions.rs"]
 mod config_regressions;
 
@@ -820,7 +823,7 @@ fn incompatible_database_returns_a_clear_error_without_modifying_it() {
     let connection = Connection::open(&q.db).unwrap();
     connection
         .execute_batch(
-            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=4",
+            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=7",
         )
         .unwrap();
     drop(connection);
@@ -902,3 +905,19 @@ fn unix_default_uses_xdg_then_home_without_touching_real_user_data() {
 }
 #[path = "support/daemon.rs"]
 mod daemon;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/plugins.rs"]
+mod plugins;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/timeout.rs"]
+mod timeout;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/shell.rs"]
+mod shell;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/runtime_bootstrap.rs"]
+mod runtime_bootstrap;

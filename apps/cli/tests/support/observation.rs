@@ -129,6 +129,7 @@ fn real_owner_observation_is_current_consistent_and_cannot_mutate_even_with_auto
                 name: "forbidden".into(),
                 capacity: 1,
                 autostart: None,
+                metadata: anyq_queue_api::Metadata::default().into(),
             },
         },
     );
@@ -262,9 +263,6 @@ fn known_extended_schemas_are_observed_without_loading_metadata_or_migrating() {
     queue.call(&["daemon", "stop"]);
     let metadata = format!("{{\"payload\":\"{}\"}}", "x".repeat(512_000));
     let mut connection = rusqlite::Connection::open(&queue.db).unwrap();
-    connection
-        .execute_batch("ALTER TABLE tasks ADD COLUMN metadata TEXT; ALTER TABLE topics ADD COLUMN metadata TEXT")
-        .unwrap();
     let transaction = connection.transaction().unwrap();
     for index in 0..40 {
         transaction

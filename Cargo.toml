@@ -1,9 +1,16 @@
 [workspace]
 resolver = "3"
 members = [
+  "features/shell/api",
+  "features/shell/impl/runtime",
+  "features/shell/impl/process",
+  "features/timeout/api",
+  "features/timeout/impl/protocol",
   "features/queue/api",
+  "features/queue/api/wire",
   "features/queue/impl/dispatch",
   "features/queue/impl/sqlite",
+  "features/queue/impl/metadata",
   "features/queue/impl/composition",
   "features/config/api",
   "features/config/impl/dispatch",
@@ -14,6 +21,13 @@ members = [
   "features/daemon/impl/client",
   "features/daemon/impl/runtime",
   "features/daemon/impl/composition",
+  "features/plugins/api",
+  "features/plugins/api/wire",
+  "features/plugins/impl/dispatch",
+  "features/plugins/impl/sqlite",
+  "features/plugins/impl/process",
+  "features/plugins/impl/runtime",
+  "features/plugins/impl/composition",
   "apps/cli",
   "tooling/architecture-lint",
   "tooling/integration-test-hooks"

@@ -2,11 +2,20 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum TaskCommand {
+    #[command(about = "Show metadata, read KEY, set KEY VALUE, or --unset KEY")]
+    Meta(super::metadata_args::MetadataArgs),
+    #[command(about = "Replace metadata from a local JSON, YAML or TOML file")]
+    Metafile {
+        name: String,
+        file: std::path::PathBuf,
+    },
     #[command(about = "List all task names")]
     List,
     #[command(about = "Register a task, optionally linked to existing topics")]
     Create {
         name: String,
+        #[command(flatten)]
+        metadata: super::metadata_creation_args::MetadataCreationArgs,
         #[arg(short = 't', long = "topic", value_name = "TOPIC")]
         topics: Vec<String>,
         #[arg(long, conflicts_with_all = ["stop", "switch_start"])]

@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Atomic registration with topics
-`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction, with automatic admission after saving all links. The flag SHALL allow repetition for several topics; duplicate links SHALL be idempotent. A result with topics SHALL be running when automatic admission is enabled and full admission is available, otherwise queued. Creation-time metadata SHALL be saved with registration and links before admission. Validation or persistence errors SHALL leave neither a task nor partial links or metadata.
+`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction, with automatic admission after saving all links. The flag SHALL allow repetition for several topics; duplicate links SHALL be idempotent. A result with topics SHALL be running when automatic admission is enabled and full admission is available, otherwise queued. Validation or persistence errors SHALL leave neither a task nor partial links or metadata.
 
 #### Scenario: Several initial topics
 - **WHEN** task create my-task --topic cpu -t repo -t cpu is called
@@ -12,6 +12,10 @@
 #### Scenario: Unknown initial topic
 - **WHEN** at least one topic specified at registration is absent and topic.autocreate is off
 - **THEN** the command returns an error without saving the new task name or links
+
+#### Scenario: Metadata before first admission
+- **WHEN** creation supplies metadata and initial topics
+- **THEN** metadata, registration and all links are saved in the same transaction before automatic admission
 
 ### Requirement: Domain naming for tasks and topics
 The shared domain policy SHALL require an ASCII Latin initial for bare names and allow any tail. Bare list/create/capacity/link/add/start/autostart/wait/complete/meta/metafile/config/help SHALL be forbidden. One literal outer pair of backticks SHALL allow any content, including empty strings, commands, and leading hyphens, and be removed exactly once. CLI and SQL SHALL NOT duplicate these rules.

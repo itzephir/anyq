@@ -2,6 +2,14 @@ use crate::*;
 
 /// Passive composition handles. Every consumer receives a focused use-case contract.
 pub struct QueueServices {
+    pub get_task_metadata: Box<dyn GetTaskMetadata>,
+    pub set_task_metadata: Box<dyn SetTaskMetadata>,
+    pub unset_task_metadata: Box<dyn UnsetTaskMetadata>,
+    pub replace_task_metadata: Box<dyn ReplaceTaskMetadata>,
+    pub get_topic_metadata: Box<dyn GetTopicMetadata>,
+    pub set_topic_metadata: Box<dyn SetTopicMetadata>,
+    pub unset_topic_metadata: Box<dyn UnsetTopicMetadata>,
+    pub replace_topic_metadata: Box<dyn ReplaceTopicMetadata>,
     pub create_topic: Box<dyn CreateTopic>,
     pub set_topic_capacity: Box<dyn SetTopicCapacity>,
     pub list_topics: Box<dyn ListTopics>,

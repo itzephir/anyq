@@ -31,7 +31,22 @@ pub fn open_with_options(
 ) -> Result<QueueModule> {
     let store = Sqlite::open_with_cancellation(path, cancelled)?;
 
-    Ok(QueueModule {
+    Ok(compose(store, policy))
+}
+
+pub fn compose(store: Sqlite, policy: QueuePolicy) -> QueueModule {
+    QueueModule {
+        get_task_metadata: Box::new(GetTaskMetadataInteractor::new(store.clone(), policy)),
+        set_task_metadata: Box::new(SetTaskMetadataInteractor::new(store.clone(), policy)),
+        unset_task_metadata: Box::new(UnsetTaskMetadataInteractor::new(store.clone(), policy)),
+        replace_task_metadata: Box::new(ReplaceTaskMetadataInteractor::new(store.clone(), policy)),
+        get_topic_metadata: Box::new(GetTopicMetadataInteractor::new(store.clone(), policy)),
+        set_topic_metadata: Box::new(SetTopicMetadataInteractor::new(store.clone(), policy)),
+        unset_topic_metadata: Box::new(UnsetTopicMetadataInteractor::new(store.clone(), policy)),
+        replace_topic_metadata: Box::new(ReplaceTopicMetadataInteractor::new(
+            store.clone(),
+            policy,
+        )),
         create_topic: Box::new(CreateTopicInteractor::new(store.clone())),
         set_topic_capacity: Box::new(SetTopicCapacityInteractor::with_policy(
             store.clone(),
@@ -71,5 +86,17 @@ pub fn open_with_options(
             policy.autocreate,
         )),
         complete_task: Box::new(CompleteTaskInteractor::with_options(store, policy)),
-    })
+    }
+}
+
+pub fn work_services(store: Sqlite) -> anyq_queue_api::WorkServices {
+    anyq_queue_api::WorkServices {
+        cancel: Box::new(CancelManagedWorkInteractor::new(store.clone())),
+        complete_once: Box::new(CompleteTaskOnceInteractor::new(store.clone())),
+        begin_completion: Box::new(BeginCompletionInteractor::new(store.clone())),
+        register: Box::new(RegisterManagedWorkInteractor::new(store.clone())),
+        report: Box::new(ReportManagedWorkInteractor::new(store.clone())),
+        list: Box::new(ListManagedWorkInteractor::new(store.clone())),
+        resolve: Box::new(ResolveManagedWorkInteractor::new(store)),
+    }
 }

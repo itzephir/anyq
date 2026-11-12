@@ -1,0 +1,18 @@
+[package]
+name = "anyq-shell-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+integration-test-hooks = []
+
+[dependencies]
+anyq-shell-api = { path = "../../api" }
+anyq-queue-api = { path = "../../../queue/api" }
+anyq-queue-wire = { path = "../../../queue/api/wire" }
+anyq-plugin-wire = { path = "../../../plugins/api/wire" }
+
+[lints]
+workspace = true

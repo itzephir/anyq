@@ -18,7 +18,7 @@ A durable local admission queue coordinates named tasks belonging to people, age
 - **THEN** CLI returns an error and preserves the original task unchanged
 
 ### Requirement: Atomic registration with topics
-`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction, with automatic admission after saving all links. The flag SHALL allow repetition for several topics; duplicate links SHALL be idempotent. A result with topics SHALL be running when automatic admission is enabled and full admission is available, otherwise queued. Validation or persistence errors SHALL leave neither a task nor partial links.
+`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction, with automatic admission after saving all links. The flag SHALL allow repetition for several topics; duplicate links SHALL be idempotent. A result with topics SHALL be running when automatic admission is enabled and full admission is available, otherwise queued. Validation or persistence errors SHALL leave neither a task nor partial links or metadata.
 
 #### Scenario: Several initial topics
 - **WHEN** task create my-task --topic cpu -t repo -t cpu is called
@@ -27,6 +27,10 @@ A durable local admission queue coordinates named tasks belonging to people, age
 #### Scenario: Unknown initial topic
 - **WHEN** at least one topic specified at registration is absent and topic.autocreate is off
 - **THEN** the command returns an error without saving the new task name or links
+
+#### Scenario: Metadata before first admission
+- **WHEN** creation supplies metadata and initial topics
+- **THEN** metadata, registration and all links are saved in the same transaction before automatic admission
 
 ### Requirement: Topics as bounded resources
 A topic SHALL have a unique name and positive capacity, defaulting to one slot. `anyq topic list`, `anyq topic --list`, and `anyq topic -l` SHALL list topic names. `topic create TOPIC [--capacity N]` SHALL support short flag `-c N`. Capacity SHALL be changed through `topic capacity TOPIC N` with a positional number; reducing it below the number of running tasks SHALL be rejected.
@@ -61,7 +65,7 @@ A topic SHALL have a unique name and positive capacity, defaulting to one slot. 
 - **THEN** the lookup shows only running and queued in registration order, preserving their states and ownership
 
 ### Requirement: Domain naming for tasks and topics
-The shared domain policy SHALL require an ASCII Latin initial for bare names and allow any tail. Bare list/create/capacity/link/add/start/autostart/wait/complete/config/help SHALL be forbidden. One literal outer pair of backticks SHALL allow any content, including empty strings, commands, and leading hyphens, and be removed exactly once. CLI and SQL SHALL NOT duplicate these rules.
+The shared domain policy SHALL require an ASCII Latin initial for bare names and allow any tail. Bare list/create/capacity/link/add/start/autostart/wait/complete/meta/metafile/config/help SHALL be forbidden. One literal outer pair of backticks SHALL allow any content, including empty strings, commands, and leading hyphens, and be removed exactly once. CLI and SQL SHALL NOT duplicate these rules.
 
 #### Scenario: Invalid bare name
 - **WHEN** Topic or Task is created with bare create, --cpu, or a non-Latin initial
@@ -70,6 +74,10 @@ The shared domain policy SHALL require an ASCII Latin initial for bare names and
 #### Scenario: Arbitrary quoted name
 - **WHEN** the entire name is wrapped in literal backticks
 - **THEN** any inner characters, commands, and empty content are allowed
+
+#### Scenario: Previously valid command-like name
+- **WHEN** an existing canonical name is meta or metafile
+- **THEN** its backtick-quoted spelling still addresses it and restore does not reinterpret its identity
 
 ### Requirement: Canonical name identity
 Bare build and backtick-wrapped build SHALL identify one entity. Persistence and restore SHALL use canonical strings without stripping backticks again. Display SHALL return a reversible spelling. Shell escaping of spaces SHALL NOT restrict the allowed name tail; inner backslashes SHALL remain literal.
@@ -168,14 +176,14 @@ Queued order across all of a task's topics SHALL be determined by one monotonic 
 - **THEN** A precedes B in both queues and no mutual partial acquisition occurs
 
 ### Requirement: Persistent ownership until completion
-A running task SHALL hold one slot from every attached topic until explicit complete. Returning from wait, caller exit or crash, CLI restart, and elapsed time SHALL NOT release ownership.
+A running task SHALL hold one slot from every attached topic until an explicit completion request from a caller or an enabled plugin. A metadata-driven timeout SHALL act only through such a validated request; absent that policy, elapsed time SHALL NOT change ownership. Returning from wait, caller exit or crash, CLI restart, and elapsed time without an enabled timeout policy SHALL NOT release ownership.
 
 #### Scenario: Wait process exited
 - **WHEN** wait successfully returned admission and its process exited
 - **THEN** the task remains running and holds all its slots
 
 #### Scenario: External work crashed
-- **WHEN** the caller process dies after admission
+- **WHEN** the caller process dies after admission without an enabled timeout policy
 - **THEN** slots remain acquired until explicit task completion
 
 ### Requirement: Ordinary completion of a running task
@@ -212,7 +220,7 @@ Names, topic links, order, and states SHALL survive opening the database in a ne
 - **THEN** the operation fails and recommends a separate database, original bytes are preserved, and journal files are not created
 
 ### Requirement: Native coordination interface
-Task and topic commands SHALL work natively through the local background queue daemon. The caller SHALL remain responsible for external work. Successful operations SHALL return 0 with a clear message; state and input errors SHALL return nonzero.
+Task and topic commands SHALL work natively through the local background queue daemon. The caller SHALL remain responsible for external work unless it explicitly enables plugin-managed execution through task metadata. Optional shell execution SHALL belong to the plugin, not queue domain or admission use cases. Successful operations SHALL return 0 with a clear message; state and input errors SHALL return nonzero.
 
 #### Scenario: External build
 - **WHEN** the caller registers a task, links it to topics, obtains wait, performs a build, and calls complete
@@ -323,8 +331,25 @@ Create SHALL accept mutually exclusive --start, --stop, and -s. Stop SHALL persi
 - **THEN** the task obtains all slots and then completes; resources are released or passed to eligible successors
 
 ### Requirement: Supported schema upgrade
-A version 2 database SHALL upgrade to 3 atomically, preserving names, registration, links, states, and ownership. Existing tasks SHALL receive default autostart=true and stopped=false; topics SHALL inherit the default. Database open SHALL NOT perform admission. Interruption before commit SHALL preserve the previous schema, and afterward the complete new schema.
+Versions 2/3/4/5 SHALL upgrade to schema 6 atomically, preserving names, registration, links, states, metadata and ownership. Queue events, receipts, managed work and plugin storage SHALL share one schema transaction, without admission or historical running events. Versions 2/3 SHALL receive empty metadata; version 2 SHALL receive task autostart=true/stopped=false with inheriting topics. Interruption SHALL leave the old schema before commit or the complete new schema afterward.
+
 
 #### Scenario: Existing ownership
 - **WHEN** a version 2 database with a running owner and queued successor is opened
 - **THEN** after upgrade the owner holds the same slots, and the successor remains queued until the owner's explicit complete
+
+#### Scenario: Existing schema 3
+- **WHEN** a schema 3 database with running and queued tasks is upgraded
+- **THEN** metadata defaults to empty objects and all states, order and ownership survive
+
+#### Scenario: Metadata schema with active ownership
+- **WHEN** a schema 4 database containing running tasks and metadata is upgraded
+- **THEN** schema 6 preserves the metadata and all ownership without synthetic running events
+
+#### Scenario: Interrupted feature migration
+- **WHEN** initialization fails or is interrupted before schema commit
+- **THEN** outbox, receipts, managed work and plugin storage are all rolled back with the queue schema
+
+#### Scenario: Existing managed receipts
+- **WHEN** schema 5 contains managed actions and active owners
+- **THEN** schema 6 adds empty bounded execution details atomically while preserving action identities, states, ownership and completion receipts

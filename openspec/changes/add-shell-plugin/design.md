@@ -94,3 +94,18 @@ the absolute no-execution documentation only with this implemented opt-in path.
 Run native descendant cancellation, timeout, disable, owner/plugin crash and
 autocomplete tests before declaring the stage complete. Disable does not delete
 history or permit an unconfirmed worker to release resources.
+
+## Implemented boundaries
+
+The shell API validates task-only plans; protocol runtime consumes injected native
+process ports. The CLI root assembles the three shell crates. Schema 6 adds bounded
+per-action metadata details through existing managed capabilities, inside the queue
+upgrade transaction. Daemon protocol 5 and plugin protocol 2 carry those details.
+Unix reserves group identity with a private live anchor outside the target group
+and requires the kernel empty-group result; Windows uses a
+suspended windows-spawn child, kill-on-close job, retained root handle and separate win32job member query.
+Both pipe drains and native termination must be confirmed before stopped reports.
+
+Managed-action recovery reads one bounded details record per protocol response.
+Queue-owned filters select exact action IDs and blocking states before SQL IO;
+completed history is not repeatedly loaded during cancellation or retention checks.

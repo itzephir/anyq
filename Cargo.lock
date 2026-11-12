@@ -62,7 +62,15 @@ dependencies = [
  "anyq-daemon-impl",
  "anyq-daemon-transport",
  "anyq-integration-test-hooks",
+ "anyq-plugin-api",
+ "anyq-plugin-wire",
  "anyq-queue-api",
+ "anyq-queue-metadata",
+ "anyq-queue-wire",
+ "anyq-shell-process",
+ "anyq-shell-runtime",
+ "anyq-timeout-api",
+ "anyq-timeout-impl",
  "clap",
  "ctrlc",
  "rusqlite",
@@ -113,7 +121,10 @@ dependencies = [
 name = "anyq-daemon-api"
 version = "0.1.1"
 dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-wire",
  "anyq-queue-api",
+ "anyq-queue-wire",
  "serde",
 ]
 
@@ -123,6 +134,7 @@ version = "0.1.1"
 dependencies = [
  "anyq-daemon-api",
  "anyq-daemon-transport",
+ "anyq-plugin-api",
  "anyq-queue-api",
  "windows-spawn",
 ]
@@ -135,8 +147,14 @@ dependencies = [
  "anyq-daemon-client",
  "anyq-daemon-runtime",
  "anyq-daemon-transport",
+ "anyq-plugin-api",
+ "anyq-plugin-impl",
+ "anyq-plugin-runtime",
+ "anyq-plugin-wire",
  "anyq-queue-api",
+ "anyq-queue-dispatch",
  "anyq-queue-impl",
+ "anyq-queue-sqlite",
 ]
 
 [[package]]
@@ -146,6 +164,7 @@ dependencies = [
  "anyq-daemon-api",
  "anyq-daemon-transport",
  "anyq-integration-test-hooks",
+ "anyq-plugin-api",
  "anyq-queue-api",
 ]
 
@@ -154,6 +173,7 @@ name = "anyq-daemon-transport"
 version = "0.1.1"
 dependencies = [
  "anyq-daemon-api",
+ "anyq-queue-api",
  "fs2",
  "interprocess",
  "rustix",
@@ -169,6 +189,81 @@ dependencies = [
 [[package]]
 name = "anyq-integration-test-hooks"
 version = "0.1.1"
+
+[[package]]
+name = "anyq-plugin-api"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-plugin-dispatch"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-plugin-impl"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-plugin-process",
+ "anyq-plugin-runtime",
+ "anyq-plugin-sqlite",
+ "anyq-queue-api",
+ "rusqlite",
+]
+
+[[package]]
+name = "anyq-plugin-process"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-runtime",
+ "anyq-queue-api",
+ "tokio",
+]
+
+[[package]]
+name = "anyq-plugin-runtime"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+]
+
+[[package]]
+name = "anyq-plugin-sqlite"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "anyq-plugin-wire"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "anyq-queue-api"
@@ -191,15 +286,90 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyq-queue-metadata"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+ "serde",
+ "serde_json",
+ "toml_edit",
+ "yaml-rust2",
+]
+
+[[package]]
 name = "anyq-queue-sqlite"
 version = "0.1.1"
 dependencies = [
  "anyq-integration-test-hooks",
  "anyq-queue-api",
  "anyq-queue-dispatch",
+ "anyq-queue-metadata",
+ "anyq-queue-wire",
  "rusqlite",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
+
+[[package]]
+name = "anyq-queue-wire"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+ "serde",
+]
+
+[[package]]
+name = "anyq-shell-api"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-shell-process"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+ "anyq-shell-api",
+ "anyq-shell-runtime",
+ "rustix",
+ "win32job",
+ "windows-spawn",
+]
+
+[[package]]
+name = "anyq-shell-runtime"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "anyq-shell-api",
+]
+
+[[package]]
+name = "anyq-timeout-api"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-timeout-impl"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-wire",
+ "anyq-queue-api",
+ "anyq-queue-wire",
+ "anyq-timeout-api",
+]
+
+[[package]]
+name = "arraydeque"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
 
 [[package]]
 name = "bitflags"
@@ -466,6 +636,9 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "foldhash",
+]
 
 [[package]]
 name = "hashlink"
@@ -474,6 +647,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
 dependencies = [
  "hashbrown 0.16.1",
+]
+
+[[package]]
+name = "hashlink"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb"
+dependencies = [
+ "hashbrown 0.17.1",
 ]
 
 [[package]]
@@ -657,7 +839,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c"
 dependencies = [
  "hashbrown 0.16.1",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -669,7 +851,7 @@ dependencies = [
  "bitflags 2.13.2",
  "fallible-iterator",
  "fallible-streaming-iterator",
- "hashlink",
+ "hashlink 0.11.1",
  "libsqlite3-sys",
  "smallvec",
  "sqlite-wasm-rs",
@@ -764,6 +946,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -834,11 +1026,31 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.21",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -862,6 +1074,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys",
@@ -887,7 +1100,7 @@ dependencies = [
  "indexmap",
  "serde_core",
  "serde_spanned",
- "toml_datetime",
+ "toml_datetime 0.7.5+spec-1.1.0",
  "toml_parser",
  "toml_writer",
  "winnow 0.7.15",
@@ -900,6 +1113,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "1.1.3+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "173f25c883cd2176a2d8212155638c0a60d484a9d84546d270866f40f56b6e49"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.25.19+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd43688c4858d7264ae1cf9a9f874a67c3feb74a883b1cd7bebd6a4ea8307218"
+dependencies = [
+ "indexmap",
+ "toml_datetime 1.1.3+spec-1.1.0",
+ "toml_parser",
+ "toml_writer",
+ "winnow 1.0.5",
 ]
 
 [[package]]
@@ -1004,6 +1239,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72069c3113ab32ab29e5584db3c6ec55d416895e60715417b5b883a357c3e471"
 
 [[package]]
+name = "win32job"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c6a6724ccfbf34154a8691bd868b0fcd2be2ca3f7b47b32614654f1a01b191c"
+dependencies = [
+ "thiserror 1.0.69",
+ "windows",
+]
+
+[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1026,10 +1271,94 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
+name = "windows"
+version = "0.61.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
+dependencies = [
+ "windows-collections",
+ "windows-core",
+ "windows-future",
+ "windows-link 0.1.3",
+ "windows-numerics",
+]
+
+[[package]]
+name = "windows-collections"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8"
+dependencies = [
+ "windows-core",
+]
+
+[[package]]
+name = "windows-core"
+version = "0.61.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
+dependencies = [
+ "windows-implement",
+ "windows-interface",
+ "windows-link 0.1.3",
+ "windows-result",
+ "windows-strings",
+]
+
+[[package]]
+name = "windows-future"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
+dependencies = [
+ "windows-core",
+ "windows-link 0.1.3",
+ "windows-threading",
+]
+
+[[package]]
+name = "windows-implement"
+version = "0.60.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "windows-interface"
+version = "0.59.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "windows-link"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
+
+[[package]]
 name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-numerics"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
+dependencies = [
+ "windows-core",
+ "windows-link 0.1.3",
+]
 
 [[package]]
 name = "windows-permissions"
@@ -1042,6 +1371,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "windows-result"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
+dependencies = [
+ "windows-link 0.1.3",
+]
+
+[[package]]
 name = "windows-spawn"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,12 +1389,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "windows-strings"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
+dependencies = [
+ "windows-link 0.1.3",
+]
+
+[[package]]
 name = "windows-sys"
 version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
- "windows-link",
+ "windows-link 0.2.1",
+]
+
+[[package]]
+name = "windows-threading"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6"
+dependencies = [
+ "windows-link 0.1.3",
 ]
 
 [[package]]
@@ -1070,6 +1426,19 @@ name = "winnow"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3b93199df0ab874cdf0c6a94f0a0dc3423fe41f1cafb62b8bd7b1deb277aef"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "yaml-rust2"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e5b818a27a4cd30884ea380857a5e56f7ec3ba24a3990a3cc0b95af3238e18"
+dependencies = [
+ "arraydeque",
+ "hashlink 0.12.2",
+]
 
 [[package]]
 name = "zmij"

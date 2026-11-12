@@ -1,6 +1,6 @@
 # Ctrl+C and persistence boundaries
 
-The first Ctrl+C requests cancellation; CLI reaches the current safe boundary and returns 130. A committed stage is not undone. An open transaction rolls back completely. External work is outside anyq's ownership; a CLI signal does not prove that work has stopped.
+The first Ctrl+C requests cancellation; CLI reaches the current safe boundary and returns 130. A committed stage is not undone. An open transaction rolls back completely. Caller-managed external work is outside anyq's ownership; a CLI signal does not prove that work has stopped.
 
 Queue operations execute inside a daemon session with its own cancellation token.
 Client Ctrl+C sends a cancellation message and waits briefly for the owner to
@@ -53,7 +53,7 @@ A second Ctrl+C forcibly terminates the process. SQLite rolls back unfinished tr
 
 apps/cli/tests/interruptions.rs launches the real CLI, holds it at a selected checkpoint, and sends a real signal: SIGINT on Unix, CTRL_C_EVENT in a separate console on Windows. It then checks exit 130, durable states, slots, file integrity, lock release, and a successful subsequent operation. SQLite/file lock waits are tested with an independent process actually holding the lock.
 
-The suite covers boundaries and intermediate writes, including all three create -twc commits, command variants, autocreate, and config set/unset/read. It checks observable boundaries rather than every machine instruction. Feature-only gate context is carried with Open and scoped to one daemon worker; hit counts survive chain requests in that session without mutating process-global environment. Additional tests send real native signals to the foreground owner at both sides of a commit, and forcibly kill an owner after commit to verify response-loss uncertainty without replay.
+The suite covers boundaries and intermediate writes, including all three create -twc commits, command variants, autocreate, and config set/unset/read. Metadata cases cover schema-2/3 upgrades, atomic creation with metadata and automatically created topics, and task/topic patches before and after commit. They verify that metadata, links and ownership are either wholly committed or rolled back. It checks observable boundaries rather than every machine instruction. Feature-only gate context is carried with Open and scoped to one daemon worker; hit counts survive chain requests in that session without mutating process-global environment. Additional tests send real native signals to the foreground owner at both sides of a commit, and forcibly kill an owner after commit to verify response-loss uncertainty without replay.
 
 Separate tests produce output larger than pipe capacity, wait for the first byte, and send one real signal. Remaining data is read only after CLI exits, so the test cannot accidentally drain the pipe and hide a hang. Checks cover stdout and stderr, running/config persistence, and successful subsequent operations. Successful large-output reads and consumer-closed pipes are tested in the workflow suite.
 
@@ -62,3 +62,14 @@ cargo test --locked -p anyq --test interruptions --features integration-test-hoo
 ```
 
 Checkpoints are built only with integration-test-hooks. ANYQ_TEST_CHECKPOINT variables have no effect in a normal build. CI on all three operating systems explicitly enables the required native suite; omitting the feature does not replace running it.
+
+## Optional managed execution
+
+Enabled shell work has a durable launch intent before spawn. Manual/timeout
+completion, disable and owner shutdown request cancellation and retain slots until
+all managed descendants are confirmed stopped. Abrupt plugin or owner failure
+leaves uncertainty; restart does not replay a command or certify cleanup from a
+saved PID. Explicit inspection/resolution is documented in [SHELL.md](SHELL.md).
+The shell crash gates are compiled only with integration-test-hooks; they never
+appear in production protocol frames or ordinary builds. Native integration tests
+exercise both sides of spawn, process descendants and retained execution results.

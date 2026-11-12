@@ -1,12 +1,14 @@
 # anyq architecture
 
-anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config and daemon features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
+anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config, daemon and plugin features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
 
 | Module | Responsibility |
 | --- | --- |
 | queue/api | Task, TaskState, Topic, TopicQueue, ResourceAvailability, AutoCreatePolicy, name parsing and formatting; separate use-case contracts |
+| queue/api/wire | Shared external task/topic/metadata/event representations; serialization remains outside queue domain |
 | queue/impl/dispatch | Registration, linking, admission, completion, reads, and topic management; consumer-owned persistence ports |
 | queue/impl/sqlite | Schema, exact queries, IMMEDIATE transaction boundary |
+| queue/impl/metadata | Stateless outer JSON/YAML/TOML conversion and exact decimal serialization |
 | queue/impl/composition | Explicit assembly of individual queue interactors |
 | config/api | Config, typed keys/values, defaults, separate read/write contracts |
 | config/impl/dispatch | GetConfig, GetConfigValue, SetConfigValue, UnsetConfigValue, and consumer-owned Store |
@@ -17,6 +19,13 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | daemon/impl/client | Separate remote adapter for each queue use-case contract |
 | daemon/impl/runtime | Concurrent cancellable sessions and outer transport routing through injected QueueFactory |
 | daemon/impl/composition | Explicit client assembly and server queue factory; only this root imports queue impl |
+| plugins/api | Registration, delivery, timer policy and narrow management contracts |
+| plugins/api/wire | Versioned JSONL envelopes and bounded codec |
+| plugins/impl/dispatch | Separate management interactors and atomic acknowledgement policy |
+| plugins/impl/sqlite | Plugin records, state and timers; initializer injected into queue schema transaction |
+| plugins/impl/runtime | Post-commit delivery, supervision policy and typed capability routing through injected ports |
+| plugins/impl/process | Bounded asynchronous child stdin/stdout/stderr and confirmed executable shutdown |
+| plugins/impl/composition | Explicit plugin adapter assembly |
 | apps/cli | Syntax, text responses, path resolution, blocking CheckTaskRunning polling, and signals |
 | tooling/architecture-lint | Rust structure checks |
 | tooling/integration-test-hooks | Optional external integration-test checkpoints only |
@@ -27,7 +36,7 @@ Task has a unique name, an immutable monotonic registration sequence, a state, a
 
 Task owns transitions, resource-set completeness, and the prohibition on changing running/completed membership. ResourceAvailability checks free slots and queued predecessors. The same registration order applies across all topics. A queued task keeps its place without an active wait; remove an unwanted task with complete --force.
 
-parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/start/autostart/wait/complete/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
+parse_name and parse_topic_name define shared rules: a bare name starts with an ASCII Latin letter and is not list/create/capacity/link/add/start/autostart/wait/complete/meta/metafile/config/help; its tail is unrestricted. One literal outer pair of backticks allows any content, including an empty string, reserved words, leading hyphens, and nested backticks. It is removed exactly once. build and `build` are the same identity.
 
 Storage and ports use canonical strings. Task::restore and Topic::restore restore an already parsed name without stripping backticks again and validate the aggregate's structural invariants. format_name produces a reversible representation of a canonical name. CLI and SQL do not duplicate naming rules.
 
@@ -55,7 +64,13 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 16 crates, including two development tools. CLI no longer imports queue impl; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to the technical daemon boundary, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 30 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
+
+Metadata/MetadataValue, exact normalized MetadataNumber, dotted paths and the incremental size/depth budget belong to queue API. Separate task/topic read, set, unset and replace interactors use the existing transaction. Task owns its edit-state restriction; metadata mutations never invoke admission. Creation saves initial metadata before links and admission. Topic capacity/autostart changes preserve its metadata.
+
+Stateless format conversion lives in queue/impl/metadata. SQLite uses its JSON adapter; only the CLI composition root imports the format implementation and injects parsing functions into the local MetadataInput adapter. Controllers receive those functions without depending on an implementation crate. MetadataInput performs bounded client-local UTF-8 file reads. YAML/TOML dependencies are enabled by its files feature. Queue domain and interactors import no serialization libraries. Format and transport limits are documented in [METADATA.md](METADATA.md).
+
+Queue-owned event snapshots are appended by dispatch next to real transitions through EventRecords and an injected Clock. SQLite only serializes supplied snapshots. Completion receipts commit with the original completion and successor events. Queue WorkRecords serialize managed registration and completion intent; Task validates a permit containing managed states before its final transition. The daemon wraps manual completion with a cancellable barrier and injects individual queue capabilities into the plugin host. Plugins receive no database handle. See [PLUGINS.md](PLUGINS.md).
 
 One daemon holds the lifetime owner lock for each canonical database. CLI sessions
 send an Open frame with the canonical identity and validated policy snapshot;
@@ -78,10 +93,19 @@ The first Ctrl+C sets an external cancellation token. A client sends cancellatio
 
 stdout/stderr writes, including help, run in a separate thread owning only its message. The main thread waits for the result through a channel with a short timeout and checks the cancellation token. On cancellation it releases its resources and returns 130 without joining a blocked writer; the writer terminates with CLI. During normal execution, the next step begins only after the write result. Standard Rust streams retain their platform behavior; no business state is passed to the writer.
 
-SQLite stores topics/tasks/task_topics. Schema 3 adds task.autostart_default/stopped and nullable topic.autostart; schema 2 upgrades in one IMMEDIATE transaction, preserving all states and ownership. Version 1 remains incompatible. Opening a database does not perform domain admission. Existing database compatibility is checked before modifying its data or journal mode. An incompatible file is rejected without changing or deleting data.
+SQLite stores topics/tasks/task_topics. Schema 5 adds committed outbox, original caller directories, transactional completion receipts and managed-work barriers. Schema 2/3/4 upgrades preserve all states and ownership. Plugin SQLite initialization is injected by daemon composition into the same IMMEDIATE schema transaction; no cross-feature implementation import is needed in queue persistence. Version 1 remains incompatible. Opening a database does not perform domain admission. Existing database compatibility is checked before modifying its data or journal mode. An incompatible file is rejected without changing or deleting data.
 
 ## Checks
 
 One standalone type per file; see [CODE-RULES.md](CODE-RULES.md). The Rust AST linter checks structure and prohibits a generic business dispatcher. The Python checker verifies the Cargo graph, inward dependencies, CLI factories only in main, and no direct CLI queue implementation access. Wire routing is an external adapter and never replaces typed use cases.
 
 Domain/use-case tests verify rules without infrastructure. SQLite and file integration suites use real data, failures, and independent writers. CLI workflow and native Ctrl+C suites run real clients and owners on Linux/macOS/Windows. Test hooks are enabled by a separate feature in external adapters only; they are absent from the normal binary and production protocol. Daemon gates use thread-scoped session context and hit counts without changing global environment. Fixtures stop every isolated owner before removing its database directory.
+
+The timeout feature separates pure duration/snapshot policy (`timeout/api`) from
+the public stdio adapter (`timeout/impl/protocol`). The CLI root injects native
+streams. Timeout has no queue implementation or SQLite dependency.
+
+Shell separates pure task-plan policy (`shell/api`), public protocol/supervision
+(`shell/impl/runtime`) and native process IO (`shell/impl/process`). Runtime-owned
+process ports are injected by the CLI root; neither policy nor runtime depends on
+queue implementation or SQLite. Per-action details use bounded managed capabilities.

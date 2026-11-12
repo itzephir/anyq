@@ -1,7 +1,9 @@
 use crate::checkpoint::checkpoint;
+use crate::restore_metadata::restore_metadata;
 use crate::storage_error::storage;
 use anyq_queue_api::{Error, Result, Task, TaskState};
 use anyq_queue_dispatch::ports::{TaskFilter, TaskRecords};
+use anyq_queue_metadata::to_json;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::atomic::AtomicBool;
 
@@ -61,10 +63,10 @@ impl TaskRecords for SqliteTasks<'_> {
     }
 
     fn task(&mut self, name: &str) -> Result<Option<Task>> {
-        let row: Option<(i64, String, String, bool, bool)> = self
+        let row: Option<(i64, String, String, bool, bool, String)> = self
             .connection
             .query_row(
-                "SELECT id,name,state,autostart_default,stopped FROM tasks WHERE name=?1",
+                "SELECT id,name,state,autostart_default,stopped,metadata FROM tasks WHERE name=?1",
                 [name],
                 |row| {
                     Ok((
@@ -73,13 +75,14 @@ impl TaskRecords for SqliteTasks<'_> {
                         row.get(2)?,
                         row.get(3)?,
                         row.get(4)?,
+                        row.get(5)?,
                     ))
                 },
             )
             .optional()
             .map_err(storage)?;
 
-        let Some((sequence, name, raw_state, autostart_default, stopped)) = row else {
+        let Some((sequence, name, raw_state, autostart_default, stopped, metadata)) = row else {
             return Ok(None);
         };
 
@@ -93,7 +96,9 @@ impl TaskRecords for SqliteTasks<'_> {
             .collect::<rusqlite::Result<_>>()
             .map_err(storage)?;
 
-        Task::restore(sequence, name, state(&raw_state)?, topics)
+        let metadata = restore_metadata(&metadata)?;
+
+        Task::restore_with_metadata(sequence, name, state(&raw_state)?, topics, metadata)
             .map(|task| Some(task.with_start_policy(autostart_default, stopped)))
             .map_err(|error| Error::Storage(error.to_string()))
     }
@@ -120,13 +125,14 @@ impl TaskRecords for SqliteTasks<'_> {
         let changed = self
             .connection
             .execute(
-                "UPDATE tasks SET state=?1,autostart_default=?4,stopped=?5 WHERE id=?2 AND name=?3",
+                "UPDATE tasks SET state=?1,autostart_default=?4,stopped=?5,metadata=?6 WHERE id=?2 AND name=?3",
                 params![
                     task.state().as_str(),
                     task.sequence(),
                     task.name(),
                     task.autostart_default(),
-                    task.stopped()
+                    task.stopped(),
+                    to_json(task.metadata().value())?
                 ],
             )
             .map_err(storage)?;

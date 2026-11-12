@@ -1,4 +1,6 @@
 use crate::ports::UnitOfWork;
+use crate::record_event::topic_event;
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::{AutoCreatePolicy, Result, Topic, parse_topic_name};
 
 pub(crate) fn lookup_topic(
@@ -21,6 +23,7 @@ pub(crate) fn lookup_topic_value(
     policy.require_topic_creation(name)?;
     let topic = Topic::restore(name.into(), Topic::DEFAULT_CAPACITY)?;
     records.topics().put_topic(&topic)?;
+    topic_event(records, QueueEventKind::TopicCreated, &topic)?;
 
     Ok(topic)
 }

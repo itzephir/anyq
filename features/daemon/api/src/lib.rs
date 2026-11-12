@@ -1,16 +1,17 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 6;
+pub const PROTOCOL_VERSION: u32 = 7;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_OBSERVATION_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
-mod task_dto;
-pub use task_dto::TaskDto;
+pub use anyq_queue_wire::MetadataDto;
 
-mod topic_dto;
-pub use topic_dto::TopicDto;
+pub use anyq_queue_wire::CallerDirectoryDto;
 
-mod topic_queue_dto;
-pub use topic_queue_dto::TopicQueueDto;
+pub use anyq_queue_wire::TaskDto;
+
+pub use anyq_queue_wire::TopicDto;
+
+pub use anyq_queue_wire::TopicQueueDto;
 
 mod policy_dto;
 pub use policy_dto::PolicyDto;
@@ -27,13 +28,9 @@ pub use queue_request::QueueRequest;
 mod queue_snapshot_dto;
 pub use queue_snapshot_dto::QueueSnapshotDto;
 
-mod observed_task_dto;
-pub use observed_task_dto::ObservedTaskDto;
+pub use anyq_queue_wire::ObservedTaskDto;
 
-mod observed_topic_dto;
-pub use observed_topic_dto::ObservedTopicDto;
-
-mod decode_task_state;
+pub use anyq_queue_wire::ObservedTopicDto;
 
 mod queue_response;
 pub use queue_response::QueueResponse;
@@ -50,3 +47,6 @@ pub use anyq_queue_api::QueueServices;
 mod gate_dto;
 #[cfg(feature = "integration-test-hooks")]
 pub use gate_dto::GateDto;
+
+mod daemon_services;
+pub use daemon_services::DaemonServices;

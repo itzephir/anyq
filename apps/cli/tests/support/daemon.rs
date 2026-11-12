@@ -44,6 +44,7 @@ fn open_endpoint(endpoint: &Endpoint) -> Stream {
         version: PROTOCOL_VERSION,
         id: 1,
         request: QueueRequest::Open {
+            caller_directory: std::env::current_dir().unwrap().into(),
             database_id: endpoint.identity.clone(),
             policy: PolicyDto::from(QueuePolicy::default()),
             #[cfg(feature = "integration-test-hooks")]
@@ -250,6 +251,7 @@ fn incomplete_oversized_and_incompatible_clients_cannot_block_or_mutate_queue() 
             version: PROTOCOL_VERSION + 1,
             id: 1,
             request: QueueRequest::RegisterTask {
+                metadata: anyq_queue_api::Metadata::default().into(),
                 name: "unexpected".into(),
                 topics: vec![],
                 start: anyq_daemon_api::StartMode::Default,

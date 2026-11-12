@@ -9,9 +9,78 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
+    "anyq-shell-api": {"anyq-queue-api"},
+    "anyq-shell-runtime": {
+        "anyq-shell-api",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "anyq-plugin-wire",
+    },
+    "anyq-shell-process": {
+        "anyq-shell-api",
+        "anyq-shell-runtime",
+        "anyq-queue-api",
+        "rustix",
+        "windows-spawn",
+        "win32job",
+    },
+    "anyq-timeout-api": {"anyq-queue-api"},
+    "anyq-timeout-impl": {
+        "anyq-timeout-api",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "anyq-plugin-wire",
+    },
     "anyq-queue-api": set(),
+    "anyq-queue-wire": {"anyq-queue-api", "serde"},
+    "anyq-plugin-api": {"anyq-queue-api"},
+    "anyq-plugin-wire": {
+        "anyq-plugin-api",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "serde",
+        "serde_json",
+    },
+    "anyq-plugin-dispatch": {"anyq-plugin-api", "anyq-queue-api"},
+    "anyq-plugin-sqlite": {
+        "anyq-plugin-api",
+        "anyq-plugin-dispatch",
+        "anyq-plugin-wire",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "rusqlite",
+        "serde",
+        "serde_json",
+        "tempfile",
+    },
+    "anyq-plugin-process": {
+        "anyq-plugin-api",
+        "anyq-plugin-runtime",
+        "anyq-queue-api",
+        "tokio",
+    },
+    "anyq-plugin-runtime": {
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "anyq-plugin-dispatch",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+    },
+    "anyq-plugin-impl": {
+        "anyq-plugin-api",
+        "anyq-plugin-dispatch",
+        "anyq-plugin-sqlite",
+        "anyq-plugin-process",
+        "anyq-plugin-runtime",
+        "anyq-queue-api",
+        "rusqlite",
+    },
     "anyq-queue-dispatch": {"anyq-queue-api"},
     "anyq-queue-sqlite": {
+        "anyq-queue-wire",
+        "serde",
+        "serde_json",
+        "anyq-queue-metadata",
         "anyq-queue-api",
         "anyq-queue-dispatch",
         "rusqlite",
@@ -22,6 +91,13 @@ ALLOWED = {
         "anyq-queue-api",
         "anyq-queue-dispatch",
         "anyq-queue-sqlite",
+    },
+    "anyq-queue-metadata": {
+        "anyq-queue-api",
+        "serde",
+        "serde_json",
+        "toml_edit",
+        "yaml-rust2",
     },
     "anyq-config-api": set(),
     "anyq-config-dispatch": {"anyq-config-api"},
@@ -38,8 +114,15 @@ ALLOWED = {
         "anyq-config-dispatch",
         "anyq-config-file",
     },
-    "anyq-daemon-api": {"anyq-queue-api", "serde"},
+    "anyq-daemon-api": {
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "serde",
+    },
     "anyq-daemon-transport": {
+        "anyq-queue-api",
         "tokio",
         "tempfile",
         "anyq-daemon-api",
@@ -53,18 +136,26 @@ ALLOWED = {
         "windows-permissions",
     },
     "anyq-daemon-client": {
+        "anyq-plugin-api",
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "anyq-queue-api",
         "windows-spawn",
     },
     "anyq-daemon-runtime": {
+        "anyq-plugin-api",
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "anyq-queue-api",
         "anyq-integration-test-hooks",
     },
     "anyq-daemon-impl": {
+        "anyq-queue-dispatch",
+        "anyq-plugin-runtime",
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "anyq-plugin-impl",
+        "anyq-queue-sqlite",
         "anyq-daemon-api",
         "anyq-daemon-client",
         "anyq-daemon-runtime",
@@ -74,6 +165,14 @@ ALLOWED = {
     },
     "anyq-integration-test-hooks": set(),
     "anyq": {
+        "anyq-shell-runtime",
+        "anyq-shell-process",
+        "anyq-timeout-api",
+        "anyq-queue-wire",
+        "anyq-timeout-impl",
+        "anyq-plugin-api",
+        "anyq-plugin-wire",
+        "anyq-queue-metadata",
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "serde_json",
@@ -90,6 +189,12 @@ ALLOWED = {
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
+    "anyq-shell-api",
+    "anyq-timeout-api",
+    "anyq-plugin-api",
+    "anyq-plugin-dispatch",
+    "anyq-plugin-wire",
+    "anyq-queue-wire",
     "anyq-daemon-api",
     "anyq-queue-api",
     "anyq-queue-dispatch",
@@ -128,7 +233,10 @@ def check(graph, sources):
             if (
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
-                and re.search(r"\banyq_(?:daemon|queue|config)_impl\b", source)
+                and re.search(
+                    r"\b(?:anyq_(?:daemon|queue|config|plugin|timeout|shell)_impl|anyq_queue_metadata|anyq_shell_(?:process|runtime))\b",
+                    source,
+                )
             ):
                 errors.append(f"{path}: factory imports belong only to main.rs")
 
@@ -196,12 +304,21 @@ def main():
         ("anyq-queue-api", "anyq-queue-dispatch"),
         ("anyq-queue-dispatch", "rusqlite"),
         ("anyq-queue-api", "anyq-queue-impl"),
+        ("anyq-queue-api", "serde_json"),
+        ("anyq-queue-dispatch", "yaml-rust2"),
         ("anyq-config-api", "anyq-config-file"),
         ("anyq-config-dispatch", "toml"),
         ("anyq-queue-dispatch", "anyq-integration-test-hooks"),
         ("anyq-daemon-api", "interprocess"),
         ("anyq-daemon-runtime", "anyq-queue-impl"),
         ("anyq", "anyq-queue-impl"),
+        ("anyq-shell-api", "anyq-shell-process"),
+        ("anyq-shell-runtime", "anyq-queue-sqlite"),
+        ("anyq-plugin-api", "anyq-plugin-sqlite"),
+        ("anyq-plugin-dispatch", "rusqlite"),
+        ("anyq-plugin-runtime", "anyq-queue-sqlite"),
+        ("anyq-plugin-runtime", "anyq-queue-impl"),
+        ("anyq", "anyq-plugin-sqlite"),
     ]:
         mutant = copy.deepcopy(graph)
         mutant[owner].add(dep)
@@ -219,6 +336,11 @@ def main():
             assert check(graph, mutant), (inner, bad)
     mutant = copy.deepcopy(sources)
     mutant["anyq"]["apps/cli/src/controllers.rs"] = "use anyq_queue_impl::open;"
+    assert check(graph, mutant)
+    mutant = copy.deepcopy(sources)
+    mutant["anyq"]["apps/cli/src/controllers.rs"] = (
+        "use anyq_queue_metadata::parse_json;"
+    )
     assert check(graph, mutant)
     if errors:
         print("\n".join(errors), file=sys.stderr)

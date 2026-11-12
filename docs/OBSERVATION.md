@@ -1,7 +1,7 @@
 # Queue observation
 
 The optional desktop panel uses the narrow `ObserveQueue` queue contract through
-the local owner. This capability requires daemon protocol version 6. A client
+the local owner. This capability requires daemon protocol version 7. A client
 connected to an incompatible owner reports an error instead of opening SQLite or
 presenting an empty live queue. Existing queue command forms and admission rules
 are unchanged.

@@ -1,6 +1,8 @@
+use crate::record_event::task_event;
 use crate::{admit_queued_tasks::admit_queued_tasks, resource_availability::resource_availability};
 use crate::{lookup_topic::lookup_topic, ports::Store};
 use anyq_queue_api::AutoCreatePolicy;
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::QueuePolicy;
 use anyq_queue_api::{
     Error, RegisterTask, RegisterTaskRequest, Result, StartOutcome, Task, parse_name,
@@ -54,8 +56,17 @@ impl<S: Store> RegisterTask for RegisterTaskInteractor<S> {
                 .insert_task(&name)?
                 .with_start_policy(self.policy.task_autostart, false);
 
+            task.replace_metadata(request.metadata)?;
+
+            task_event(records, QueueEventKind::TaskRegistered, &task)?;
+
             for topic in &topics {
+                let is_new = !task.topics().contains(&topic.name);
                 task.link_topic(topic)?;
+
+                if is_new {
+                    task_event(records, QueueEventKind::TaskLinked, &task)?;
+                }
             }
 
             let explicit = task.configure_start(request.start, &topics)?;
@@ -72,6 +83,7 @@ impl<S: Store> RegisterTask for RegisterTaskInteractor<S> {
                 }
 
                 records.tasks().save_task(&task)?;
+                task_event(records, QueueEventKind::TaskRunning, &task)?;
             }
 
             admit_queued_tasks(records)?;
