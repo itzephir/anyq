@@ -37,6 +37,7 @@ pub fn serve(
     });
     let mut sessions = Vec::new();
     let capacity = Arc::new(SessionCapacity::default());
+    let retained = Arc::new(AtomicBool::new(false));
     let mut failure = None;
 
     while !shutdown.load(Ordering::SeqCst) {
@@ -67,6 +68,7 @@ pub fn serve(
                     factory: factory.clone(),
                     signals: signals.clone(),
                     shutdown: shutdown.clone(),
+                    retained: retained.clone(),
                     permit,
                 };
                 sessions.push((signals, thread::spawn(move || session.run())));
