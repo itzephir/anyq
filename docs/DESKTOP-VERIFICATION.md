@@ -1,9 +1,14 @@
 # Desktop acceptance evidence
 
-The implementation is stacked as [daemon #14](https://github.com/itzephir/anyq/pull/14)
+The delivery sequence is [daemon #14](https://github.com/itzephir/anyq/pull/14)
+→ [metadata #17](https://github.com/itzephir/anyq/pull/17)
+→ [hooks/plugins #18](https://github.com/itzephir/anyq/pull/18)
+→ [timeout #19](https://github.com/itzephir/anyq/pull/19)
+→ [shell #20](https://github.com/itzephir/anyq/pull/20)
 → [observation #16](https://github.com/itzephir/anyq/pull/16)
-→ [desktop #15](https://github.com/itzephir/anyq/pull/15). Each PR targets its
-immediate predecessor; no baseline desktop behavior is declared complete yet.
+→ [desktop #15](https://github.com/itzephir/anyq/pull/15). Each PR follows its
+predecessor into main after current-head CI. Combined observation and panel use
+protocol 7. Unfinished manual desktop acceptance remains explicit below.
 
 Daemon prerequisite: commit `2ab8cb6` passed [CI run 42910987965](https://github.com/itzephir/anyq/actions/runs/42910987965), including native process and interruption matrices. The observation and desktop branches merge this daemon head, including request-timeout and Windows pipe-ownership corrections.
 
@@ -75,6 +80,21 @@ window has an unsaved settings draft. Navigation opens the requested queue and
 discards the draft without saving it. The `main-dark-en` screenshot now reaches
 its reviewed state through this navigation; all existing PNGs remain the verify
 baseline. These regressions run in the required Linux/macOS/Windows matrices.
+
+## Combined plugin runtime
+
+Local macOS process and native application integration pass with protocol 7:
+113 feature workflows, 35 interruption scenarios, canonical alias retargeting,
+and panel-first plugin recovery. The configured recovery fixture uses daemon
+clock 1000 → 2001, two independent panel starts, and 40 tasks containing about
+20 MiB of metadata. It verifies exactly one timeout completion, successor
+admission, unchanged metadata, no historical running events, and an owner that
+survives panel exit. The complete panel snapshot remains below 16 KiB.
+
+The mandatory native UI matrix runs both application scenarios before verifying
+all 45 existing PNGs. Current-head Linux/macOS/Windows CI remains the acceptance
+gate; local results do not establish those platform passes. Manual host, monitor,
+and installed-package acceptance below remains separate.
 
 ## Manual native acceptance
 

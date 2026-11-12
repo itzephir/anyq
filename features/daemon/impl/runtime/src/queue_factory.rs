@@ -1,4 +1,4 @@
-use anyq_daemon_api::QueueServices;
+use anyq_daemon_api::DaemonServices;
 use anyq_queue_api::{QueuePolicy, Result};
 use std::{
     path::Path,
@@ -6,6 +6,8 @@ use std::{
 };
 
 pub trait QueueFactory: Send + Sync {
+    fn background(&self, path: &Path, shutdown: Arc<AtomicBool>) -> Result<()>;
+
     fn observe(
         &self,
         path: &Path,
@@ -17,5 +19,6 @@ pub trait QueueFactory: Send + Sync {
         path: &Path,
         policy: QueuePolicy,
         cancelled: Arc<AtomicBool>,
-    ) -> Result<QueueServices>;
+        directory: anyq_queue_api::ExecutionDirectory,
+    ) -> Result<DaemonServices>;
 }

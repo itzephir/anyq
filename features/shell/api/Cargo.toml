@@ -1,0 +1,12 @@
+[package]
+name = "anyq-shell-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-queue-api = { path = "../../queue/api" }
+
+[lints]
+workspace = true

@@ -2,6 +2,20 @@
   "version": 1,
   "clock_ms": 1735732800000,
   "timezone": "UTC",
+  "plugin_recovery": {
+    "fixture": "plugin_recovery",
+    "initial_clock_ms": 1000,
+    "overdue_clock_ms": 2001,
+    "metadata_tasks": 40,
+    "metadata_bytes_per_task": 512000,
+    "panel_first_starts": 2,
+    "expired_task": "expires-on-restart",
+    "successor": "admitted-after-expiry"
+  },
+  "source_alias": {
+    "directory": "selected-source",
+    "replacement_task": "replacement-source-task"
+  },
   "shared_config_commands": [
     ["config", "task.autocreate", "true"],
     ["config", "topic.autocreate", "true"]
@@ -292,6 +306,45 @@
       "file": "uninitialized.db",
       "content": "",
       "expected_snapshot": null
+    },
+    "plugin_recovery": {
+      "file": "plugin-recovery.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "cpu", "-c", "1"],
+        ["plugin", "enable", "timeout", "@cli", "plugin-runtime", "timeout"],
+        [
+          "task",
+          "create",
+          "expires-on-restart",
+          "-t",
+          "cpu",
+          "--meta",
+          "timeout",
+          "1s"
+        ],
+        ["task", "create", "admitted-after-expiry", "-t", "cpu"]
+      ],
+      "ready_plugin": {
+        "name": "timeout",
+        "active_timers": 1
+      }
+    },
+    "alias_primary": {
+      "file": "alias_primary/queue.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "cpu", "-c", "1"],
+        ["task", "create", "original-source-task", "-t", "cpu"]
+      ]
+    },
+    "alias_alternate": {
+      "file": "alias_alternate/queue.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "cpu", "-c", "1"],
+        ["task", "create", "replacement-source-task", "-t", "cpu"]
+      ]
     },
     "scrolling": {
       "kind": "queue",

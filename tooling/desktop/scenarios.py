@@ -8,7 +8,7 @@ from contextlib import closing
 from pathlib import Path
 
 from driver import Driver
-from fixtures import Fixtures
+from fixtures import Fixtures, directory_alias
 from screenshots import platform_name
 
 
@@ -22,6 +22,8 @@ def run(cli, panel, home, output, configuration):
     incompatible = fixtures.create("incompatible")
     uninitialized = fixtures.create("uninitialized")
     scrolling = fixtures.create("scrolling")
+    alias_primary = fixtures.create("alias_primary")
+    alias_alternate = fixtures.create("alias_alternate")
 
     def call(*arguments, db=database):
         return fixtures.call(list(arguments), db)
@@ -186,6 +188,32 @@ def run(cli, panel, home, output, configuration):
         assert fingerprint(database) == original, (
             "Read-only UI actions changed queue state"
         )
+        alias = home / configuration["source_alias"]["directory"]
+        directory_alias(alias, alias_primary.parent)
+        source(alias / alias_primary.name)
+        before_alias = driver.state()
+        assert Path(before_alias["path"]).resolve() == alias_primary.resolve()
+        driver.click('[data-task="1"]')
+        driver.wait("return Boolean(document.querySelector('.detail'));")
+        directory_alias(alias, alias_alternate.parent)
+        driver.click("#refresh")
+        driver.wait(
+            f"const state=await window.__TAURI__.core.invoke('get_panel_state');return state.status==='live' && state.generation>{before_alias['generation']};"
+        )
+        after_alias = driver.state()
+        assert Path(after_alias["path"]).resolve() == alias_alternate.resolve()
+        assert (
+            after_alias["snapshot"]["tasks"][0]["name"]
+            == configuration["source_alias"]["replacement_task"]
+        )
+        driver.wait("return !document.querySelector('.detail');")
+        compact_alias = driver.call(
+            "return await window.__TAURI__.core.invoke('get_panel_state');", "compact"
+        )["payload"]["value"]
+        assert compact_alias["generation"] == after_alias["generation"]
+        assert compact_alias["snapshot"] == after_alias["snapshot"]
+        assert "running" in call("daemon", "status", db=alias_primary)
+        source(None)
         # Observe a genuine source failure after a successful snapshot.
         paused = home / "paused.db"
         deadline = time.monotonic() + 10
@@ -316,6 +344,7 @@ def run(cli, panel, home, output, configuration):
                         "concurrent-completion",
                         "oversized-response",
                         "source-switch",
+                        "canonical-alias-retarget-invalidates-selection",
                         "late-native-frame-rejected",
                         "preference-restart-reset",
                         "close-reopen-quit",

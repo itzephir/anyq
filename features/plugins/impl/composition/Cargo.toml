@@ -1,0 +1,18 @@
+[package]
+name = "anyq-plugin-impl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-plugin-api = { path = "../../api" }
+anyq-plugin-dispatch = { path = "../dispatch" }
+anyq-plugin-sqlite = { path = "../sqlite" }
+anyq-plugin-process = { path = "../process" }
+anyq-plugin-runtime = { path = "../runtime" }
+anyq-queue-api = { path = "../../../queue/api" }
+rusqlite = { version = "0.39", features = ["bundled"] }
+
+[lints]
+workspace = true

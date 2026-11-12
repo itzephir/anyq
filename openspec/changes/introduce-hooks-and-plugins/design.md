@@ -83,6 +83,14 @@ The runtime supports this contract with a test plugin before shell is introduced
 
 ## Risks / Trade-offs
 
+Background queue/plugin stores retry only failed lock acquisition before invoking
+their transaction closure. Their wait is cancellable by owner shutdown; ordinary
+client stores retain bounded lock waits. A busy live queue transaction therefore
+delays background delivery instead of terminating the owner. Operations and
+commits are never replayed. When shutdown ends a blocked background wait, daemon
+composition treats the resulting interruption as graceful cancellation; committed
+ownership and uncertain managed receipts remain intact.
+
 - [Replay repeats external effects] -> stable IDs and receipts; uncertain
   non-idempotent actions require explicit recovery instead of automatic retry.
 - [Plugin IO stalls queue work] -> separate bounded delivery/process supervision,
@@ -102,3 +110,68 @@ for each new crate. Prove delivery rollback, duplicate acknowledgement, request
 deduplication and daemon/plugin crash recovery using fixture executables before
 enabling first-party behavior. Document that downgrades require a pre-upgrade
 backup and that disabling a plugin does not implicitly complete its tasks.
+
+## Implemented boundaries and limits
+
+The queue domain API remains free of serialization. A separate queue wire API is
+shared by daemon, outbox and plugin representations. There are 25 workspace crates;
+plugin API/wire/dispatch/SQLite/process/runtime/composition have separate ownership.
+The daemon root injects plugin storage initialization into the queue SQLite schema-5
+transaction. Versions 2/3/4 preserve states, metadata and ownership without events
+for historical running tasks. Plugin progress, state and timers use a separate
+consumer-owned transaction port; completion receipts and managed barriers remain
+inside queue transactions because they protect resource ownership.
+
+Protocol v1 limits are 16 MiB/frame, physical depth 256, 64 KiB stderr/instance,
+16 enabled plugins, 128 timers/plugin, five-second response deadlines and a
+three-second cancellation grace. Eight consecutive failures require explicit
+enable after exponential backoff capped at 60 seconds. Runtime options expose
+response/cancellation/polling and event-retention bounds; default retention is
+10,000 recent events, with disabled cursors, timer origins and unresolved work
+pinning needed history. Daemon IPC advances to version 3.
+
+### Following shell stage
+
+The stacked shell stage extends the shared migration to schema 6 with bounded
+managed execution details and paged protocol-v2 history. Its verified schema
+contract carries forward all schema-5 ownership and receipt scenarios in this
+change's task-queue delta so later archival cannot replace the newer baseline
+with an older migration contract. The hooks implementation PR itself remains
+the schema-5 and protocol-v1 foundation.
+
+### Observation integration: existing-only bootstrap
+
+The shell-stage schema-6 runtime must recover independently of queue RPCs, so an
+observation-first owner starts enabled plugin supervision immediately. Queue
+SQLite exposes `open_existing_for_runtime`, returning `RuntimeOpen` with ready,
+missing, uninitialized, upgrade-required or incompatible outcomes. The daemon
+injects the plugin schema validator; the queue adapter validates queue/work
+storage without importing plugin implementations. No initializer runs on this
+path. Plugin store handles also open without `CREATE`.
+
+SQLite can create WAL/SHM files even on read-only opening; immutable opening can
+miss a committed crash-persisted WAL. Preflight therefore streams a private copy
+of the main file plus WAL, never SHM, and validates it in a read snapshot. Only
+complete current storage permits a real non-creating handle, whose own read
+snapshot rechecks version and mandatory columns before configuration. This costs
+temporary disk proportional to database plus WAL, uses bounded memory and checks
+shutdown during copying. Direct external writers are outside the owner contract.
+
+A cancellable factory initialization mutex serializes this one-time preflight
+with ordinary queue opening. Non-ready storage leaves the owner available and
+waits for successful normal initialization; it is not repeatedly copied or
+migrated in the polling loop. Existing host recovery owns cursor/timer replay,
+receipt reuse and conversion of unresolved managed work to uncertain state.
+
+This follow-up is prepared on the shell-stage base for integration into the
+observation stack. Its combined panel-first and three-platform CI acceptance
+remains tracked separately; it does not amend verified baseline specs yet.
+
+Local bootstrap acceptance passed on macOS: all mandatory formatting, Clippy,
+workspace tests, architecture checks, Ruff and strict OpenSpec validation;
+106 feature-enabled CLI/plugin workflows and all 35 native interruption tests.
+Seven new queue adapter tests and two plugin storage tests cover preflight,
+committed WAL, missing tables/columns, replacement revalidation and non-creating
+handles. Five new native workflows exercise owner-only recovery and preservation.
+Combined observation/panel behavior and Linux/Windows execution remain pending
+integration CI; task 6.4 stays unchecked until that evidence exists.

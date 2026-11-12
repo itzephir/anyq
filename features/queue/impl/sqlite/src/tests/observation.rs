@@ -12,6 +12,7 @@ fn snapshot_is_current_ordered_and_observational_with_all_start_policies() {
             name: "owner".into(),
             topics: vec!["cpu".into(), "repo".into()],
             start: StartPreference::Default,
+            metadata: Default::default(),
         })
         .unwrap();
     let stopped = RegisterTaskInteractor::new(store.clone())
@@ -19,6 +20,7 @@ fn snapshot_is_current_ordered_and_observational_with_all_start_policies() {
             name: "stopped".into(),
             topics: vec!["cpu".into()],
             start: StartPreference::Stop,
+            metadata: Default::default(),
         })
         .unwrap();
     register(&store, "unlinked");
@@ -74,6 +76,7 @@ fn racing_completion_never_mixes_owners_across_topics() {
                 name: name.into(),
                 topics: vec!["cpu".into(), "repo".into()],
                 start: StartPreference::Default,
+                metadata: Default::default(),
             })
             .unwrap();
     }

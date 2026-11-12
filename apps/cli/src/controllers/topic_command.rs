@@ -2,10 +2,19 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum TopicCommand {
+    #[command(about = "Show metadata, read KEY, set KEY VALUE, or --unset KEY")]
+    Meta(super::metadata_args::MetadataArgs),
+    #[command(about = "Replace metadata from a local JSON, YAML or TOML file")]
+    Metafile {
+        name: String,
+        file: std::path::PathBuf,
+    },
     #[command(about = "List topic names")]
     List,
     #[command(about = "Create a resource topic")]
     Create {
+        #[command(flatten)]
+        metadata: super::metadata_creation_args::MetadataCreationArgs,
         #[arg(value_name = "TOPIC")]
         name: String,
         #[arg(short = 'c', long, default_value_t = anyq_queue_api::Topic::DEFAULT_CAPACITY)]

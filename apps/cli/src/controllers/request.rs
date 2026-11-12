@@ -1,10 +1,21 @@
 use super::{Commands, ConfigCommand, TaskCommand, TopicCommand, config_action::ConfigAction};
 use crate::error::{Error, Result};
+use crate::metadata_input::MetadataInput;
 use anyq_config_api::{ConfigKey, ConfigValue, SetConfigRequest};
 use anyq_queue_api::{RegisterTaskRequest, StartPreference, Topic};
 
 /// Parsed CLI syntax, routed only in the outer composition root.
 pub enum Request {
+    PluginRuntime(super::plugin_runtime_mode::PluginRuntimeMode),
+    Plugin(super::PluginCommand),
+    GetTaskMetadata(anyq_queue_api::GetTaskMetadataRequest),
+    SetTaskMetadata(anyq_queue_api::SetTaskMetadataRequest),
+    UnsetTaskMetadata(anyq_queue_api::UnsetTaskMetadataRequest),
+    ReplaceTaskMetadata(anyq_queue_api::ReplaceTaskMetadataRequest),
+    GetTopicMetadata(anyq_queue_api::GetTopicMetadataRequest),
+    SetTopicMetadata(anyq_queue_api::SetTopicMetadataRequest),
+    UnsetTopicMetadata(anyq_queue_api::UnsetTopicMetadataRequest),
+    ReplaceTopicMetadata(anyq_queue_api::ReplaceTopicMetadataRequest),
     Daemon(super::DaemonCommand),
     Config(ConfigCommand),
     ListTopics,
@@ -56,11 +67,78 @@ pub enum Request {
     },
 }
 
-impl TryFrom<Commands> for Request {
-    type Error = Error;
+impl Request {
+    fn task_metadata(
+        args: super::metadata_args::MetadataArgs,
+        input: &MetadataInput,
+    ) -> Result<Self> {
+        let name = args.name;
+        if let Some(key) = args.unset.as_deref().or(args.key.as_deref()) {
+            anyq_queue_api::MetadataPath::parse(key)?;
+        }
 
-    fn try_from(command: Commands) -> Result<Self> {
+        Ok(match (args.unset, args.key, args.value) {
+            (Some(key), None, None) => {
+                Self::UnsetTaskMetadata(anyq_queue_api::UnsetTaskMetadataRequest {
+                    task: name,
+                    key,
+                })
+            }
+            (None, Some(key), Some(value)) => {
+                Self::SetTaskMetadata(anyq_queue_api::SetTaskMetadataRequest {
+                    task: name,
+                    key,
+                    value: (input.parse_value)(&value)?,
+                })
+            }
+            (None, key, None) => {
+                Self::GetTaskMetadata(anyq_queue_api::GetTaskMetadataRequest { task: name, key })
+            }
+            _ => {
+                return Err(Error::Invalid(
+                    "use meta [KEY [VALUE]] or meta --unset KEY".into(),
+                ));
+            }
+        })
+    }
+
+    fn topic_metadata(
+        args: super::metadata_args::MetadataArgs,
+        input: &MetadataInput,
+    ) -> Result<Self> {
+        let name = args.name;
+        if let Some(key) = args.unset.as_deref().or(args.key.as_deref()) {
+            anyq_queue_api::MetadataPath::parse(key)?;
+        }
+
+        Ok(match (args.unset, args.key, args.value) {
+            (Some(key), None, None) => {
+                Self::UnsetTopicMetadata(anyq_queue_api::UnsetTopicMetadataRequest {
+                    topic: name,
+                    key,
+                })
+            }
+            (None, Some(key), Some(value)) => {
+                Self::SetTopicMetadata(anyq_queue_api::SetTopicMetadataRequest {
+                    topic: name,
+                    key,
+                    value: (input.parse_value)(&value)?,
+                })
+            }
+            (None, key, None) => {
+                Self::GetTopicMetadata(anyq_queue_api::GetTopicMetadataRequest { topic: name, key })
+            }
+            _ => {
+                return Err(Error::Invalid(
+                    "use meta [KEY [VALUE]] or meta --unset KEY".into(),
+                ));
+            }
+        })
+    }
+    pub fn parse(command: Commands, input: &MetadataInput) -> Result<Self> {
         match command {
+            Commands::PluginRuntime(args) => Ok(Self::PluginRuntime(args.mode)),
+            Commands::Plugin(args) => Ok(Self::Plugin(args.command)),
             Commands::Daemon(args) => Ok(Self::Daemon(args.command)),
             Commands::Config(args) => {
                 let command = match (
@@ -94,12 +172,31 @@ impl TryFrom<Commands> for Request {
                 Ok(Self::Config(command))
             }
             Commands::Topic(args) => match (args.list, args.name, args.command) {
+                (false, None, Some(TopicCommand::Meta(args))) => Self::topic_metadata(args, input),
+                (false, None, Some(TopicCommand::Metafile { name, file })) => Ok(
+                    Self::ReplaceTopicMetadata(anyq_queue_api::ReplaceTopicMetadataRequest {
+                        topic: name,
+                        metadata: input.read(&file)?,
+                    }),
+                ),
                 (true, None, None) | (false, None, Some(TopicCommand::List)) => {
                     Ok(Self::ListTopics)
                 }
                 (false, Some(name), None) => Ok(Self::GetTopicQueue { name }),
-                (false, None, Some(TopicCommand::Create { name, capacity })) => {
-                    Ok(Self::CreateTopic(Topic::new(name, capacity)?))
+                (
+                    false,
+                    None,
+                    Some(TopicCommand::Create {
+                        name,
+                        capacity,
+                        metadata,
+                    }),
+                ) => {
+                    let mut topic = Topic::new(name, capacity)?;
+                    topic.metadata =
+                        input.initial(metadata.metafile.as_deref(), &metadata.patches)?;
+
+                    Ok(Self::CreateTopic(topic))
                 }
                 (
                     false,
@@ -143,6 +240,13 @@ impl TryFrom<Commands> for Request {
                 )),
             },
             Commands::Task(args) => match (args.list, args.name, args.command) {
+                (false, None, Some(TaskCommand::Meta(args))) => Self::task_metadata(args, input),
+                (false, None, Some(TaskCommand::Metafile { name, file })) => Ok(
+                    Self::ReplaceTaskMetadata(anyq_queue_api::ReplaceTaskMetadataRequest {
+                        task: name,
+                        metadata: input.read(&file)?,
+                    }),
+                ),
                 (true, None, None) | (false, None, Some(TaskCommand::List)) => Ok(Self::ListTasks),
                 (false, Some(name), None) => Ok(Self::GetTask { name }),
                 (
@@ -150,6 +254,7 @@ impl TryFrom<Commands> for Request {
                     None,
                     Some(TaskCommand::Create {
                         name,
+                        metadata,
                         topics,
                         start,
                         stop,
@@ -159,6 +264,7 @@ impl TryFrom<Commands> for Request {
                     }),
                 ) => Ok(Self::RegisterTask {
                     request: RegisterTaskRequest {
+                        metadata: input.initial(metadata.metafile.as_deref(), &metadata.patches)?,
                         name,
                         topics,
                         start: if start {

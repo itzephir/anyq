@@ -41,6 +41,8 @@ impl Channel {
         policy: QueuePolicy,
         cancelled: Arc<AtomicBool>,
     ) -> Result<Self> {
+        let caller_directory =
+            std::env::current_dir().map_err(|error| Error::Storage(error.to_string()))?;
         let (endpoint, stream) = start_owner(endpoint, &cancelled).map_err(|error| {
             if error.kind() == std::io::ErrorKind::Interrupted {
                 Error::Interrupted
@@ -54,6 +56,7 @@ impl Channel {
         let response = channel.request(QueueRequest::Open {
             database_id: endpoint.identity.clone(),
             policy: policy.into(),
+            caller_directory: caller_directory.into(),
             #[cfg(feature = "integration-test-hooks")]
             gate: anyq_daemon_api::GateDto {
                 name: std::env::var("ANYQ_TEST_CHECKPOINT").ok(),

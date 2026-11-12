@@ -32,6 +32,13 @@ using serde_json::Value inside the domain would couple its contracts to one
 format. All parsers must detect duplicate object keys and reject unsupported
 TOML/YAML values rather than stringifying them silently.
 
+The structural budget charges eight bytes per value plus UTF-8 key/string and
+normalized-number bytes. File input has an independent 1 MiB cap. Stateless
+conversion lives in queue/impl/metadata: SQLite uses its JSON functions and the
+CLI root injects its format functions into client-local MetadataInput. YAML
+uses bounded pull events, including anchor/alias accounting; TOML preserves
+decimal lexical representations. Inner crates remain format independent.
+
 ### Focused typed use cases
 
 Provide separate task/topic metadata read, set-key, unset-key and replace
@@ -72,6 +79,11 @@ Retain schema 2 -> 3 -> metadata upgrade in the same initialization transaction,
 with no admission on open. Update protocol DTOs and typed client adapters together;
 incompatible protocol peers are rejected before operations.
 
+The implemented storage version is 4 and the protocol version is 2. Wire object
+pairs are duplicate checked and exact numbers travel as decimal text. Caller
+directories retain native path encoding. Each implementation PR targets its
+immediate predecessor's branch, forming the requested stack.
+
 ## Risks / Trade-offs
 
 - [Large or recursive input] -> limits before allocation where possible and
@@ -89,3 +101,9 @@ empty metadata. Verify interrupted migration and metadata/autocreate rollback.
 An older binary cannot open the new schema; rollback uses a backup made before
 upgrade or the new binary to export data, never destructive downgrade. Keep the
 metadata capability as a delta until implementation checks pass.
+
+## Migration delta handoff
+
+The following hooks stage supersedes the already synchronized schema-4 upgrade
+requirement with schema 5. Its delta now owns subsequent migration scenarios;
+metadata keeps its registration/naming changes without reverting that baseline.

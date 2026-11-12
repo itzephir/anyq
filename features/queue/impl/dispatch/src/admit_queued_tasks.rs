@@ -1,4 +1,6 @@
 use crate::ports::{TaskFilter, UnitOfWork};
+use crate::record_event::task_event;
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::{Result, StartOutcome, Task, TaskState};
 
 pub(crate) fn admit_queued_tasks(records: &mut dyn UnitOfWork) -> Result<()> {
@@ -22,6 +24,7 @@ pub(crate) fn admit_queued_tasks(records: &mut dyn UnitOfWork) -> Result<()> {
 
         if task.try_start(&resources)? == StartOutcome::Started {
             records.tasks().save_task(&task)?;
+            task_event(records, QueueEventKind::TaskRunning, &task)?;
         }
     }
 

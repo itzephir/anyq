@@ -1,0 +1,37 @@
+use crate::ports::Store;
+use anyq_queue_api::*;
+
+pub struct ReportManagedWorkInteractor<S> {
+    store: S,
+}
+
+impl<S> ReportManagedWorkInteractor<S> {
+    pub fn new(store: S) -> Self {
+        Self { store }
+    }
+}
+
+impl<S: Store> ReportManagedWork for ReportManagedWorkInteractor<S> {
+    fn report(&mut self, request: ReportManagedWorkRequest) -> Result<ManagedWork> {
+        self.store.transaction(|records| {
+            validate_action_identity(&request.owner, &request.action_id)?;
+            let mut work = records
+                .work()
+                .managed(&ManagedWorkFilter {
+                    owner: Some(request.owner.clone()),
+                    action: Some(request.action_id.clone()),
+                    ..Default::default()
+                })?
+                .into_iter()
+                .find(|work| work.action_id == request.action_id)
+                .ok_or_else(|| Error::NotFound("managed action is absent for this owner".into()))?;
+            work.report(request.state)?;
+            if let Some(details) = request.details {
+                work.details = details;
+            }
+            records.work().save_managed(&work)?;
+
+            Ok(work)
+        })
+    }
+}

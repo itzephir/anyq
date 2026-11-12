@@ -73,8 +73,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             config.db_path(),
         )
         .map_err(|error| Error::Storage(error.to_string()))?;
-        selection.path = std::path::absolute(&selection.path)
+        let absolute = std::path::absolute(&selection.path)
             .map_err(|error| Error::Storage(error.to_string()))?;
+        selection.path = anyq_daemon_impl::canonical_database_path(&absolute).unwrap_or(absolute);
 
         Ok(selection)
     });

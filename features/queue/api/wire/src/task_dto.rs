@@ -1,3 +1,4 @@
+use crate::MetadataDto;
 use anyq_queue_api::{Error, Task};
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +11,7 @@ pub struct TaskDto {
     pub topics: Vec<String>,
     pub autostart_default: bool,
     pub stopped: bool,
+    pub metadata: MetadataDto,
 }
 
 impl From<Task> for TaskDto {
@@ -21,6 +23,7 @@ impl From<Task> for TaskDto {
             topics: task.topics().to_vec(),
             autostart_default: task.autostart_default(),
             stopped: task.stopped(),
+            metadata: task.metadata().clone().into(),
         }
     }
 }
@@ -31,7 +34,13 @@ impl TryFrom<TaskDto> for Task {
     fn try_from(value: TaskDto) -> Result<Self, Error> {
         let state = crate::decode_task_state::decode(&value.state)?;
 
-        Self::restore(value.sequence, value.name, state, value.topics)
-            .map(|task| task.with_start_policy(value.autostart_default, value.stopped))
+        Self::restore_with_metadata(
+            value.sequence,
+            value.name,
+            state,
+            value.topics,
+            value.metadata.try_into()?,
+        )
+        .map(|task| task.with_start_policy(value.autostart_default, value.stopped))
     }
 }

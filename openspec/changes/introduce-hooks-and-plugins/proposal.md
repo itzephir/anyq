@@ -29,7 +29,7 @@ waiting, without making plugin IO part of admission transactions. Stage 3 of the
 
 ### Modified Capabilities
 
-None. Existing domain admission and ownership rules remain in force.
+- `task-queue`: advance the supported atomic schema upgrade to version 5 while preserving existing admission and ownership behavior.
 
 ## Impact
 

@@ -83,7 +83,7 @@ def run(cli, panel, output, goldens, configuration, mode):
                     ), case["id"]
                     assert state["preferences"]["theme"] == case["theme"]
                     assert state["preferences"]["language"] == case["language"]
-                    assert Path(state["path"]) == observed
+                    assert Path(state["path"]).resolve() == observed.resolve()
                     if case["status"] != "error":
                         assert state["last_success"] == configuration["clock_ms"]
                     if "error_kind" in case:

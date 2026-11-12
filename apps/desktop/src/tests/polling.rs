@@ -28,7 +28,7 @@ fn selection(preferences: &PanelPreferences) -> anyq_queue_api::Result<DatabaseS
 
 fn snapshot(capacity: u32) -> QueueSnapshot {
     QueueSnapshot::new(
-        vec![Topic::restore("cpu".into(), capacity).unwrap()],
+        vec![Topic::restore("cpu".into(), capacity).unwrap().into()],
         vec![],
     )
     .unwrap()

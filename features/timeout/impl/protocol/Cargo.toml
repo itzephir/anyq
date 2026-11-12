@@ -1,0 +1,15 @@
+[package]
+name = "anyq-timeout-impl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-timeout-api = { path = "../../api" }
+anyq-queue-api = { path = "../../../queue/api" }
+anyq-queue-wire = { path = "../../../queue/api/wire" }
+anyq-plugin-wire = { path = "../../../plugins/api/wire" }
+
+[lints]
+workspace = true

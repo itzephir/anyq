@@ -1,0 +1,22 @@
+[package]
+name = "anyq-plugin-sqlite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-plugin-api = { path = "../../api" }
+anyq-plugin-dispatch = { path = "../dispatch" }
+anyq-queue-api = { path = "../../../queue/api" }
+anyq-plugin-wire = { path = "../../api/wire" }
+anyq-queue-wire = { path = "../../../queue/api/wire" }
+rusqlite = { version = "0.39", features = ["bundled"] }
+serde_json = "1"
+serde = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

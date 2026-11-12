@@ -3,14 +3,16 @@ mod controllers;
 mod daemon_presenters;
 mod error;
 mod interrupt;
+mod metadata_input;
 mod output;
+mod plugin_executable;
+mod plugin_presenters;
 mod presenters;
 mod start_task;
 mod task_flow;
 mod wait_for_task;
 
 use anyq_config_api::ConfigKey;
-use anyq_config_impl::paths;
 use anyq_queue_api::{
     AddTaskToTopicsRequest, AddTasksToTopicRequest, AutoCreatePolicy, QueuePolicy, format_name,
     parse_topic_name,
@@ -28,9 +30,38 @@ use std::{
 };
 
 fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
-    let request = Request::try_from(cli.command)?;
+    let metadata_input = metadata_input::MetadataInput {
+        parse_value: anyq_queue_metadata::parse_value,
+        parse_json: anyq_queue_metadata::parse_json,
+        parse_yaml: anyq_queue_metadata::parse_yaml,
+        parse_toml: anyq_queue_metadata::parse_toml,
+    };
+    let mut request = Request::parse(cli.command, &metadata_input)?;
+    if let Request::PluginRuntime(mode) = request {
+        match mode {
+            controllers::PluginRuntimeMode::Timeout => {
+                anyq_timeout_impl::run(&mut std::io::stdin().lock(), &mut std::io::stdout().lock())?
+            }
+            controllers::PluginRuntimeMode::ShellAnchor => anyq_shell_process::run_anchor()?,
+            controllers::PluginRuntimeMode::Shell => anyq_shell_runtime::run(
+                std::io::BufReader::new(std::io::stdin()),
+                &mut std::io::stdout().lock(),
+                &mut anyq_shell_process::NativeFactory::new(
+                    std::env::current_exe().map_err(|error| Error::Invalid(error.to_string()))?,
+                ),
+            )?,
+        }
+        return Ok(());
+    }
+    if let Request::Plugin(controllers::PluginCommand::Enable {
+        name, executable, ..
+    }) = &mut request
+    {
+        anyq_plugin_api::validate_plugin_name(name)?;
+        *executable = plugin_executable::resolve(executable)?;
+    }
     checkpoint("cli.before-command", &cancelled)?;
-    let config_path = paths::home()?.join(".anyq/config.toml");
+    let config_path = anyq_config_impl::paths::home()?.join(".anyq/config.toml");
     let mut configuration = anyq_config_impl::open(&config_path, cancelled.clone());
 
     if let Request::Config(command) = request {
@@ -88,7 +119,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     }
 
     let config = configuration.get_config.get()?;
-    let path = paths::resolve_database(cli.db.as_deref(), config.db_path())?.path;
+    let path = anyq_config_impl::paths::resolve_database(cli.db.as_deref(), config.db_path())?.path;
 
     let policy = QueuePolicy {
         autocreate: AutoCreatePolicy {
@@ -116,10 +147,96 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         return Ok(());
     }
 
+    if let Request::Plugin(command) = request {
+        let mut plugins = anyq_daemon_impl::connect_plugins(&path, policy, cancelled.clone())?;
+        use controllers::PluginCommand;
+        let message = match command {
+            PluginCommand::Enable {
+                name,
+                executable,
+                arguments,
+            } => serde_json::to_string_pretty(&plugin_presenters::status(plugins.enable.enable(
+                anyq_plugin_api::EnablePluginRequest {
+                    name,
+                    executable,
+                    arguments,
+                },
+            )?)),
+            PluginCommand::List => serde_json::to_string_pretty(
+                &plugins
+                    .list
+                    .list()?
+                    .into_iter()
+                    .map(plugin_presenters::status)
+                    .collect::<Vec<_>>(),
+            ),
+            PluginCommand::Status { name } => serde_json::to_string_pretty(
+                &plugin_presenters::status(plugins.status.status(&name)?),
+            ),
+            PluginCommand::State { name } => serde_json::to_string_pretty(
+                &anyq_plugin_wire::StateDto::from(plugins.status.status(&name)?.state),
+            ),
+            PluginCommand::Disable { name } => serde_json::to_string_pretty(
+                &plugin_presenters::status(plugins.disable.disable(&name)?),
+            ),
+            PluginCommand::Inspect { name } => serde_json::to_string_pretty(
+                &anyq_daemon_impl::inspect_managed(&path, policy, cancelled.clone(), name)?,
+            ),
+            PluginCommand::Resolve {
+                name,
+                action_id,
+                confirmed_cleanup,
+            } => serde_json::to_string_pretty(&anyq_daemon_impl::resolve_managed(
+                &path,
+                policy,
+                cancelled.clone(),
+                name,
+                action_id,
+                confirmed_cleanup,
+            )?),
+        }
+        .map_err(|error| Error::Invalid(error.to_string()))?;
+        output::emit(&message, &cancelled)?;
+
+        return Ok(());
+    }
+
     let mut cases = anyq_daemon_impl::connect(&path, policy, cancelled.clone())?;
     checkpoint("cli.before-operation", &cancelled)?;
 
     let message = match request {
+        Request::GetTaskMetadata(request) => Some(anyq_queue_metadata::to_json(
+            &cases.get_task_metadata.get(request)?,
+        )?),
+        Request::SetTaskMetadata(request) => {
+            cases.set_task_metadata.set(request)?;
+            None
+        }
+        Request::UnsetTaskMetadata(request) => {
+            cases.unset_task_metadata.unset(request)?;
+            None
+        }
+        Request::ReplaceTaskMetadata(request) => {
+            cases.replace_task_metadata.replace(request)?;
+            None
+        }
+        Request::GetTopicMetadata(request) => Some(anyq_queue_metadata::to_json(
+            &cases.get_topic_metadata.get(request)?,
+        )?),
+        Request::SetTopicMetadata(request) => {
+            cases.set_topic_metadata.set(request)?;
+            None
+        }
+        Request::UnsetTopicMetadata(request) => {
+            cases.unset_topic_metadata.unset(request)?;
+            None
+        }
+        Request::ReplaceTopicMetadata(request) => {
+            cases.replace_topic_metadata.replace(request)?;
+            None
+        }
+        Request::PluginRuntime(_) => unreachable!("plugin runtime handled before queue operations"),
+        Request::Plugin(_) => unreachable!("plugin operations handled before queue operations"),
         Request::Config(_) => unreachable!("configuration handled before opening the queue"),
         Request::Daemon(_) => unreachable!("daemon lifecycle handled before queue operations"),
         Request::GetTask { name } => Some(presenters::task(&cases.get_task.get(&name)?)),

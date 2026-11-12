@@ -1,4 +1,6 @@
 use crate::ports::UnitOfWork;
+use crate::record_event::task_event;
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::{QueuePolicy, Result, Task, parse_name};
 
 pub(crate) fn lookup_task(
@@ -21,6 +23,8 @@ pub(crate) fn lookup_task(
     if !policy.task_autostart {
         records.tasks().save_task(&task)?;
     }
+
+    task_event(records, QueueEventKind::TaskRegistered, &task)?;
 
     Ok(task)
 }

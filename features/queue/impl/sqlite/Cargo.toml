@@ -9,12 +9,14 @@ license.workspace = true
 integration-test-hooks = ["dep:anyq-integration-test-hooks"]
 
 [dependencies]
+anyq-queue-wire = { path = "../../api/wire" }
+serde = "1"
+serde_json = { version = "1", features = ["unbounded_depth"] }
 anyq-queue-api = { path = "../../api" }
 anyq-queue-dispatch = { path = "../dispatch" }
+anyq-queue-metadata = { path = "../metadata" }
 anyq-integration-test-hooks = { path = "../../../../tooling/integration-test-hooks", optional = true }
 rusqlite = { version = "0.39", features = ["bundled"] }
-
-[dev-dependencies]
 tempfile = "3"
 
 [lints]

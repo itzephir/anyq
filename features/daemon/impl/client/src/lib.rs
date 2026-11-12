@@ -55,3 +55,39 @@ pub use remote_complete_task::RemoteCompleteTask;
 
 mod remote_start_task;
 pub use remote_start_task::RemoteStartTask;
+
+mod remote_get_task_metadata;
+pub use remote_get_task_metadata::RemoteGetTaskMetadata;
+
+mod remote_set_task_metadata;
+pub use remote_set_task_metadata::RemoteSetTaskMetadata;
+
+mod remote_unset_task_metadata;
+pub use remote_unset_task_metadata::RemoteUnsetTaskMetadata;
+
+mod remote_replace_task_metadata;
+pub use remote_replace_task_metadata::RemoteReplaceTaskMetadata;
+
+mod remote_get_topic_metadata;
+pub use remote_get_topic_metadata::RemoteGetTopicMetadata;
+
+mod remote_set_topic_metadata;
+pub use remote_set_topic_metadata::RemoteSetTopicMetadata;
+
+mod remote_unset_topic_metadata;
+pub use remote_unset_topic_metadata::RemoteUnsetTopicMetadata;
+
+mod remote_replace_topic_metadata;
+pub use remote_replace_topic_metadata::RemoteReplaceTopicMetadata;
+
+mod remote_enable_plugin;
+pub use remote_enable_plugin::RemoteEnablePlugin;
+
+mod remote_list_plugins;
+pub use remote_list_plugins::RemoteListPlugins;
+
+mod remote_get_plugin_status;
+pub use remote_get_plugin_status::RemoteGetPluginStatus;
+
+mod remote_disable_plugin;
+pub use remote_disable_plugin::RemoteDisablePlugin;

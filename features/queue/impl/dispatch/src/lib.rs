@@ -57,5 +57,52 @@ pub use start_task::StartTaskInteractor;
 mod set_topic_autostart;
 pub use set_topic_autostart::SetTopicAutostartInteractor;
 
+mod get_task_metadata;
+pub use get_task_metadata::GetTaskMetadataInteractor;
+
+mod set_task_metadata;
+pub use set_task_metadata::SetTaskMetadataInteractor;
+
+mod unset_task_metadata;
+pub use unset_task_metadata::UnsetTaskMetadataInteractor;
+
+mod replace_task_metadata;
+pub use replace_task_metadata::ReplaceTaskMetadataInteractor;
+
+mod get_topic_metadata;
+pub use get_topic_metadata::GetTopicMetadataInteractor;
+
+mod set_topic_metadata;
+pub use set_topic_metadata::SetTopicMetadataInteractor;
+
+mod unset_topic_metadata;
+pub use unset_topic_metadata::UnsetTopicMetadataInteractor;
+
+mod replace_topic_metadata;
+pub use replace_topic_metadata::ReplaceTopicMetadataInteractor;
+
+mod record_event;
+
+mod complete_task_once;
+pub use complete_task_once::CompleteTaskOnceInteractor;
+
+mod begin_completion;
+pub use begin_completion::BeginCompletionInteractor;
+
+mod register_managed_work;
+pub use register_managed_work::RegisterManagedWorkInteractor;
+
+mod report_managed_work;
+pub use report_managed_work::ReportManagedWorkInteractor;
+
+mod list_managed_work;
+pub use list_managed_work::ListManagedWorkInteractor;
+
+mod resolve_managed_work;
+pub use resolve_managed_work::ResolveManagedWorkInteractor;
+
+mod cancel_managed_work;
+pub use cancel_managed_work::CancelManagedWorkInteractor;
+
 mod observe_queue;
 pub use observe_queue::ObserveQueueInteractor;

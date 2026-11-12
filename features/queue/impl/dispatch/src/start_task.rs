@@ -1,7 +1,9 @@
+use crate::record_event::task_event;
 use crate::{
     admit_queued_tasks::admit_queued_tasks, lookup_task::lookup_task, ports::Store,
     resource_availability::resource_availability,
 };
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::{QueuePolicy, Result, StartOutcome, StartTask, StartTaskOutcome};
 
 pub struct StartTaskInteractor<S> {
@@ -35,6 +37,7 @@ impl<S: Store> StartTask for StartTaskInteractor<S> {
             }
 
             records.tasks().save_task(&task)?;
+            task_event(records, QueueEventKind::TaskRunning, &task)?;
             admit_queued_tasks(records)?;
 
             Ok(StartTaskOutcome::Started)

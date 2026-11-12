@@ -12,7 +12,7 @@ required-features = ["native"]
 
 [features]
 default = []
-integration-test-hooks = ["native"]
+integration-test-hooks = ["native", "anyq-daemon-impl/integration-test-hooks"]
 native = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-dialog", "dep:zbus"]
 custom-protocol = ["native", "tauri/custom-protocol"]
 

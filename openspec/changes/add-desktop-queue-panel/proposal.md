@@ -35,10 +35,14 @@ transport, cancellation, and recovery. The panel never falls back to direct
 SQLite access. Metadata, hooks, timeout, and shell-plugin changes are not
 prerequisites, and their delivery order is unchanged.
 
-Implementation is stacked as daemon PR #14, observation PR #16, and desktop
-PR #15. The daemon prerequisite is implemented and verified; desktop native
-acceptance is tracked separately. Planning artifacts do not establish completed
-behavior, and unfinished desktop capabilities are not synced to baseline specs.
+Delivery uses one sequential stack: daemon #14 → metadata #17 → hooks/plugins
+#18 → timeout #19 → shell #20 → observation #16 → desktop #15. Observation and
+panel use the combined protocol version 7. Each PR is updated onto the merged
+predecessor and passes current-head CI before it merges. Plugin recovery and
+observation compatibility are implemented in #16; native panel/plugin integration
+and tracked screenshot verification are implemented in #15. No separate
+integration PR is needed. Unfinished manual desktop acceptance remains explicit
+and is not synced to baseline specifications.
 
 ## Capabilities
 

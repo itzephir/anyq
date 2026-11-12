@@ -30,6 +30,8 @@ Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default.
 | --- | --- |
 | `anyq daemon start` / `run` | Start the background owner or serve in the foreground |
 | `anyq daemon status` / `stop` | Inspect without starting, or stop without releasing task slots |
+| `anyq task NAME meta [KEY [VALUE]]` / `topic TOPIC meta [KEY [VALUE]]` | Read JSON metadata or patch one key; `--unset KEY` removes it |
+| `anyq task NAME metafile FILE` / `topic TOPIC metafile FILE` | Replace metadata from local JSON, YAML or TOML |
 | `anyq topic list` / `topic --list` / `topic -l` | List topics |
 | `anyq topic create TOPIC [-c N]` | Create a topic; -c = --capacity, default 1 |
 | `anyq topic TOPIC` | Current running/queued tasks in registration order and capacity |
@@ -53,6 +55,11 @@ Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default.
 The daemon uses a private Unix socket or Windows named pipe under the current account,
 with one OS lifetime lock per canonical database path. Config/help/version remain
 independent of the owner. See [daemon lifecycle and protocol](docs/DAEMON.md).
+
+Tasks/topics have independent metadata objects. Creation accepts `--metafile FILE`
+and repeated `--meta KEY VALUE` patches before admission in the same transaction.
+Task metadata freezes at running; use creation flags or `--stop` while preparing
+inputs. See [metadata formats, editing and limits](docs/METADATA.md).
 
 All actions support a name-first form: topic link cpu job = topic cpu link job; task link job cpu = task job link cpu; topic cpu capacity [N]; topic cpu create [-c N]; task job create/wait/complete. Normalization preserves names and global options.
 
@@ -184,14 +191,14 @@ Returning from wait, a caller crash, and elapsed time do not release slots. Afte
 Stopping or crashing the queue daemon also preserves ownership. The next queue
 command restarts it and recovers committed state. A lost mutation response is
 reported as an uncertain outcome and is never automatically replayed; inspect
-the named task before retrying. Metadata, hooks and execution plugins remain
-planned in the [plugin roadmap](docs/PLUGIN-ROADMAP.md).
+the named task before retrying. Hooks and execution plugins remain planned in
+the [plugin roadmap](docs/PLUGIN-ROADMAP.md).
 
 Ctrl+C before commit rolls back the current transaction; after commit it preserves the result. In a -twc chain, registration may already persist running; wait only observes it, then complete persists completed. -tswc may leave a stopped queued task. After exit 130, inspect task NAME: persisted running requires complete. The outcome table and native integration suite are in [INTERRUPTIONS.md](docs/INTERRUPTIONS.md).
 
 The first Ctrl+C also works when stdout/stderr is full and the consumer is not reading. Output may be incomplete after such an interruption; persisted states and ownership do not change.
 
-Database schema 2 upgrades to 3 in one transaction: tasks, ordering, links, states, and ownership are preserved; topics inherit defaults and tasks receive autostart=true without forced admission on open. Unsupported versions (including 1) are rejected without changing data.
+Database schemas 2 and 3 upgrade to 4 in one transaction: tasks, ordering, links, states and ownership are preserved, with empty metadata for existing entities. Schema 2 also receives autostart defaults without admission on open. Unsupported versions (including 1) are rejected without changing data.
 
 History is not cleaned up automatically. Keep the database on a local disk; SQLite uses WAL, synchronous FULL, and short IMMEDIATE transactions. Use SQLite backup for a live database.
 
@@ -224,3 +231,23 @@ cargo test --locked -p anyq --test interruptions --features integration-test-hoo
 Python is needed for tooling/demos, and Node for pinned OpenSpec tooling. The anyq runtime requires neither.
 
 [Code rules](docs/CODE-RULES.md), [architecture](docs/ARCHITECTURE.md), [CI and main protection](docs/CI.md). [Baseline specs](openspec/specs/), [changes](openspec/changes/), [archive](openspec/changes/archive/).
+
+## Executable plugins
+
+Explicitly enable trusted local observers with `anyq plugin enable NAME EXECUTABLE [ARG...]`.
+Committed lifecycle events, durable acknowledgements, namespaced state/timers,
+replay-safe completion and managed cancellation are described in [PLUGINS.md](docs/PLUGINS.md).
+Run `python3 examples/plugins.py` after building anyq for an isolated public-protocol example.
+Timeout and shell remain separate planned stages of the [stacked roadmap](docs/PLUGIN-ROADMAP.md).
+
+### Optional timeout policy
+
+Enable `anyq plugin-runtime timeout` through the ordinary plugin command to apply
+metadata deadlines. See [TIMEOUT.md](docs/TIMEOUT.md) for snapshot precedence,
+restart recovery and managed versus caller-owned work. The CLI is English-only.
+
+### Optional shell execution
+
+Register `anyq plugin-runtime shell` explicitly to execute task `shell.sh` or
+`shell.src` plans after admission. See [SHELL.md](docs/SHELL.md) for native syntax,
+captured directories, autocomplete, output inspection and uncertain recovery.

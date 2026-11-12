@@ -7,9 +7,18 @@ pub fn normalize_arguments(arguments: impl IntoIterator<Item = OsString>) -> Vec
     if let Some(resource) = next_word(&arguments, 1) {
         let kind = arguments[resource].to_str().unwrap_or("");
         let actions: &[&str] = match kind {
-            "topic" => &["list", "create", "capacity", "autostart", "link", "help"],
+            "topic" => &[
+                "list",
+                "create",
+                "capacity",
+                "autostart",
+                "link",
+                "meta",
+                "metafile",
+                "help",
+            ],
             "task" => &[
-                "list", "create", "link", "start", "wait", "complete", "help",
+                "list", "create", "link", "start", "wait", "complete", "meta", "metafile", "help",
             ],
             _ => &[],
         };

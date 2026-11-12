@@ -40,6 +40,14 @@ pub fn connect(
     let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
 
     Ok(QueueServices {
+        get_task_metadata: Box::new(RemoteGetTaskMetadata::new(channel.clone())),
+        set_task_metadata: Box::new(RemoteSetTaskMetadata::new(channel.clone())),
+        unset_task_metadata: Box::new(RemoteUnsetTaskMetadata::new(channel.clone())),
+        replace_task_metadata: Box::new(RemoteReplaceTaskMetadata::new(channel.clone())),
+        get_topic_metadata: Box::new(RemoteGetTopicMetadata::new(channel.clone())),
+        set_topic_metadata: Box::new(RemoteSetTopicMetadata::new(channel.clone())),
+        unset_topic_metadata: Box::new(RemoteUnsetTopicMetadata::new(channel.clone())),
+        replace_topic_metadata: Box::new(RemoteReplaceTopicMetadata::new(channel.clone())),
         create_topic: Box::new(RemoteCreateTopic::new(channel.clone())),
         set_topic_capacity: Box::new(RemoteSetTopicCapacity::new(channel.clone())),
         list_topics: Box::new(RemoteListTopics::new(channel.clone())),
@@ -61,7 +69,7 @@ pub fn connect(
 pub fn run(path: &Path, cancelled: Arc<AtomicBool>) -> Result<()> {
     anyq_daemon_runtime::serve(
         endpoint(path)?,
-        Arc::new(sqlite_queue_factory::SqliteQueueFactory),
+        Arc::new(sqlite_queue_factory::SqliteQueueFactory::default()),
         cancelled,
     )
 }
@@ -80,3 +88,55 @@ pub fn daemon_start(path: &Path, policy: QueuePolicy, cancelled: Arc<AtomicBool>
     daemon_status(path, cancelled)?
         .ok_or_else(|| Error::Storage("daemon exited during startup".into()))
 }
+
+mod barrier_completion;
+
+pub fn connect_plugins(
+    path: &Path,
+    policy: QueuePolicy,
+    cancelled: Arc<AtomicBool>,
+) -> Result<anyq_plugin_api::PluginServices> {
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+
+    Ok(anyq_plugin_api::PluginServices {
+        enable: Box::new(RemoteEnablePlugin::new(channel.clone())),
+        list: Box::new(RemoteListPlugins::new(channel.clone())),
+        status: Box::new(RemoteGetPluginStatus::new(channel.clone())),
+        disable: Box::new(RemoteDisablePlugin::new(channel)),
+    })
+}
+
+pub fn inspect_managed(
+    path: &Path,
+    policy: QueuePolicy,
+    cancelled: Arc<AtomicBool>,
+    owner: String,
+) -> Result<Vec<anyq_plugin_wire::ManagedWorkDto>> {
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+    match channel.request(anyq_daemon_api::QueueRequest::ManagedInspect { owner })? {
+        anyq_daemon_api::QueueResponse::ManagedList(work) => Ok(work),
+        _ => Err(Channel::unexpected()),
+    }
+}
+
+pub fn resolve_managed(
+    path: &Path,
+    policy: QueuePolicy,
+    cancelled: Arc<AtomicBool>,
+    owner: String,
+    action_id: String,
+    confirmed_cleanup: bool,
+) -> Result<anyq_plugin_wire::ManagedWorkDto> {
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+    match channel.request(anyq_daemon_api::QueueRequest::ManagedResolve {
+        owner,
+        action_id,
+        confirmed_cleanup,
+    })? {
+        anyq_daemon_api::QueueResponse::ManagedWork(work) => Ok(work),
+        _ => Err(Channel::unexpected()),
+    }
+}
+
+#[cfg(feature = "integration-test-hooks")]
+mod fixture_clock;

@@ -42,6 +42,16 @@ settings without saving the abandoned draft. The `main-dark-en` screenshot is
 reached through that settings-to-compact navigation before comparing its existing
 reviewed PNG, rather than selecting the topic directly.
 
+The canonical-alias scenario retargets a Unix directory symlink or Windows
+junction between two configured databases with the same task sequence, checking
+generation changes, cleared details, shared surfaces, and the old owner's lifetime.
+A separate configured plugin scenario seeds a fixed daemon clock and persisted
+timeout, then starts the owner through the actual panel before any queue RPC.
+Expiry admits the successor exactly once over two panel-first starts, preserves
+40 large metadata records, and creates no historical running events. The injected
+daemon clock is enabled only in the integration build; native screenshots retain
+their separate fixed display clock and existing reviewed PNGs.
+
 PNG goldens are tracked in `goldens/linux`, `goldens/macos` and `goldens/windows`.
 Only configured source-path regions are masked; the fixed update time remains
 visible and comparable. Other content remains visible and comparable. The

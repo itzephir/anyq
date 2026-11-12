@@ -90,6 +90,13 @@ Topic queues and usage are derived from those same entities. Global totals count
 distinct tasks rather than summing per-topic totals. Do not maintain new mutable
 slot counters or reproduce admission rules in SQL or the UI.
 
+Use dedicated ObservedTask/ObservedTopic read models and corresponding wire DTOs.
+Select only common queue columns, excluding metadata, history, plugin settings,
+receipts, and durable work at the SQL boundary. Support known schemas 3–6 without
+initialization or migration, and reject all other schemas unchanged. Enforce an
+8 MiB whole encoded response limit at sender and receiver, including continuation
+chunks, in addition to entity and name-text collection limits.
+
 The external response envelope carries canonical database identity and request
 correlation. Client freshness timestamps belong to the desktop adapter, not the
 queue domain. Snapshot restoration preserves canonical names without parsing
@@ -113,11 +120,23 @@ search and selection without changing domain ordering or identities.
 Reuse/start the daemon through the prerequisite's private discovery adapter only
 for an existing selected database. Add an existing-database startup guard at the
 owner boundary so a missing path, including a disappearance during startup,
-cannot create a replacement database. The owner retains compatibility checking
-and any supported schema migration; the desktop does not inspect SQLite itself.
+cannot create a replacement database. The owner checks compatibility through a
+read-only connection and never migrates or initializes from an observation
+session; the desktop does not inspect SQLite itself.
 An absent target produces an error with access to settings. Unsupported startup
 or observation capabilities produce an incompatibility state, without direct IO
 fallback or an attempt to stop/replace another owner.
+
+The combined owner separately recovers configured plugin runtime from an already
+initialized current schema 6, even when a panel starts it before any queue RPC.
+This runtime bootstrap uses a distinct existing-only read/write path with full
+queue/plugin/work-schema validation, without CREATE, migration, admission, or
+synthetic historical running events. Legacy schemas remain observable while
+plugin readiness reports that a CLI upgrade is required. Recovery preserves
+disabled plugins, delivery receipts, deadlines, and uncertain-work barriers.
+Missing, empty, incompatible, and incomplete schemas cannot be initialized by
+this background recovery. Plugin-driven changes remain explicit durable plugin
+work, independent of the observation request.
 
 ### One model, two presentations
 
@@ -213,6 +232,15 @@ old selections and cached values from the active view, and enter loading for the
 new target. Apply a response only if its generation, request correlation, and
 canonical source identity still match. A late A response cannot update B even if
 both have a topic with the same name. Switching never stops the old owner.
+Resolve the selected path through the same canonicalization as daemon discovery
+on every refresh. Retargeting an alias to another canonical database increments
+the generation and clears selections even if task sequence numbers coincide.
+
+Use the sequential stack #14 → #17 → #18 → #19 → #20 → #16 → #15, with
+observation based on the shell-plugin head and panel based on observation. The
+combined protocol is 7. Joint native process, panel-first plugin recovery, and
+screenshot verification run on Linux, macOS, and Windows before declaring
+compatibility. Merge each PR only after its predecessor and current-head CI.
 
 A failed or overdue refresh retains an explicitly stale snapshot only for the
 same source, with its last successful update time. The absence of a previous
@@ -276,5 +304,6 @@ requirements, supported package targets, design export and native behavior.
 [Acceptance evidence](../../../docs/DESKTOP-VERIFICATION.md) distinguishes
 verified logic from pending real Windows/Linux desktop runs. The editable
 OpenDesign source is shared with the application. Implementation is stacked
-on observation PR #16, itself based on daemon PR #14; #14 supplies implemented
-private IPC, ownership, cancellation and recovery rather than planning alone.
+on observation PR #16 after the daemon and plugin sequence #14 → #17 → #18 →
+#19 → #20; #14 supplies implemented private IPC, ownership, cancellation and
+recovery rather than planning alone.

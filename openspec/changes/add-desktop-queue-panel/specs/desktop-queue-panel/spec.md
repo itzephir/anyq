@@ -118,6 +118,10 @@ Applying a database selection SHALL invalidate previous in-flight reads and cach
 - **WHEN** the user switches from database A to B before an observation of A returns
 - **THEN** the response from A is discarded and no A data appears under B's identity
 
+#### Scenario: Alias points to another database
+- **WHEN** the selected filesystem alias is retargeted from A to B and both contain task sequence 1
+- **THEN** the next refresh detects the new canonical source, increments its generation, clears A's selected details, and publishes only B's state to both surfaces without stopping A's owner
+
 #### Scenario: Bad selected path
 - **WHEN** a saved override references an absent or inaccessible database
 - **THEN** the panel shows that path and a connection error without creating a database or falling back to the default

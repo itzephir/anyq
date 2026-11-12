@@ -1,5 +1,6 @@
 """Create isolated, explicitly configured real queues without inherited settings."""
 
+import json
 import os
 import subprocess
 import time
@@ -12,6 +13,7 @@ def environment(home, database):
         for key, value in os.environ.items()
         if not key.startswith(("ANYQ_", "WEBVIEW2_"))
     }
+
     return inherited | {
         "HOME": str(home),
         "USERPROFILE": str(home),
@@ -22,6 +24,23 @@ def environment(home, database):
         "TZ": "UTC",
         "PYTHONUTF8": "1",
     }
+
+
+def directory_alias(path, target):
+    if path.is_symlink():
+        path.unlink()
+    elif path.exists():
+        assert os.name == "nt", "Only a Windows junction may be replaced"
+        path.rmdir()
+
+    if os.name == "nt":
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(path), str(target)],
+            check=True,
+            capture_output=True,
+        )
+    else:
+        path.symlink_to(target, target_is_directory=True)
 
 
 class Fixtures:
@@ -49,16 +68,33 @@ class Fixtures:
     def create(self, name):
         fixture = self.configuration["fixtures"][name]
         path = self.home / fixture["file"]
-        assert path.parent == self.home, (
+        assert self.home.resolve() in path.resolve().parents, (
             "Fixture files must stay inside the isolated home"
         )
+        path.parent.mkdir(parents=True, exist_ok=True)
         if path in self.paths:
             return path
         self.paths.add(path)
         if fixture["kind"] == "queue":
             self.call(["daemon", "start"], path)
             for command in fixture["commands"]:
-                self.call(command, path)
+                self.call(
+                    [str(self.cli) if value == "@cli" else value for value in command],
+                    path,
+                )
+            if plugin := fixture.get("ready_plugin"):
+                deadline = time.monotonic() + 15
+                while True:
+                    status = json.loads(
+                        self.call(["plugin", "status", plugin["name"]], path)
+                    )
+                    if (
+                        status["running"]
+                        and status["active_timers"] == plugin["active_timers"]
+                    ):
+                        break
+                    assert time.monotonic() < deadline, status
+                    time.sleep(0.02)
             self.call(["daemon", "stop"], path)
         elif fixture["kind"] == "bytes":
             path.write_bytes(fixture["content"].encode("utf-8"))

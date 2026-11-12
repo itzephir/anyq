@@ -14,6 +14,17 @@ Current queue observation SHALL be available through the private local daemon in
 - **WHEN** a compatible daemon serves an existing database with no plugins enabled
 - **THEN** the desktop client can obtain its current topics, tasks, and resource usage through the local interface
 
+### Requirement: Narrow schema-compatible observation
+Observation SHALL read only the shared current queue columns of known schemas 3, 4, 5, and 6, without loading or encoding metadata, event history, plugin configuration, receipts, or durable work. Observation SHALL NOT initialize or migrate a database. Empty, uninitialized, or unsupported schemas SHALL fail explicitly without changing database contents.
+
+#### Scenario: Large metadata on an extended schema
+- **WHEN** current tasks contain metadata larger than the observation response limit
+- **THEN** a bounded current snapshot remains available because its dedicated records and wire DTOs exclude metadata
+
+#### Scenario: Unsupported schema selected
+- **WHEN** observation opens an uninitialized or unsupported database schema
+- **THEN** it reports an incompatibility and leaves that database unchanged for an explicit compatible CLI initialization or upgrade
+
 ### Requirement: Consistent current snapshot
 A successful observation SHALL describe one committed queue state and identify its canonical source database. It SHALL include all topics and all distinct queued/running tasks, with complete topic membership and registration order. Topic usage, task state, membership, and summary totals SHALL agree within the returned snapshot.
 
@@ -66,7 +77,7 @@ Observation SHALL preserve stored task and topic identities, including empty nam
 - **THEN** the client receives and displays that exact identity as text without changing it or executing content
 
 ### Requirement: Bounded complete responses
-Observation SHALL obey daemon protocol message, request, and connection limits. A result that cannot fit the supported snapshot limit SHALL produce an explicit size error without a silently truncated successful snapshot. A slow or abandoned observer SHALL NOT indefinitely block other requests or owner shutdown.
+Observation SHALL obey daemon protocol message, request, and connection limits. The complete encoded response, including all continuation chunks, SHALL be limited to 8 MiB at both sender and receiver. A result that cannot fit the supported snapshot limit SHALL produce an explicit size error without a silently truncated successful snapshot. A slow or abandoned observer SHALL NOT indefinitely block other requests or owner shutdown.
 
 #### Scenario: Snapshot exceeds the limit
 - **WHEN** the current queue cannot fit within the supported response bound
