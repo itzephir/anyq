@@ -39,8 +39,17 @@ uses compositor monitor-move shortcuts and toggles the extension to test host
 loss without destroying the compositor connection. Absolute window placement is
 not assumed on Wayland. Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
-Native menu input waits for an actual visible menu before sending Home/End and
-Enter, and notification-icon lookup excludes ordinary application/taskbar buttons.
+Native menu input waits for an actual visible menu. Windows and Linux select
+the requested native menu item's accessibility bounds with real pointer input;
+macOS uses Home/End and Enter. Linux opens its AppIndicator menu with the primary
+button. Notification-icon lookup excludes ordinary application/taskbar buttons
+and restricts Windows accessibility searches to actual shell windows.
+
+Windows fixture teardown waits for its own WebView2 processes to exit before
+removing profile files. Test transport retries transient Windows sharing denials
+within the existing response deadline; it never replays a request or accepts
+an incomplete response. Linux D-Bus activation receives the private display,
+configuration and Xauthority settings before starting desktop services.
 
 The NSIS fixture passes its final `/D=` argument without quotes, including for
 the configured installation path with spaces, as required by the

@@ -146,9 +146,7 @@ def run(cli, bundles, home, output, configuration):
                     owner = current
                 assert current == owner
                 if sys.platform in ("darwin", "win32"):
-                    native.click_tray(client.pid, right=True)
-                    native.key("end")
-                    native.key("enter")
+                    native.select_menu(client.pid, "Quit anyq")
                 else:
                     native.close_window(client.pid)
                 assert client.wait(timeout=20) == 0

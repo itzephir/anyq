@@ -108,37 +108,23 @@ def tray():
     return None
 
 
-def menu_open():
+def menu_item(label):
     pending = [Atspi.get_desktop(0)]
     while pending:
         item = pending.pop()
         if (
             item.get_role() == Atspi.Role.MENU_ITEM
-            and item.get_name() == "Open window"
+            and (item.get_name() or "").replace("_", "") == label
             and item.get_state_set().contains(Atspi.StateType.SHOWING)
         ):
-            return True
+            bounds = item.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
+            return {key: getattr(bounds, key) for key in ["x", "y", "width", "height"]}
         pending.extend(
             child
             for index in range(item.get_child_count())
             if (child := item.get_child_at_index(index)) is not None
         )
-    menus = subprocess.run(
-        ["xdotool", "search", "--onlyvisible", "--class", "xfce4-panel"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    for handle in menus.stdout.splitlines():
-        values = dict(
-            line.split("=", 1)
-            for line in run(
-                "xdotool", "getwindowgeometry", "--shell", handle
-            ).splitlines()
-        )
-        if int(values["HEIGHT"]) > 80:
-            return True
-    return False
+    return None
 
 
 def perform(command):
@@ -166,7 +152,9 @@ def perform(command):
     if action == "tray":
         return tray()
     if action == "menu-open":
-        return menu_open()
+        return bool(menu_item("Open window"))
+    if action == "menu-item":
+        return menu_item(command["label"])
     if action == "click":
         run(
             "xdotool",

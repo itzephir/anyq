@@ -2,6 +2,7 @@
 
 import ctypes as c
 import json
+import os
 import subprocess
 import sys
 from ctypes import wintypes as w
@@ -85,8 +86,13 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $root = [System.Windows.Automation.AutomationElement]::RootElement
 $scope = [System.Windows.Automation.TreeScope]::Descendants
-$property = [System.Windows.Automation.AutomationElement]::NameProperty
 $buttons = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+function Get-TrayButtons {
+    $shellWindows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object {
+        $_.Current.ClassName -match '^Shell_(Secondary)?TrayWnd$|^NotifyIconOverflowWindow$' -or $_.Current.Name -match '(?i)System tray overflow'
+    }
+    foreach ($shellWindow in $shellWindows) { $shellWindow.FindAll($scope, $buttons) }
+}
 function Is-NotificationArea($element) {
     $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
     for ($depth = 0; $element -and $depth -lt 10; $depth++) {
@@ -98,14 +104,14 @@ function Is-NotificationArea($element) {
     return $false
 }
 function Find-TrayButton {
-    foreach ($candidate in $root.FindAll($scope, $buttons)) {
+    foreach ($candidate in (Get-TrayButtons)) {
         if ($candidate.Current.Name -match '(?i)anyq' -and !$candidate.Current.IsOffscreen -and (Is-NotificationArea $candidate)) { return $candidate }
     }
     return $null
 }
 $item = Find-TrayButton
 if (!$item) {
-    $chevron = $root.FindAll($scope, $buttons) | Where-Object { $_.Current.Name -eq 'Show Hidden Icons' -and !$_.Current.IsOffscreen } | Select-Object -First 1
+    $chevron = Get-TrayButtons | Where-Object { $_.Current.Name -eq 'Show Hidden Icons' -and !$_.Current.IsOffscreen } | Select-Object -First 1
     if ($chevron) {
         $chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
         $deadline = [DateTime]::UtcNow.AddSeconds(5)
@@ -116,12 +122,45 @@ if ($item) {
     $r = $item.Current.BoundingRectangle
     @{x=$r.X;y=$r.Y;width=$r.Width;height=$r.Height} | ConvertTo-Json -Compress
 } else {
-    [Console]::Error.WriteLine('Tray button names: ' + (($root.FindAll($scope, $buttons) | ForEach-Object {$_.Current.Name}) -join ', '))
+    [Console]::Error.WriteLine('Tray button names: ' + ((Get-TrayButtons | ForEach-Object {$_.Current.Name}) -join ', '))
     'null'
 }
 """
     output = subprocess.check_output(
         ["powershell", "-NoProfile", "-Command", script], text=True, timeout=15
+    )
+    return json.loads(output)
+
+
+def menu_item(pid, label):
+    menus = [window for window in windows(pid) if window["class"] == "#32768"]
+    if not menus:
+        return None
+    script = """
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr][long]$env:ANYQ_MENU_HWND)
+$condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::MenuItem)
+$items = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)
+$item = $items | Where-Object { $_.Current.ProcessId -eq [int]$env:ANYQ_MENU_PID -and $_.Current.Name -eq $env:ANYQ_MENU_LABEL -and !$_.Current.IsOffscreen } | Select-Object -First 1
+if ($item) {
+    $r = $item.Current.BoundingRectangle
+    @{x=$r.X;y=$r.Y;width=$r.Width;height=$r.Height} | ConvertTo-Json -Compress
+} else {
+    [Console]::Error.WriteLine('Native menu items: ' + (($items | ForEach-Object {$_.Current.Name + ' pid=' + $_.Current.ProcessId}) -join ', '))
+    'null'
+}
+"""
+    output = subprocess.check_output(
+        ["powershell", "-NoProfile", "-Command", script],
+        env=os.environ
+        | {
+            "ANYQ_MENU_PID": str(pid),
+            "ANYQ_MENU_LABEL": label,
+            "ANYQ_MENU_HWND": str(menus[0]["handle"]),
+        },
+        text=True,
+        timeout=15,
     )
     return json.loads(output)
 
@@ -138,6 +177,8 @@ def perform(command):
         return windows(command["pid"])
     if action == "menu-open":
         return any(window["class"] == "#32768" for window in windows(command["pid"]))
+    if action == "menu-item":
+        return menu_item(command["pid"], command["label"])
     if action == "tray":
         return tray()
     if action == "click":

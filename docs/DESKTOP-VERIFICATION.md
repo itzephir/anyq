@@ -133,9 +133,14 @@ DOM nodes and keyboard focus. [Dark native window](images/desktop-macos-dark.jpg
 and [Russian missing-source state](images/desktop-macos-missing-ru.jpg) retain
 reviewable screenshot evidence using synthetic queue data.
 
-The menu-bar icon click, compact panel dismissal/placement, and native file
-picker still require their own direct native smoke evidence. They are not
-inferred from the successful window or OpenDesign preview.
+The macOS shell profile passed on `67c01d7` in
+[CI run 43236739454](https://github.com/itzephir/anyq/actions/runs/43236739454).
+The `desktop-shell-macos` artifact records actual menu-bar input, main-window
+close/reopen, compact placement after moves across three WindowServer displays
+(1x/2x scales and negative coordinates), Escape and focus-loss dismissal, the
+native file picker, SystemUIServer restart and native-menu Quit. The same daemon
+PID and exact task/topic/slot rows survive these transitions. These are direct
+native checks, independent of the successful window and OpenDesign preview.
 
 Pending native configurations remain explicit:
 
@@ -151,10 +156,11 @@ These rows require actual desktop sessions. A build, mock or headless controller
 test is not a substitute. Corresponding OpenSpec tasks remain unchecked until
 that evidence exists; the desktop change stays active after implementation merge.
 
-The local macOS menu-bar follow-up could not proceed because the screen was
+The earlier local macOS menu-bar follow-up could not proceed because the screen was
 locked. The main window was accessible before the lock; no additional tray or
 file-picker acceptance is inferred from that partial session. Its isolated panel
-and owner processes were stopped afterward.
+and owner processes were stopped afterward. The hosted native shell evidence
+above supersedes that local input limitation.
 
 The initial desktop implementation passed [CI run 42829086558](https://github.com/itzephir/anyq/actions/runs/42829086558)
 on `563a74a`: native GUI packages for macOS ARM64/Intel, Windows and Linux;

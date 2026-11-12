@@ -32,9 +32,7 @@ def run(cli, panel, home, output, configuration, profile):
     report = []
 
     def menu_open():
-        native.click_tray(driver.process.pid, right=True)
-        native.key("home")
-        native.key("enter")
+        native.select_menu(driver.process.pid, "Open window")
         driver.wait_shell(
             lambda state: state["windows"]["main"]["visible"]
             and state["windows"]["main"]["focused"]
@@ -168,9 +166,7 @@ def run(cli, panel, home, output, configuration, profile):
                 menu_open()
                 report.append({"scenario": "real-host-restart", "result": "passed"})
 
-            native.click_tray(driver.process.pid, right=True)
-            native.key("end")
-            native.key("enter")
+            native.select_menu(driver.process.pid, "Quit anyq")
             assert driver.process.wait(timeout=15) == 0
             report.append({"scenario": "native-menu-quit", "result": "passed"})
 

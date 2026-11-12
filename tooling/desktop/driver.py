@@ -56,7 +56,15 @@ class Driver:
         temporary.replace(self.directory / f"command-{self.sequence}.json")
         response = self.directory / f"response-{self.sequence}.json"
         deadline = time.monotonic() + 25
-        while not response.exists():
+        while True:
+            try:
+                result = json.loads(response.read_text(encoding="utf-8"))
+                break
+            except FileNotFoundError:
+                pass
+            except PermissionError:
+                if sys.platform != "win32":
+                    raise
             if self.process.poll() is not None:
                 raise AssertionError(
                     f"Panel exited: {(self.home / 'panel.log').read_text(errors='replace')}"
@@ -64,7 +72,6 @@ class Driver:
             if time.monotonic() >= deadline:
                 raise AssertionError(f"Native UI command timed out: {command}")
             time.sleep(0.02)
-        result = json.loads(response.read_text(encoding="utf-8"))
         if not result["payload"]["ok"]:
             raise AssertionError(result["payload"])
         return result

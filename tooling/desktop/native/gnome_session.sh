@@ -12,7 +12,7 @@ export MUTTER_DEBUG_DUMMY_MODE_SPECS=1920x1080:2560x1920
 export MUTTER_DEBUG_DUMMY_MONITOR_SCALES=1,2
 export XDG_CURRENT_DESKTOP=GNOME
 export XDG_SESSION_TYPE=wayland
-dbus-update-activation-environment XDG_RUNTIME_DIR XDG_CONFIG_HOME DISPLAY
+dbus-update-activation-environment XDG_RUNTIME_DIR XDG_CONFIG_HOME DISPLAY XAUTHORITY
 gsettings set org.gnome.desktop.interface toolkit-accessibility true
 gsettings set org.gnome.shell disable-user-extensions false
 gsettings set org.gnome.desktop.wm.keybindings move-to-monitor-right "['<Super><Shift>Right']"
@@ -32,7 +32,7 @@ while not socket.exists():
 PY
 export WAYLAND_DISPLAY=anyq-wayland
 export GDK_BACKEND=wayland
-dbus-update-activation-environment WAYLAND_DISPLAY
+dbus-update-activation-environment WAYLAND_DISPLAY DISPLAY XAUTHORITY
 gdbus wait --session --timeout=30 org.gnome.Shell
 stage_ids=$(timeout 30 xdotool search --sync --onlyvisible --pid "$gnome_pid")
 mapfile -t stage_windows <<< "$stage_ids"

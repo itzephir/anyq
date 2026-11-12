@@ -32,7 +32,7 @@
 
 ## 5. Native shell adapters and lifecycle
 
-- [ ] 5.1 Implement macOS menu-bar popover, window activation, dismissal, and Quit behavior; retain native smoke evidence that closing/reopening the window preserves the client and quitting it preserves the daemon and running slots, and document macOS usage.
+- [x] 5.1 Implement macOS menu-bar popover, window activation, dismissal, and Quit behavior; retain native smoke evidence that closing/reopening the window preserves the client and quitting it preserves the daemon and running slots, and document macOS usage.
 - [ ] 5.2 Implement Windows notification-area icon, nearby flyout, context menu, focus, and Quit behavior; verify native placement at representative scale/monitor configurations and unchanged daemon ownership after exit, and document Windows usage.
 - [ ] 5.3 Implement Linux StatusNotifierItem/AppIndicator status menu and activation with ordinary-window fallback; verify a compatible host, GNOME with its required integration where available, and a session with no host, including supported Wayland/X11 cases, and document prerequisites and behavior differences.
 - [ ] 5.4 Handle runtime tray-host loss and last-window closure; verify no inaccessible background client remains without a usable host and owner/task state is preserved during every desktop lifecycle transition.

@@ -93,8 +93,6 @@ class NativeSession:
             y=rect["y"] + rect["height"] / 2,
             right=right,
         )
-        if right:
-            self.wait("menu-open", pid=pid)
         return rect
 
     def key(self, name):
@@ -132,6 +130,20 @@ class NativeSession:
                 "monitor-left": "super+shift+Left",
             }[name]
         return self.call("key", code=code)
+
+    def select_menu(self, pid, label):
+        self.click_tray(pid, right=not sys.platform.startswith("linux"))
+        self.wait("menu-open", pid=pid)
+        if sys.platform == "darwin":
+            self.key("end" if label == "Quit anyq" else "home")
+            self.key("enter")
+        else:
+            rect = self.wait("menu-item", pid=pid, label=label)
+            self.call(
+                "click",
+                x=rect["x"] + rect["width"] / 2,
+                y=rect["y"] + rect["height"] / 2,
+            )
 
     def close_window(self, pid):
         if sys.platform == "darwin":
