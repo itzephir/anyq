@@ -18,6 +18,7 @@ impl RegisterTask for RemoteRegisterTask {
             name: request.name,
             topics: request.topics,
             start: request.start.into(),
+            metadata: request.metadata.into(),
         })? {
             QueueResponse::Task(value) => value.try_into(),
             _ => Err(Channel::unexpected()),

@@ -14,6 +14,8 @@ mod commands;
 pub use commands::Commands;
 
 mod expand_task_create_flags;
+mod metadata_args;
+mod metadata_creation_args;
 mod request;
 mod task_args;
 mod task_command;

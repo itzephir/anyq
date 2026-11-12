@@ -1,4 +1,4 @@
-use crate::{PolicyDto, StartMode, TopicDto};
+use crate::{MetadataDto, PolicyDto, StartMode, TopicDto};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -12,6 +12,7 @@ pub enum QueueRequest {
     Open {
         database_id: String,
         policy: PolicyDto,
+        caller_directory: crate::CallerDirectoryDto,
         #[cfg(feature = "integration-test-hooks")]
         gate: crate::GateDto,
     },
@@ -19,6 +20,40 @@ pub enum QueueRequest {
     Stop,
     Cancel,
     ListTasks,
+    GetTaskMetadata {
+        task: String,
+        key: Option<String>,
+    },
+    SetTaskMetadata {
+        task: String,
+        key: String,
+        value: MetadataDto,
+    },
+    UnsetTaskMetadata {
+        task: String,
+        key: String,
+    },
+    ReplaceTaskMetadata {
+        task: String,
+        metadata: MetadataDto,
+    },
+    GetTopicMetadata {
+        topic: String,
+        key: Option<String>,
+    },
+    SetTopicMetadata {
+        topic: String,
+        key: String,
+        value: MetadataDto,
+    },
+    UnsetTopicMetadata {
+        topic: String,
+        key: String,
+    },
+    ReplaceTopicMetadata {
+        topic: String,
+        metadata: MetadataDto,
+    },
     ListTopics,
     GetTask {
         name: String,
@@ -43,6 +78,7 @@ pub enum QueueRequest {
         name: String,
         topics: Vec<String>,
         start: StartMode,
+        metadata: MetadataDto,
     },
     AddTaskToTopic {
         task: String,

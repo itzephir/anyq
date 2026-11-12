@@ -7,6 +7,7 @@ pub use endpoint::{Endpoint, validate_peer};
 mod owner_lock;
 pub use owner_lock::OwnerLock;
 
+mod decode_json;
 mod frame_reader;
 mod receive_deadline;
 pub use frame_reader::FrameReader;

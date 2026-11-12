@@ -23,6 +23,17 @@ pub fn open_with_options(
     let store = Sqlite::open_with_cancellation(path, cancelled)?;
 
     Ok(QueueModule {
+        get_task_metadata: Box::new(GetTaskMetadataInteractor::new(store.clone(), policy)),
+        set_task_metadata: Box::new(SetTaskMetadataInteractor::new(store.clone(), policy)),
+        unset_task_metadata: Box::new(UnsetTaskMetadataInteractor::new(store.clone(), policy)),
+        replace_task_metadata: Box::new(ReplaceTaskMetadataInteractor::new(store.clone(), policy)),
+        get_topic_metadata: Box::new(GetTopicMetadataInteractor::new(store.clone(), policy)),
+        set_topic_metadata: Box::new(SetTopicMetadataInteractor::new(store.clone(), policy)),
+        unset_topic_metadata: Box::new(UnsetTopicMetadataInteractor::new(store.clone(), policy)),
+        replace_topic_metadata: Box::new(ReplaceTopicMetadataInteractor::new(
+            store.clone(),
+            policy,
+        )),
         create_topic: Box::new(CreateTopicInteractor::new(store.clone())),
         set_topic_capacity: Box::new(SetTopicCapacityInteractor::with_policy(
             store.clone(),

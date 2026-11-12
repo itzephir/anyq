@@ -2,6 +2,7 @@ mod autostart;
 mod batch;
 mod memory;
 mod memory_store;
+mod metadata;
 
 use crate::*;
 use anyq_queue_api::*;
@@ -16,6 +17,7 @@ fn create_topic(store: &MemoryStore, name: &str, capacity: u32) {
 fn register(store: &MemoryStore, name: &str) -> Task {
     RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            metadata: Default::default(),
             start: anyq_queue_api::StartPreference::Default,
             name: name.into(),
             topics: Vec::new(),
@@ -39,6 +41,7 @@ fn registration_with_initial_topics_automatically_acquires_all_resources() {
     create_topic(&store, "cpu", 1);
     create_topic(&store, "repo", 1);
     let request = RegisterTaskRequest {
+        metadata: Default::default(),
         start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["repo".into(), "cpu".into(), "cpu".into()],
@@ -66,6 +69,7 @@ fn failed_initial_membership_leaves_no_registered_task_or_partial_links() {
     let before = store.data.borrow().clone();
 
     let missing = RegisterTaskInteractor::new(store.clone()).register(RegisterTaskRequest {
+        metadata: Default::default(),
         start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["cpu".into(), "missing".into()],
@@ -77,6 +81,7 @@ fn failed_initial_membership_leaves_no_registered_task_or_partial_links() {
     store.data.borrow_mut().fail_save = true;
     let before_save = store.data.borrow().clone();
     let failed_save = RegisterTaskInteractor::new(store.clone()).register(RegisterTaskRequest {
+        metadata: Default::default(),
         start: anyq_queue_api::StartPreference::Default,
         name: "build".into(),
         topics: vec!["cpu".into()],
@@ -137,6 +142,7 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
     assert!(
         RegisterTaskInteractor::new(store.clone())
             .register(RegisterTaskRequest {
+                metadata: Default::default(),
                 start: anyq_queue_api::StartPreference::Default,
                 name: "build".into(),
                 topics: Vec::new()
@@ -168,6 +174,7 @@ fn names_are_unique_even_after_completion_and_bad_references_have_no_side_effect
     assert!(
         RegisterTaskInteractor::new(store.clone())
             .register(RegisterTaskRequest {
+                metadata: Default::default(),
                 start: anyq_queue_api::StartPreference::Default,
                 name: "build".into(),
                 topics: Vec::new()

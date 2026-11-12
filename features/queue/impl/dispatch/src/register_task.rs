@@ -54,6 +54,8 @@ impl<S: Store> RegisterTask for RegisterTaskInteractor<S> {
                 .insert_task(&name)?
                 .with_start_policy(self.policy.task_autostart, false);
 
+            task.replace_metadata(request.metadata)?;
+
             for topic in &topics {
                 task.link_topic(topic)?;
             }

@@ -18,7 +18,7 @@ A durable local admission queue coordinates named tasks belonging to people, age
 - **THEN** CLI returns an error and preserves the original task unchanged
 
 ### Requirement: Atomic registration with topics
-`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction, with automatic admission after saving all links. The flag SHALL allow repetition for several topics; duplicate links SHALL be idempotent. A result with topics SHALL be running when automatic admission is enabled and full admission is available, otherwise queued. Validation or persistence errors SHALL leave neither a task nor partial links.
+`anyq task create NAME --topic TOPIC` and short form `-t TOPIC` SHALL register a task and link it to an existing topic in one transaction, with automatic admission after saving all links. The flag SHALL allow repetition for several topics; duplicate links SHALL be idempotent. A result with topics SHALL be running when automatic admission is enabled and full admission is available, otherwise queued. Validation or persistence errors SHALL leave neither a task nor partial links or metadata.
 
 #### Scenario: Several initial topics
 - **WHEN** task create my-task --topic cpu -t repo -t cpu is called
@@ -27,6 +27,10 @@ A durable local admission queue coordinates named tasks belonging to people, age
 #### Scenario: Unknown initial topic
 - **WHEN** at least one topic specified at registration is absent and topic.autocreate is off
 - **THEN** the command returns an error without saving the new task name or links
+
+#### Scenario: Metadata before first admission
+- **WHEN** creation supplies metadata and initial topics
+- **THEN** metadata, registration and all links are saved in the same transaction before automatic admission
 
 ### Requirement: Topics as bounded resources
 A topic SHALL have a unique name and positive capacity, defaulting to one slot. `anyq topic list`, `anyq topic --list`, and `anyq topic -l` SHALL list topic names. `topic create TOPIC [--capacity N]` SHALL support short flag `-c N`. Capacity SHALL be changed through `topic capacity TOPIC N` with a positional number; reducing it below the number of running tasks SHALL be rejected.
@@ -61,7 +65,7 @@ A topic SHALL have a unique name and positive capacity, defaulting to one slot. 
 - **THEN** the lookup shows only running and queued in registration order, preserving their states and ownership
 
 ### Requirement: Domain naming for tasks and topics
-The shared domain policy SHALL require an ASCII Latin initial for bare names and allow any tail. Bare list/create/capacity/link/add/start/autostart/wait/complete/config/help SHALL be forbidden. One literal outer pair of backticks SHALL allow any content, including empty strings, commands, and leading hyphens, and be removed exactly once. CLI and SQL SHALL NOT duplicate these rules.
+The shared domain policy SHALL require an ASCII Latin initial for bare names and allow any tail. Bare list/create/capacity/link/add/start/autostart/wait/complete/meta/metafile/config/help SHALL be forbidden. One literal outer pair of backticks SHALL allow any content, including empty strings, commands, and leading hyphens, and be removed exactly once. CLI and SQL SHALL NOT duplicate these rules.
 
 #### Scenario: Invalid bare name
 - **WHEN** Topic or Task is created with bare create, --cpu, or a non-Latin initial
@@ -70,6 +74,10 @@ The shared domain policy SHALL require an ASCII Latin initial for bare names and
 #### Scenario: Arbitrary quoted name
 - **WHEN** the entire name is wrapped in literal backticks
 - **THEN** any inner characters, commands, and empty content are allowed
+
+#### Scenario: Previously valid command-like name
+- **WHEN** an existing canonical name is meta or metafile
+- **THEN** its backtick-quoted spelling still addresses it and restore does not reinterpret its identity
 
 ### Requirement: Canonical name identity
 Bare build and backtick-wrapped build SHALL identify one entity. Persistence and restore SHALL use canonical strings without stripping backticks again. Display SHALL return a reversible spelling. Shell escaping of spaces SHALL NOT restrict the allowed name tail; inner backslashes SHALL remain literal.
@@ -323,8 +331,12 @@ Create SHALL accept mutually exclusive --start, --stop, and -s. Stop SHALL persi
 - **THEN** the task obtains all slots and then completes; resources are released or passed to eligible successors
 
 ### Requirement: Supported schema upgrade
-A version 2 database SHALL upgrade to 3 atomically, preserving names, registration, links, states, and ownership. Existing tasks SHALL receive default autostart=true and stopped=false; topics SHALL inherit the default. Database open SHALL NOT perform admission. Interruption before commit SHALL preserve the previous schema, and afterward the complete new schema.
+A version 2 or 3 database SHALL upgrade to 4 atomically, preserving names, registration, links, states, and ownership. Existing entities SHALL receive empty metadata. For version 2, tasks SHALL receive default autostart=true and stopped=false; topics SHALL inherit the default. Database open SHALL NOT perform admission. Interruption before commit SHALL preserve the previous schema, and afterward the complete new schema.
 
 #### Scenario: Existing ownership
 - **WHEN** a version 2 database with a running owner and queued successor is opened
 - **THEN** after upgrade the owner holds the same slots, and the successor remains queued until the owner's explicit complete
+
+#### Scenario: Existing schema 3
+- **WHEN** a schema 3 database with running and queued tasks is upgraded
+- **THEN** metadata defaults to empty objects and all states, order and ownership survive

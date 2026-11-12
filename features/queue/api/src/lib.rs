@@ -2,6 +2,24 @@
 mod error;
 pub use error::{Error, Result};
 
+mod metadata;
+pub use metadata::Metadata;
+
+mod metadata_budget;
+pub use metadata_budget::MetadataBudget;
+
+mod metadata_number;
+pub use metadata_number::MetadataNumber;
+
+mod metadata_path;
+pub use metadata_path::MetadataPath;
+
+mod metadata_value;
+pub use metadata_value::MetadataValue;
+
+#[cfg(test)]
+mod metadata_tests;
+
 mod auto_create_policy;
 pub use auto_create_policy::AutoCreatePolicy;
 
@@ -96,3 +114,51 @@ mod set_topic_autostart;
 pub use set_topic_autostart::SetTopicAutostart;
 mod queue_services;
 pub use queue_services::QueueServices;
+
+mod get_task_metadata;
+pub use get_task_metadata::GetTaskMetadata;
+
+mod get_task_metadata_request;
+pub use get_task_metadata_request::GetTaskMetadataRequest;
+
+mod set_task_metadata;
+pub use set_task_metadata::SetTaskMetadata;
+
+mod set_task_metadata_request;
+pub use set_task_metadata_request::SetTaskMetadataRequest;
+
+mod unset_task_metadata;
+pub use unset_task_metadata::UnsetTaskMetadata;
+
+mod unset_task_metadata_request;
+pub use unset_task_metadata_request::UnsetTaskMetadataRequest;
+
+mod replace_task_metadata;
+pub use replace_task_metadata::ReplaceTaskMetadata;
+
+mod replace_task_metadata_request;
+pub use replace_task_metadata_request::ReplaceTaskMetadataRequest;
+
+mod get_topic_metadata;
+pub use get_topic_metadata::GetTopicMetadata;
+
+mod get_topic_metadata_request;
+pub use get_topic_metadata_request::GetTopicMetadataRequest;
+
+mod set_topic_metadata;
+pub use set_topic_metadata::SetTopicMetadata;
+
+mod set_topic_metadata_request;
+pub use set_topic_metadata_request::SetTopicMetadataRequest;
+
+mod unset_topic_metadata;
+pub use unset_topic_metadata::UnsetTopicMetadata;
+
+mod unset_topic_metadata_request;
+pub use unset_topic_metadata_request::UnsetTopicMetadataRequest;
+
+mod replace_topic_metadata;
+pub use replace_topic_metadata::ReplaceTopicMetadata;
+
+mod replace_topic_metadata_request;
+pub use replace_topic_metadata_request::ReplaceTopicMetadataRequest;

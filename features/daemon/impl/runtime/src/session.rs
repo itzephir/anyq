@@ -158,9 +158,20 @@ impl Session {
             QueueRequest::Open {
                 database_id,
                 policy,
+                caller_directory,
                 #[cfg(feature = "integration-test-hooks")]
                 gate,
             } => {
+                let caller_directory: std::path::PathBuf = caller_directory.try_into()?;
+                if !caller_directory.is_absolute() {
+                    return self.reply(
+                        frame.id,
+                        QueueResponse::Error(
+                            Error::Invalid("caller directory must be absolute".into()).into(),
+                        ),
+                    );
+                }
+
                 if database_id != self.endpoint.identity {
                     return self.reply(
                         frame.id,

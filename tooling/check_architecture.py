@@ -12,6 +12,7 @@ ALLOWED = {
     "anyq-queue-api": set(),
     "anyq-queue-dispatch": {"anyq-queue-api"},
     "anyq-queue-sqlite": {
+        "anyq-queue-metadata",
         "anyq-queue-api",
         "anyq-queue-dispatch",
         "rusqlite",
@@ -22,6 +23,13 @@ ALLOWED = {
         "anyq-queue-api",
         "anyq-queue-dispatch",
         "anyq-queue-sqlite",
+    },
+    "anyq-queue-metadata": {
+        "anyq-queue-api",
+        "serde",
+        "serde_json",
+        "toml_edit",
+        "yaml-rust2",
     },
     "anyq-config-api": set(),
     "anyq-config-dispatch": {"anyq-config-api"},
@@ -40,6 +48,7 @@ ALLOWED = {
     },
     "anyq-daemon-api": {"anyq-queue-api", "serde"},
     "anyq-daemon-transport": {
+        "anyq-queue-api",
         "tokio",
         "tempfile",
         "anyq-daemon-api",
@@ -74,6 +83,7 @@ ALLOWED = {
     },
     "anyq-integration-test-hooks": set(),
     "anyq": {
+        "anyq-queue-metadata",
         "anyq-daemon-api",
         "anyq-daemon-transport",
         "serde_json",
@@ -128,7 +138,10 @@ def check(graph, sources):
             if (
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
-                and re.search(r"\banyq_(?:daemon|queue|config)_impl\b", source)
+                and re.search(
+                    r"\b(?:anyq_(?:daemon|queue|config)_impl|anyq_queue_metadata)\b",
+                    source,
+                )
             ):
                 errors.append(f"{path}: factory imports belong only to main.rs")
 
@@ -196,6 +209,8 @@ def main():
         ("anyq-queue-api", "anyq-queue-dispatch"),
         ("anyq-queue-dispatch", "rusqlite"),
         ("anyq-queue-api", "anyq-queue-impl"),
+        ("anyq-queue-api", "serde_json"),
+        ("anyq-queue-dispatch", "yaml-rust2"),
         ("anyq-config-api", "anyq-config-file"),
         ("anyq-config-dispatch", "toml"),
         ("anyq-queue-dispatch", "anyq-integration-test-hooks"),
@@ -219,6 +234,11 @@ def main():
             assert check(graph, mutant), (inner, bad)
     mutant = copy.deepcopy(sources)
     mutant["anyq"]["apps/cli/src/controllers.rs"] = "use anyq_queue_impl::open;"
+    assert check(graph, mutant)
+    mutant = copy.deepcopy(sources)
+    mutant["anyq"]["apps/cli/src/controllers.rs"] = (
+        "use anyq_queue_metadata::parse_json;"
+    )
     assert check(graph, mutant)
     if errors:
         print("\n".join(errors), file=sys.stderr)

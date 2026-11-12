@@ -8,6 +8,7 @@ fn stopped_tasks_never_autostart_and_failed_manual_start_does_not_change_them() 
     add(&store, "owner", "cpu");
     let stopped = RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            metadata: Default::default(),
             name: "manual".into(),
             topics: vec!["cpu".into()],
             start: StartPreference::Stop,
@@ -59,6 +60,7 @@ fn failed_explicit_creation_start_rolls_back_registration_and_autocreate() {
 
     let outcome =
         RegisterTaskInteractor::with_options(store.clone(), policy).register(RegisterTaskRequest {
+            metadata: Default::default(),
             name: "manual".into(),
             topics: vec!["cpu".into(), "transient".into()],
             start: StartPreference::Start,
@@ -77,6 +79,7 @@ fn enabled_autostart_makes_explicit_creation_start_a_noop_when_resources_are_bus
 
     let queued = RegisterTaskInteractor::new(store.clone())
         .register(RegisterTaskRequest {
+            metadata: Default::default(),
             name: "next".into(),
             topics: vec!["cpu".into()],
             start: StartPreference::Start,

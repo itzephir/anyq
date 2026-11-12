@@ -56,3 +56,27 @@ pub use start_task::StartTaskInteractor;
 
 mod set_topic_autostart;
 pub use set_topic_autostart::SetTopicAutostartInteractor;
+
+mod get_task_metadata;
+pub use get_task_metadata::GetTaskMetadataInteractor;
+
+mod set_task_metadata;
+pub use set_task_metadata::SetTaskMetadataInteractor;
+
+mod unset_task_metadata;
+pub use unset_task_metadata::UnsetTaskMetadataInteractor;
+
+mod replace_task_metadata;
+pub use replace_task_metadata::ReplaceTaskMetadataInteractor;
+
+mod get_topic_metadata;
+pub use get_topic_metadata::GetTopicMetadataInteractor;
+
+mod set_topic_metadata;
+pub use set_topic_metadata::SetTopicMetadataInteractor;
+
+mod unset_topic_metadata;
+pub use unset_topic_metadata::UnsetTopicMetadataInteractor;
+
+mod replace_topic_metadata;
+pub use replace_topic_metadata::ReplaceTopicMetadataInteractor;

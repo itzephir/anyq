@@ -161,8 +161,7 @@ impl FrameReader {
                 continue;
             }
 
-            let value = serde_json::from_slice(&self.payload)
-                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+            let value = crate::decode_json::decode_json(&self.payload)?;
             *self = Self::with_limit(self.limit);
 
             return Ok(value);

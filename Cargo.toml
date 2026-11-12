@@ -4,6 +4,7 @@ members = [
   "features/queue/api",
   "features/queue/impl/dispatch",
   "features/queue/impl/sqlite",
+  "features/queue/impl/metadata",
   "features/queue/impl/composition",
   "features/config/api",
   "features/config/impl/dispatch",

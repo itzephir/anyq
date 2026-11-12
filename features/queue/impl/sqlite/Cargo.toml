@@ -11,6 +11,7 @@ integration-test-hooks = ["dep:anyq-integration-test-hooks"]
 [dependencies]
 anyq-queue-api = { path = "../../api" }
 anyq-queue-dispatch = { path = "../dispatch" }
+anyq-queue-metadata = { path = "../metadata" }
 anyq-integration-test-hooks = { path = "../../../../tooling/integration-test-hooks", optional = true }
 rusqlite = { version = "0.39", features = ["bundled"] }
 

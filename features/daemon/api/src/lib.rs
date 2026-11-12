@@ -1,6 +1,12 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
+
+mod metadata_dto;
+pub use metadata_dto::MetadataDto;
+
+mod caller_directory_dto;
+pub use caller_directory_dto::CallerDirectoryDto;
 
 mod task_dto;
 pub use task_dto::TaskDto;

@@ -1,10 +1,11 @@
-use crate::{Error, Result, parse_topic_name};
+use crate::{Error, Metadata, Result, parse_topic_name};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Topic {
     pub name: String,
     pub capacity: u32,
     pub autostart: Option<bool>,
+    pub metadata: Metadata,
 }
 
 impl Topic {
@@ -24,6 +25,7 @@ impl Topic {
             name,
             capacity,
             autostart: None,
+            metadata: Metadata::default(),
         })
     }
 

@@ -1,3 +1,4 @@
+use crate::MetadataDto;
 use anyq_queue_api::{Error, Topic};
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +8,7 @@ pub struct TopicDto {
     pub name: String,
     pub capacity: u32,
     pub autostart: Option<bool>,
+    pub metadata: MetadataDto,
 }
 
 impl From<Topic> for TopicDto {
@@ -15,6 +17,7 @@ impl From<Topic> for TopicDto {
             name: topic.name,
             capacity: topic.capacity,
             autostart: topic.autostart,
+            metadata: topic.metadata.into(),
         }
     }
 }
@@ -25,6 +28,7 @@ impl TryFrom<TopicDto> for Topic {
     fn try_from(value: TopicDto) -> Result<Self, Error> {
         let mut topic = Self::restore(value.name, value.capacity)?;
         topic.autostart = value.autostart;
+        topic.metadata = value.metadata.try_into()?;
 
         Ok(topic)
     }

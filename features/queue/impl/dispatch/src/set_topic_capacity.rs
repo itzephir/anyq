@@ -26,7 +26,9 @@ impl<S: Store> SetTopicCapacity for SetTopicCapacityInteractor<S> {
         let mut topic = Topic::restore(topic.name, topic.capacity)?;
 
         self.store.transaction(|records| {
-            topic.autostart = lookup_topic_value(records, &topic.name, self.policy)?.autostart;
+            let existing = lookup_topic_value(records, &topic.name, self.policy)?;
+            topic.autostart = existing.autostart;
+            topic.metadata = existing.metadata;
             let running = records.tasks().count_tasks(&TaskFilter {
                 topic: Some(topic.name.clone()),
                 state: TaskState::Running,

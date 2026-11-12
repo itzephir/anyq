@@ -1,4 +1,4 @@
-use crate::{QueueError, TaskDto, TopicDto, TopicQueueDto};
+use crate::{MetadataDto, QueueError, TaskDto, TopicDto, TopicQueueDto};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 pub enum QueueResponse {
     Ready { pid: u32, database_id: String },
     Stopped,
+    Metadata(MetadataDto),
     Task(TaskDto),
     Tasks(Vec<TaskDto>),
     Topic(TopicDto),
