@@ -32,8 +32,9 @@ This change depends on
 [`introduce-queue-daemon`](../introduce-queue-daemon/proposal.md). Implementation
 starts after that change supplies a verified local owner, discovery, typed client
 transport, cancellation, and recovery. The panel never falls back to direct
-SQLite access. Metadata, hooks, timeout, and shell-plugin changes are not
-prerequisites, and their delivery order is unchanged.
+SQLite access. Its observation contract does not depend on metadata or plugin
+hooks. Delivery follows the unified stack below so the bundled daemon is verified
+with the configured plugin runtime.
 
 Delivery uses one sequential stack: daemon #14 → metadata #17 → hooks/plugins
 #18 → timeout #19 → shell #20 → observation #16 → desktop #15. Observation and

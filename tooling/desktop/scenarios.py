@@ -8,7 +8,7 @@ from contextlib import closing
 from pathlib import Path
 
 from driver import Driver
-from fixtures import Fixtures, directory_alias
+from fixtures import Fixtures, directory_alias, same_source_path
 from screenshots import platform_name
 
 
@@ -192,7 +192,10 @@ def run(cli, panel, home, output, configuration):
         directory_alias(alias, alias_primary.parent)
         source(alias / alias_primary.name)
         before_alias = driver.state()
-        assert Path(before_alias["path"]).resolve() == alias_primary.resolve()
+        assert same_source_path(before_alias["path"], alias_primary), (
+            before_alias["path"],
+            str(alias_primary),
+        )
         driver.click('[data-task="1"]')
         driver.wait("return Boolean(document.querySelector('.detail'));")
         directory_alias(alias, alias_alternate.parent)
@@ -201,7 +204,10 @@ def run(cli, panel, home, output, configuration):
             f"const state=await window.__TAURI__.core.invoke('get_panel_state');return state.status==='live' && state.generation>{before_alias['generation']};"
         )
         after_alias = driver.state()
-        assert Path(after_alias["path"]).resolve() == alias_alternate.resolve()
+        assert same_source_path(after_alias["path"], alias_alternate), (
+            after_alias["path"],
+            str(alias_alternate),
+        )
         assert (
             after_alias["snapshot"]["tasks"][0]["name"]
             == configuration["source_alias"]["replacement_task"]

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from driver import Driver
-from fixtures import Fixtures
+from fixtures import Fixtures, same_source_path
 from screenshots import Screenshots
 
 
@@ -83,7 +83,10 @@ def run(cli, panel, output, goldens, configuration, mode):
                     ), case["id"]
                     assert state["preferences"]["theme"] == case["theme"]
                     assert state["preferences"]["language"] == case["language"]
-                    assert Path(state["path"]).resolve() == observed.resolve()
+                    assert same_source_path(state["path"], observed), (
+                        state["path"],
+                        str(observed),
+                    )
                     if case["status"] != "error":
                         assert state["last_success"] == configuration["clock_ms"]
                     if "error_kind" in case:

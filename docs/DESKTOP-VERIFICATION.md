@@ -83,6 +83,10 @@ baseline. These regressions run in the required Linux/macOS/Windows matrices.
 
 ## Combined plugin runtime
 
+Observation protocol 7 passed [CI run 43200921266](https://github.com/itzephir/anyq/actions/runs/43200921266)
+on Linux, macOS and Windows before #16 merged. This includes real schema-compatible
+observation, existing-only plugin recovery, bounded responses and interruptions.
+
 Local macOS process and native application integration pass with protocol 7:
 113 feature workflows, 35 interruption scenarios, canonical alias retargeting,
 and panel-first plugin recovery. The configured recovery fixture uses daemon
@@ -95,6 +99,12 @@ The mandatory native UI matrix runs both application scenarios before verifying
 all 45 existing PNGs. Current-head Linux/macOS/Windows CI remains the acceptance
 gate; local results do not establish those platform passes. Manual host, monitor,
 and installed-package acceptance below remains separate.
+
+Windows fixtures compare actual file identity, including canonical paths with an
+extended-length prefix. The disappearance scenario removes the target after
+client discovery and before owner startup: current-schema runtime recovery
+legitimately retains a SQLite handle, so deletion after startup is not a valid
+session-free fixture on Windows. Both scenarios remain mandatory on every OS.
 
 ## Manual native acceptance
 

@@ -43,6 +43,22 @@ def directory_alias(path, target):
         path.symlink_to(target, target_is_directory=True)
 
 
+def same_source_path(actual, expected):
+    actual, expected = Path(actual), Path(expected)
+    if actual.exists() and expected.exists():
+        return actual.samefile(expected)
+
+    def normalized(path):
+        value = str(path.resolve())
+        if value.startswith("\\\\?\\UNC\\"):
+            value = "\\\\" + value[8:]
+        else:
+            value = value.removeprefix("\\\\?\\")
+        return os.path.normcase(value)
+
+    return normalized(actual) == normalized(expected)
+
+
 class Fixtures:
     def __init__(self, cli, home, configuration):
         self.cli = Path(cli).resolve()

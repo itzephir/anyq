@@ -181,13 +181,12 @@ fn owner_refuses_missing_existing_only_target_after_discovery() {
     let initial_owner = queue.spawn_owner();
     queue.topic("cpu");
     initial_owner.stop();
-    // Discovery can precede opening any SQLite session. Keep the owner alive
-    // without a session, after joining the old process, so neither owner-lock
-    // release nor Windows SQLite sharing can race the intended removal.
-    let _owner = queue.spawn_owner();
+    // Remove the target after client discovery but before owner startup. A
+    // recovered plugin runtime legitimately retains an existing queue handle.
     let endpoint = Endpoint::resolve(&queue.db).unwrap();
     std::fs::remove_file(&queue.db).unwrap();
     assert!(!queue.db.exists());
+    let _owner = queue.spawn_owner();
     let stream = endpoint.connect().unwrap();
 
     let response = request(
