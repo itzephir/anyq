@@ -48,6 +48,14 @@ class NativeSession:
         )
         self.responses = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
+        if sys.platform == "darwin":
+            self.log.write(
+                (
+                    json.dumps({"native_capabilities": self.call("capabilities")})
+                    + "\n"
+                ).encode()
+            )
+            self.log.flush()
 
     def _read(self):
         for line in self.process.stdout:

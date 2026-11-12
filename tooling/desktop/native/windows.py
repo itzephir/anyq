@@ -105,7 +105,7 @@ function Find-TrayButton {
 }
 $item = Find-TrayButton
 if (!$item) {
-    $chevron = $root.FindFirst($scope, [System.Windows.Automation.PropertyCondition]::new($property, 'Show hidden icons'))
+    $chevron = $root.FindAll($scope, $buttons) | Where-Object { $_.Current.Name -eq 'Show Hidden Icons' -and !$_.Current.IsOffscreen } | Select-Object -First 1
     if ($chevron) {
         $chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
         $deadline = [DateTime]::UtcNow.AddSeconds(5)

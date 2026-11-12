@@ -35,6 +35,19 @@ class StatusHost:
         self.process = None
 
     def start(self):
+        subprocess.run(
+            [
+                "dbus-update-activation-environment",
+                "XDG_CONFIG_HOME",
+                "XDG_DATA_HOME",
+                "DISPLAY",
+            ],
+            env=self.environment,
+            check=True,
+            timeout=10,
+            stdout=self.log,
+            stderr=self.log,
+        )
         self.process = subprocess.Popen(
             ["xfce4-panel", "--disable-wm-check"],
             env=self.environment,

@@ -125,14 +125,10 @@ static id perform(NSDictionary *command) {
     } else if ([action isEqual:@"key"]) {
         key([command[@"code"] unsignedShortValue], [command[@"flags"] unsignedLongLongValue]);
     } else if ([action isEqual:@"type"]) {
-        NSString *text = command[@"text"];
-        unichar *characters = calloc(text.length, sizeof(unichar));
-        [text getCharacters:characters range:NSMakeRange(0, text.length)];
-        CGEventRef event = CGEventCreateKeyboardEvent(NULL, 0, true);
-        CGEventKeyboardSetUnicodeString(event, text.length, characters);
-        CGEventPost(kCGHIDEventTap, event);
-        CFRelease(event);
-        free(characters);
+        NSCAssert(getenv("GITHUB_ACTIONS") && strcmp(getenv("GITHUB_ACTIONS"), "true") == 0, @"Clipboard fixtures require disposable CI");
+        [NSPasteboard.generalPasteboard clearContents];
+        [NSPasteboard.generalPasteboard setString:command[@"text"] forType:NSPasteboardTypeString];
+        key(9, kCGEventFlagMaskCommand);
     } else {
         [NSException raise:@"Unknown action" format:@"%@", action];
     }

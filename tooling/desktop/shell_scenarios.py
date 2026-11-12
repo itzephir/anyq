@@ -3,15 +3,13 @@
 import json
 import os
 import shutil
-import sqlite3
 import subprocess
 import sys
-from contextlib import closing
 from pathlib import Path
 
 import display_scenarios
 from driver import Driver
-from fixtures import Fixtures
+from fixtures import Fixtures, queue_fingerprint, same_source_path
 from gnome_status_host import GnomeStatusHost
 from native_session import NativeSession
 from screenshots import platform_name
@@ -32,15 +30,6 @@ def run(cli, panel, home, output, configuration, profile):
     if profile["host"] == "gnome":
         host = GnomeStatusHost(home, fixtures.environment)
     report = []
-
-    def fingerprint():
-        with closing(sqlite3.connect(database)) as connection:
-            return {
-                table: connection.execute(
-                    f"SELECT * FROM {table} ORDER BY 1"
-                ).fetchall()
-                for table in ("topics", "tasks", "task_topics")
-            }
 
     def menu_open():
         native.click_tray(driver.process.pid, right=True)
@@ -78,7 +67,7 @@ def run(cli, panel, home, output, configuration, profile):
             driver.state()["snapshot"]
             == configuration["fixtures"]["primary"]["expected_snapshot"]
         )
-        before = fingerprint()
+        before = queue_fingerprint(database)
         owner = fixtures.call(["daemon", "status"], database)
         assert "running" in owner
 
@@ -107,6 +96,11 @@ def run(cli, panel, home, output, configuration, profile):
                     pid=driver.process.pid,
                 )
                 native.key("go")
+                native.wait(
+                    "windows",
+                    predicate=lambda items: len(items) > prior + 1,
+                    pid=driver.process.pid,
+                )
                 native.call("type", text=str(alternate))
                 native.key("enter")
                 native.wait(
@@ -116,8 +110,12 @@ def run(cli, panel, home, output, configuration, profile):
                 )
                 native.key("enter")
                 driver.wait(
-                    f"return document.querySelector('#database-path')?.value === {json.dumps(str(alternate))};"
+                    f"return document.querySelector('#database-path')?.value.endsWith({json.dumps('/' + alternate.name)});"
                 )
+                chosen = driver.call(
+                    "return document.querySelector('#database-path').value;"
+                )["payload"]["value"]
+                assert same_source_path(chosen, alternate), (chosen, str(alternate))
                 driver.click("#cancel")
                 report.append(
                     {"scenario": "real-native-file-picker", "result": "passed"}
@@ -177,7 +175,7 @@ def run(cli, panel, home, output, configuration, profile):
             report.append({"scenario": "native-menu-quit", "result": "passed"})
 
         assert fixtures.call(["daemon", "status"], database) == owner
-        assert fingerprint() == before
+        assert queue_fingerprint(database) == before
         report.append(
             {
                 "scenario": "same-owner-and-slot-ownership",

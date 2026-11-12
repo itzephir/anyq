@@ -4,24 +4,15 @@ import hashlib
 import json
 import os
 import shutil
-import sqlite3
 import subprocess
 import sys
 import time
-from contextlib import closing
 from pathlib import Path
 
-from fixtures import Fixtures
+from fixtures import Fixtures, queue_fingerprint
 from native_session import NativeSession
+from renderer_lifetime import wait_for_renderers
 from screenshots import platform_name
-
-
-def fingerprint(database):
-    with closing(sqlite3.connect(database)) as connection:
-        return {
-            table: connection.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-            for table in ("topics", "tasks", "task_topics")
-        }
 
 
 class Package:
@@ -117,7 +108,7 @@ def run(cli, bundles, home, output, configuration):
         path: hashlib.sha256(path.read_bytes()).hexdigest()
         for path in [preferences, shared]
     }
-    before = fingerprint(database)
+    before = queue_fingerprint(database)
     package = Package(bundles, home)
     native = NativeSession(home, fixtures.environment)
     client = None
@@ -162,11 +153,12 @@ def run(cli, bundles, home, output, configuration):
                     native.close_window(client.pid)
                 assert client.wait(timeout=20) == 0
                 client = None
+                wait_for_renderers(home)
             finally:
                 log.close()
             package.remove()
             assert fixtures.call(["daemon", "status"], database) == owner
-            assert fingerprint(database) == before
+            assert queue_fingerprint(database) == before
             assert {
                 path: hashlib.sha256(path.read_bytes()).hexdigest() for path in saved
             } == saved

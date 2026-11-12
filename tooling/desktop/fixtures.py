@@ -8,6 +8,8 @@ import time
 from contextlib import closing, contextmanager
 from pathlib import Path
 
+from renderer_lifetime import wait_for_renderers
+
 
 def environment(home, database):
     inherited = {
@@ -72,6 +74,14 @@ def unavailable_observation(database):
             connection.execute(
                 "ALTER TABLE anyq_test_unavailable_topics RENAME TO topics"
             )
+
+
+def queue_fingerprint(database):
+    with closing(sqlite3.connect(database)) as connection:
+        return {
+            table: connection.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+            for table in ("topics", "tasks", "task_topics")
+        }
 
 
 class Fixtures:
@@ -141,3 +151,4 @@ class Fixtures:
             while "running" in self.call(["daemon", "status"], path):
                 assert time.monotonic() < deadline, "Fixture owner did not stop"
                 time.sleep(0.02)
+        wait_for_renderers(self.home)

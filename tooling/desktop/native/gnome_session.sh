@@ -34,7 +34,8 @@ export WAYLAND_DISPLAY=anyq-wayland
 export GDK_BACKEND=wayland
 dbus-update-activation-environment WAYLAND_DISPLAY
 gdbus wait --session --timeout=30 org.gnome.Shell
-mapfile -t stage_windows < <(xdotool search --onlyvisible --pid "$gnome_pid")
+stage_ids=$(timeout 30 xdotool search --sync --onlyvisible --pid "$gnome_pid")
+mapfile -t stage_windows <<< "$stage_ids"
 xdotool windowfocus --sync "${stage_windows[0]}"
 xdotool key --clearmodifiers Escape
 python tooling/test_desktop_shell.py --cli target/debug/anyq --panel target/debug/anyq-panel --profile linux-gnome-wayland

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from fixtures import environment
+from renderer_lifetime import wait_for_renderers
 
 
 class Driver:
@@ -144,5 +145,6 @@ class Driver:
         if self.process and self.process.poll() is None:
             self.call(native="quit")
             self.process.wait(timeout=10)
+        wait_for_renderers(self.home)
         if self.log:
             self.log.close()
