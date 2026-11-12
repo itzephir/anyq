@@ -1,19 +1,19 @@
-use crate::{Error, Result, Task, TaskState, Topic, TopicQueue};
+use crate::{Error, ObservedTask, ObservedTopic, Result, TaskState, TopicQueue};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueueSnapshot {
-    pub topics: Vec<Topic>,
-    pub tasks: Vec<Task>,
+    pub topics: Vec<ObservedTopic>,
+    pub tasks: Vec<ObservedTask>,
 }
 
 impl QueueSnapshot {
-    pub fn new(mut topics: Vec<Topic>, mut tasks: Vec<Task>) -> Result<Self> {
+    pub fn new(mut topics: Vec<ObservedTopic>, mut tasks: Vec<ObservedTask>) -> Result<Self> {
         topics.sort_by(|a, b| a.name.cmp(&b.name));
-        tasks.sort_by_key(Task::sequence);
+        tasks.sort_by_key(ObservedTask::sequence);
         let names: BTreeSet<_> = topics.iter().map(|topic| topic.name.as_str()).collect();
-        let task_names: BTreeSet<_> = tasks.iter().map(Task::name).collect();
-        let sequences: BTreeSet<_> = tasks.iter().map(Task::sequence).collect();
+        let task_names: BTreeSet<_> = tasks.iter().map(ObservedTask::name).collect();
+        let sequences: BTreeSet<_> = tasks.iter().map(ObservedTask::sequence).collect();
 
         if names.len() != topics.len()
             || task_names.len() != tasks.len()
@@ -52,6 +52,7 @@ impl QueueSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Task, Topic};
 
     #[test]
     fn multi_topic_owner_counts_once_and_preserves_order_and_start_preferences() {
@@ -67,13 +68,17 @@ mod tests {
             .with_start_policy(false, true);
         let topics = ["repo", "empty", "cpu"].map(|name| Topic::restore(name.into(), 2).unwrap());
 
-        let snapshot = QueueSnapshot::new(topics.into(), vec![stopped.clone(), owner]).unwrap();
+        let snapshot = QueueSnapshot::new(
+            topics.into_iter().map(Into::into).collect(),
+            vec![stopped.clone().into(), owner.into()],
+        )
+        .unwrap();
 
         assert_eq!(snapshot.count(TaskState::Running), 1);
         assert_eq!(snapshot.topic_count("cpu", TaskState::Running), 1);
         assert_eq!(snapshot.topic_count("repo", TaskState::Running), 1);
         assert_eq!(snapshot.topic_count("empty", TaskState::Queued), 0);
-        assert_eq!(snapshot.tasks[1], stopped);
+        assert_eq!(snapshot.tasks[1], stopped.into());
         assert_eq!(snapshot.tasks[0].name(), "`owner`");
         assert_eq!(snapshot.topics[0].name, "cpu");
     }
@@ -83,7 +88,7 @@ mod tests {
         let registered = Task::restore(1, "job".into(), TaskState::Registered, vec![]).unwrap();
         let queued = Task::restore(2, "job".into(), TaskState::Queued, vec!["cpu".into()]).unwrap();
 
-        assert!(QueueSnapshot::new(vec![], vec![registered]).is_err());
-        assert!(QueueSnapshot::new(vec![], vec![queued]).is_err());
+        assert!(QueueSnapshot::new(vec![], vec![registered.into()]).is_err());
+        assert!(QueueSnapshot::new(vec![], vec![queued.into()]).is_err());
     }
 }

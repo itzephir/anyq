@@ -20,7 +20,7 @@ impl Channel {
                 "selected queue database does not exist".into(),
             ));
         }
-        let stream =
+        let (endpoint, stream) =
             start_owner(endpoint, &cancelled).map_err(|error| Error::Storage(error.to_string()))?;
         let channel = Self {
             session: Rc::new(RefCell::new(ClientSession::new(stream, cancelled))),
@@ -41,7 +41,7 @@ impl Channel {
         policy: QueuePolicy,
         cancelled: Arc<AtomicBool>,
     ) -> Result<Self> {
-        let stream = start_owner(endpoint, &cancelled).map_err(|error| {
+        let (endpoint, stream) = start_owner(endpoint, &cancelled).map_err(|error| {
             if error.kind() == std::io::ErrorKind::Interrupted {
                 Error::Interrupted
             } else {

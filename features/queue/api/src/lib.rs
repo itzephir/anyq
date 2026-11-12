@@ -105,3 +105,9 @@ pub use observe_queue_request::ObserveQueueRequest;
 
 mod queue_snapshot;
 pub use queue_snapshot::QueueSnapshot;
+
+mod observed_task;
+pub use observed_task::ObservedTask;
+
+mod observed_topic;
+pub use observed_topic::ObservedTopic;

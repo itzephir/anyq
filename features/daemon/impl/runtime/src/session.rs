@@ -3,9 +3,10 @@ use crate::{
     session_permit::SessionPermit,
 };
 use anyq_daemon_api::{
-    PROTOCOL_VERSION, QueueRequest, QueueResponse, QueueServices, RequestFrame, ResponseFrame,
+    MAX_OBSERVATION_RESPONSE_BYTES, PROTOCOL_VERSION, QueueRequest, QueueResponse, QueueServices,
+    RequestFrame, ResponseFrame,
 };
-use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_frame};
+use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_bounded_frame, send_frame};
 use anyq_queue_api::{Error, QueuePolicy, Result};
 use std::{
     sync::{
@@ -23,6 +24,7 @@ pub(crate) struct Session {
     pub factory: Arc<dyn QueueFactory>,
     pub signals: Arc<SessionSignals>,
     pub shutdown: Arc<AtomicBool>,
+    pub retained: Arc<AtomicBool>,
     pub permit: SessionPermit,
 }
 
@@ -76,18 +78,41 @@ impl Session {
     }
 
     fn reply(&self, id: u64, response: QueueResponse) -> Result<()> {
-        send_frame(
+        let mut frame = ResponseFrame {
+            version: PROTOCOL_VERSION,
+            id,
+            response,
+        };
+        let observation = matches!(frame.response, QueueResponse::Observation { .. });
+        let limit = if observation {
+            MAX_OBSERVATION_RESPONSE_BYTES
+        } else {
+            usize::MAX
+        };
+        send_bounded_frame(
             &self.stream,
-            &ResponseFrame {
-                version: PROTOCOL_VERSION,
-                id,
-                response,
-            },
+            &frame,
             &self.signals.closed,
             Duration::from_secs(5),
+            limit,
         )
+        .or_else(|error| {
+            if !observation || error.kind() != std::io::ErrorKind::InvalidInput {
+                return Err(error);
+            }
+
+            frame.response = QueueResponse::Error(
+                Error::Invalid("queue observation exceeds encoded response size limit".into())
+                    .into(),
+            );
+            send_frame(
+                &self.stream,
+                &frame,
+                &self.signals.closed,
+                Duration::from_secs(5),
+            )
+        })
         .map_err(|error| Error::Storage(error.to_string()))?;
-        self.signals.active.store(false, Ordering::SeqCst);
 
         Ok(())
     }
@@ -107,7 +132,7 @@ impl Session {
 
             match receiver.recv_timeout(Duration::from_millis(10)) {
                 Ok(frame) if frame.version == PROTOCOL_VERSION => {
-                    self.signals.active.store(true, Ordering::SeqCst);
+                    self.signals.keep_alive.store(true, Ordering::SeqCst);
 
                     return Ok(frame);
                 }
@@ -127,8 +152,9 @@ impl Session {
         receiver: &Receiver<RequestFrame>,
         id: u64,
         policy: QueuePolicy,
+        retained_services: &mut Option<QueueServices>,
     ) -> Result<()> {
-        let mut services: QueueServices = match self.factory.open(
+        let services = match self.factory.open(
             &self.endpoint.database,
             policy,
             self.signals.cancelled.clone(),
@@ -140,7 +166,10 @@ impl Session {
                 return Ok(());
             }
         };
+
+        *retained_services = Some(services);
         self.reply(id, self.ready())?;
+        let services = retained_services.as_mut().expect("queue services opened");
 
         loop {
             let frame = self.next(receiver)?;
@@ -156,7 +185,7 @@ impl Session {
                 return Ok(());
             }
 
-            let response = match route(frame.request, &mut services) {
+            let response = match route(frame.request, services) {
                 Ok(response) => response,
                 Err(error) => QueueResponse::Error(error.into()),
             };
@@ -174,7 +203,11 @@ impl Session {
         }
     }
 
-    fn handle(&mut self, receiver: &Receiver<RequestFrame>) -> Result<()> {
+    fn handle(
+        &mut self,
+        receiver: &Receiver<RequestFrame>,
+        services: &mut Option<QueueServices>,
+    ) -> Result<()> {
         let frame = self.next(receiver)?;
         match frame.request {
             QueueRequest::OpenObservation { database_id } => {
@@ -228,12 +261,12 @@ impl Session {
                     );
 
                     anyq_integration_test_hooks::with_context(context, || {
-                        self.queue_loop(receiver, frame.id, policy.into())
+                        self.queue_loop(receiver, frame.id, policy.into(), services)
                     })
                 }
 
                 #[cfg(not(feature = "integration-test-hooks"))]
-                self.queue_loop(receiver, frame.id, policy.into())
+                self.queue_loop(receiver, frame.id, policy.into(), services)
             }
             _ => self.reply(
                 frame.id,
@@ -254,14 +287,16 @@ impl Session {
             while let Ok(frame) = reader.receive_request::<RequestFrame>(
                 &stream,
                 &signals.closed,
-                &signals.active,
+                &signals.keep_alive,
                 Duration::from_secs(30),
             ) {
                 if matches!(frame.request, QueueRequest::Cancel) {
                     break;
                 }
 
-                signals.active.store(true, Ordering::SeqCst);
+                // Replies can be followed by a long CLI output pause. Keep a
+                // complete session alive until EOF, cancellation or shutdown.
+                signals.keep_alive.store(true, Ordering::SeqCst);
                 if sender.try_send(frame).is_err() {
                     break;
                 }
@@ -270,8 +305,23 @@ impl Session {
             signals.cancelled.store(true, Ordering::SeqCst);
         });
 
-        let _ = self.handle(&receiver);
+        let mut services = None;
+        let _ = self.handle(&receiver, &mut services);
         self.signals.close();
         let _ = reader.join();
+
+        let retain = services.is_some() && !self.retained.swap(true, Ordering::SeqCst);
+        let shutdown = self.shutdown.clone();
+        drop(self);
+
+        // Keep one initialized storage context for the owner's lifetime. Client
+        // EOF releases its stream and permit before this otherwise idle wait.
+        if retain {
+            while !shutdown.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+
+        drop(services);
     }
 }
