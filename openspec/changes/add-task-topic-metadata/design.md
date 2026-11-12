@@ -62,7 +62,7 @@ CLI normalization gains meta/metafile in both orderings. The domain naming
 inventory adds those reserved bare names while canonical restore stays unchanged;
 existing command-like names remain addressable using backticks. Invalid flags,
 files and values fail before database/daemon startup whenever entity state is
-not required. New messages/help use the presentation localization boundary.
+not required. New CLI messages/help remain English-only, without localization or language selection.
 
 ### Compatible storage upgrade
 

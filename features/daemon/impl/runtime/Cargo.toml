@@ -1,0 +1,18 @@
+[package]
+name = "anyq-daemon-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+integration-test-hooks = ["dep:anyq-integration-test-hooks", "anyq-daemon-api/integration-test-hooks"]
+
+[dependencies]
+anyq-daemon-api = { path = "../../api" }
+anyq-daemon-transport = { path = "../transport" }
+anyq-queue-api = { path = "../../../queue/api" }
+anyq-integration-test-hooks = { path = "../../../../tooling/integration-test-hooks", optional = true }
+
+[lints]
+workspace = true

@@ -1,5 +1,6 @@
 mod checkpoint;
 mod controllers;
+mod daemon_presenters;
 mod error;
 mod interrupt;
 mod output;
@@ -16,7 +17,7 @@ use anyq_queue_api::{
 };
 use checkpoint::checkpoint;
 use clap::Parser;
-use controllers::{Cli, ConfigCommand, Request};
+use controllers::{Cli, ConfigCommand, DaemonCommand, Request};
 use error::{Error, Result};
 use std::{
     process::ExitCode,
@@ -72,6 +73,20 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         return checkpoint("cli.after-command", &cancelled);
     }
 
+    if let Request::Daemon(DaemonCommand::Status | DaemonCommand::Stop) = &request {
+        if let Some(path) = &cli.db {
+            let pid = if matches!(request, Request::Daemon(DaemonCommand::Stop)) {
+                anyq_daemon_impl::daemon_stop(path, cancelled.clone())?;
+                None
+            } else {
+                anyq_daemon_impl::daemon_status(path, cancelled.clone())?
+            };
+            output::emit(&daemon_presenters::status(pid), &cancelled)?;
+
+            return Ok(());
+        }
+    }
+
     let config = configuration.get_config.get()?;
     let path = match cli.db {
         Some(path) => path,
@@ -81,10 +96,6 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         },
     };
 
-    if let Some(parent) = path.parent().filter(|path| !path.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent)?;
-    }
-
     let policy = QueuePolicy {
         autocreate: AutoCreatePolicy {
             tasks: config.task_autocreate(),
@@ -92,11 +103,31 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         },
         task_autostart: config.task_autostart(),
     };
-    let mut cases = anyq_queue_impl::open_with_options(&path, policy, cancelled.clone())?;
+    if let Request::Daemon(command) = request {
+        let pid = match command {
+            DaemonCommand::Run => return Ok(anyq_daemon_impl::run(&path, cancelled)?),
+            DaemonCommand::Start => Some(anyq_daemon_impl::daemon_start(
+                &path,
+                policy,
+                cancelled.clone(),
+            )?),
+            DaemonCommand::Status => anyq_daemon_impl::daemon_status(&path, cancelled.clone())?,
+            DaemonCommand::Stop => {
+                anyq_daemon_impl::daemon_stop(&path, cancelled.clone())?;
+                None
+            }
+        };
+        output::emit(&daemon_presenters::status(pid), &cancelled)?;
+
+        return Ok(());
+    }
+
+    let mut cases = anyq_daemon_impl::connect(&path, policy, cancelled.clone())?;
     checkpoint("cli.before-operation", &cancelled)?;
 
     let message = match request {
         Request::Config(_) => unreachable!("configuration handled before opening the queue"),
+        Request::Daemon(_) => unreachable!("daemon lifecycle handled before queue operations"),
         Request::GetTask { name } => Some(presenters::task(&cases.get_task.get(&name)?)),
         Request::GetTopicQueue { name } => {
             Some(presenters::topic_queue(&cases.get_topic_queue.get(&name)?))

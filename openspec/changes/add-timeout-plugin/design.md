@@ -48,7 +48,7 @@ without claiming to stop the caller's process. Document this before activation.
 
 Expose `anyq plugin-runtime timeout` as the executable plugin mode, registered
 through the ordinary enable command (or an equivalent documented convenience
-that expands to that registration). Localized CLI status uses plugin state;
+that expands to that registration). English-only CLI status uses plugin state;
 queue admission and SQL conversion gain no timeout branches. Pure policy tests
 use a fake clock; recovery tests persist real timers with short durations.
 

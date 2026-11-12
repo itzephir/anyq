@@ -2,6 +2,19 @@
 
 The first Ctrl+C requests cancellation; CLI reaches the current safe boundary and returns 130. A committed stage is not undone. An open transaction rolls back completely. External work is outside anyq's ownership; a CLI signal does not prove that work has stopped.
 
+Queue operations execute inside a daemon session with its own cancellation token.
+Client Ctrl+C sends a cancellation message and waits briefly for the owner to
+reach its safe boundary. A client disconnect cancels only that session; other
+clients and the owner remain usable. If the owner fails before a response, the
+client reports an uncertain outcome and does not replay its request.
+
+The foreground owner's first Ctrl+C stops accepting clients, cancels active
+sessions and drains them with a bounded wait before exiting 130. Abrupt owner
+termination is recovered by SQLite. Both paths retain every committed task and
+resource slot. A new client may start a replacement owner; opening the database
+does not advance tasks or infer completion. The owner stop command uses the same
+safe shutdown without a signal and returns success.
+
 | Interruption point | Persisted result |
 | --- | --- |
 | Before argument parsing | Neither database nor config is created |
@@ -40,7 +53,7 @@ A second Ctrl+C forcibly terminates the process. SQLite rolls back unfinished tr
 
 apps/cli/tests/interruptions.rs launches the real CLI, holds it at a selected checkpoint, and sends a real signal: SIGINT on Unix, CTRL_C_EVENT in a separate console on Windows. It then checks exit 130, durable states, slots, file integrity, lock release, and a successful subsequent operation. SQLite/file lock waits are tested with an independent process actually holding the lock.
 
-The suite covers boundaries and intermediate writes, including all three create -twc commits, command variants, autocreate, and config set/unset/read. It checks observable boundaries rather than every machine instruction.
+The suite covers boundaries and intermediate writes, including all three create -twc commits, command variants, autocreate, and config set/unset/read. It checks observable boundaries rather than every machine instruction. Feature-only gate context is carried with Open and scoped to one daemon worker; hit counts survive chain requests in that session without mutating process-global environment. Additional tests send real native signals to the foreground owner at both sides of a commit, and forcibly kill an owner after commit to verify response-loss uncertainty without replay.
 
 Separate tests produce output larger than pipe capacity, wait for the first byte, and send one real signal. Remaining data is read only after CLI exits, so the test cannot accidentally drain the pipe and hide a hang. Checks cover stdout and stderr, running/config persistence, and successful subsequent operations. Successful large-output reads and consumer-closed pipes are tested in the workflow suite.
 

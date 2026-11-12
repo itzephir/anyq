@@ -3,7 +3,8 @@ schema: spec-driven
 context: |
   Language: English
   All repository content, documentation, comments, and OpenSpec artifacts must be written in English.
-  User interfaces must support English (en) and Russian (ru).
+  The CLI is English-only, with no translations or language selection.
+  Websites and other graphical interfaces support English (en) and Russian (ru).
   Russian is allowed in localization resources and language-specific test fixtures.
   Website language selection: valid URL override, saved preference, browser languages, then English.
   Expose the selected website language through the HTML lang attribute for layout and accessibility.
@@ -23,5 +24,8 @@ context: |
   Keep one standalone type per file and separate logical phases with blank lines.
   SQL executes exact filters; the domain decides admission and state transitions.
   Reject incompatible databases before changing their data or journal mode.
-  Runtime requires neither a server nor Python/Node; Node is pinned OpenSpec development tooling.
+  A bundled local daemon owns each canonical queue database; CLI uses private native IPC.
+  Queue/config inner layers remain independent of transport, serialization and process execution.
+  Daemon composition may assemble queue impl; other cross-feature consumers use API only.
+  Runtime requires no external server package or Python/Node; Node is pinned OpenSpec development tooling.
   Do not mark unverified tasks complete or sync unfinished behavior into baseline specs.

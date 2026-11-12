@@ -1,0 +1,20 @@
+[package]
+name = "anyq-daemon-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+integration-test-hooks = ["anyq-daemon-api/integration-test-hooks"]
+
+[dependencies]
+anyq-daemon-api = { path = "../../api" }
+anyq-daemon-transport = { path = "../transport" }
+anyq-queue-api = { path = "../../../queue/api" }
+
+[target.'cfg(windows)'.dependencies]
+windows-spawn = "0.1.0"
+
+[lints]
+workspace = true

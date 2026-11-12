@@ -11,3 +11,5 @@ mod storage_error;
 
 #[cfg(test)]
 mod tests;
+
+mod retry_lock;

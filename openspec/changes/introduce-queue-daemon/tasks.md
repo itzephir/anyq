@@ -2,31 +2,54 @@
 
 ## 1. Protocol and ownership boundary
 
-- [ ] 1.1 Add daemon API/protocol and client/runtime/composition crates with explicit roots; verify Cargo graph checks and negative fixtures reject inner IO or CLI access to queue impl.
-- [ ] 1.2 Define bounded versioned request/response and typed error DTOs; verify round trips preserve canonical names and malformed/oversized/version-mismatched frames execute no operation.
-- [ ] 1.3 Implement private canonical-path discovery and lifetime singleton locking; verify concurrent first starts, symlink aliases, independent databases and stale endpoint replacement with real processes.
-- [ ] 1.4 Document protocol, private endpoint access and mixed-version limitations in docs/ARCHITECTURE.md and daemon usage docs; verify documented foreground/status commands against a temporary database.
+- [x] 1.1 Add daemon API/protocol and client/runtime/composition crates with explicit roots; verify Cargo graph checks and negative fixtures reject inner IO or CLI access to queue impl.
+- [x] 1.2 Define bounded versioned request/response and typed error DTOs; verify round trips preserve canonical names and malformed/oversized/version-mismatched frames execute no operation.
+- [x] 1.3 Implement private canonical-path discovery and lifetime singleton locking; verify concurrent first starts, symlink aliases, independent databases and stale endpoint replacement with real processes.
+- [x] 1.4 Document protocol, private endpoint access and mixed-version limitations in docs/ARCHITECTURE.md and daemon usage docs; verify documented foreground/status commands against a temporary database.
 
 ## 2. Runtime and CLI migration
 
-- [ ] 2.1 Implement foreground serving, automatic detached startup, start/status/stop and bounded shutdown; verify a daemon survives client exit and stopped/restarted owners retain every task state and slot.
-- [ ] 2.2 Implement individual remote queue trait adapters and switch every task/topic CLI path to them; verify existing workflow/name/alias/config/path-precedence tests and chain commit behavior without direct CLI SQLite access.
-- [ ] 2.3 Preserve config/help/version independence and add en/ru lifecycle presentation; verify those commands create no database/owner and lifecycle messages render in both languages.
-- [ ] 2.4 Report response-loss ambiguity without replaying mutations; verify a severed post-commit response preserves ownership and a later query resolves the durable result.
-- [ ] 2.5 Update README/examples and OpenSpec project context for daemon ownership; verify examples run as documented and do not imply plugin execution exists yet.
+- [x] 2.1 Implement foreground serving, automatic detached startup, start/status/stop and bounded shutdown; verify a daemon survives client exit and stopped/restarted owners retain every task state and slot.
+- [x] 2.2 Implement individual remote queue trait adapters and switch every task/topic CLI path to them; verify existing workflow/name/alias/config/path-precedence tests and chain commit behavior without direct CLI SQLite access.
+- [x] 2.3 Preserve config/help/version independence and English-only CLI presentation; verify those commands create no database/owner and no CLI language option or translation resources are added.
+- [x] 2.4 Report response-loss ambiguity without replaying mutations; verify a severed post-commit response preserves ownership and a later query resolves the durable result.
+- [x] 2.5 Update README/examples and OpenSpec project context for daemon ownership; verify examples run as documented and do not imply plugin execution exists yet.
 
 ## 3. Cancellation and recovery
 
-- [ ] 3.1 Add per-request cancellation and safe-boundary propagation without global token sharing; verify cancelling one real client rolls back uncommitted work while other clients and owner remain usable.
-- [ ] 3.2 Refactor feature-only integration gates to request/session scope with per-session hit counts; verify all existing native Ctrl+C cases still exercise real owner persistence boundaries without skip/ignore.
-- [ ] 3.3 Add foreground-owner signal/crash tests and blocked-client framing/output tests; verify committed states survive and shutdown remains bounded on native Linux/macOS/Windows CI.
-- [ ] 3.4 Add fixture-owned daemon cleanup and update docs/INTERRUPTIONS.md; verify process tests leave no owners and first/second Ctrl+C behavior matches documented boundaries.
+- [x] 3.1 Add per-request cancellation and safe-boundary propagation without global token sharing; verify cancelling one real client rolls back uncommitted work while other clients and owner remain usable.
+- [x] 3.2 Refactor feature-only integration gates to request/session scope with per-session hit counts; verify all existing native Ctrl+C cases still exercise real owner persistence boundaries without skip/ignore.
+- [x] 3.3 Add foreground-owner signal/crash tests and blocked-client framing/output tests; verify committed states survive and shutdown remains bounded on native Linux/macOS/Windows CI.
+- [x] 3.4 Add fixture-owned daemon cleanup and update docs/INTERRUPTIONS.md; verify process tests leave no owners and first/second Ctrl+C behavior matches documented boundaries.
 
 ## 4. Integration acceptance
 
-- [ ] 4.1 Run all mandatory formatting, lint, architecture, Ruff, OpenSpec, workspace and native interruption commands; retain their results and leave failures unchecked.
-- [ ] 4.2 Open the daemon-only implementation PR and verify current GitHub CI passed, including all native matrices, distribution and website categories, before marking cross-platform acceptance complete.
-- [ ] 4.3 Sync only verified daemon behavior into baseline specs; verify strict OpenSpec validation and review the diff for unchanged admission/ownership semantics.
+- [x] 4.1 Run all mandatory formatting, lint, architecture, Ruff, OpenSpec, workspace and native interruption commands; retain their results and leave failures unchecked.
+- [x] 4.2 Open the daemon-only implementation PR and verify current GitHub CI passed, including all native matrices, distribution and website categories, before marking cross-platform acceptance complete.
+- [x] 4.3 Sync only verified daemon behavior into baseline specs; verify strict OpenSpec validation and review the diff for unchanged admission/ownership semantics.
+
+## 5. Review corrections
+
+- [x] 5.1 Separate bounded waiting/command session quotas and reserve lifecycle capacity; verify 64 real wait/start clients, chained completion, quota exhaustion and lifecycle access at full command capacity.
+- [x] 5.2 Clarify selected anyq database ownership in README and document the session limits; verify mandatory local checks and synchronize only verified lifecycle scenarios.
+- [x] 5.3 Publish the corrections in PR #14 and verify current native Linux/macOS/Windows CI without merging PRs.
+
+## 6. Protocol review corrections
+
+- [x] 6.1 Separate idle/partial-frame deadlines from active execution; verify a real request survives 31 seconds before commit, cancellation/EOF still interrupt it, and incomplete input remains bounded.
+- [x] 6.2 Verify the connected Windows pipe owner SID before Open and explicitly assign the listener owner; verify native accepted/mismatched/unreadable owner cases without unsafe project code.
+- [x] 6.3 Run mandatory local checks and native Linux/macOS/Windows CI, synchronize verified protocol scenarios and publish the corrections in PR #14 without merging it.
+- [x] 6.4 Separate protocol shutdown from native interruption; verify foreground stop returns 0 while Ctrl+C retains 130 and committed ownership survives both, including current native CI.
+
+## 7. Client pauses and new database aliases
+
+- [x] 7.1 Preserve established sessions across client output pauses; verify a 31-second gap between committed chain operations completes without replay while partial frames, EOF and shutdown remain bounded.
+- [x] 7.2 Resolve equivalent new database paths through a regular owner sidecar and refresh startup discovery; verify foreground and concurrent first clients share the owner before SQLite exists, including case-insensitive native filesystems.
+- [x] 7.3 Run mandatory local checks and current native Linux/macOS/Windows CI, synchronize verified scenarios and publish the corrections in PR #14 without merging it.
+
+## 8. Native storage lifetime verification
+
+- [x] 8.1 Retain one initialized queue-service context until owner shutdown after releasing the disconnected client's stream and quota; verify native connection churn, lifecycle draining and full-capacity access without replaying operations on Linux/macOS/Windows CI.
 
 ## Workflow follow-up
 

@@ -42,14 +42,29 @@ is the initial candidate; enforce private directory/socket permissions and a
 current-user pipe ACL rather than relying on endpoint-name secrecy. Use an OS
 file lock for the canonical database identity, held for the owner's lifetime.
 Resolve existing database symlinks or the nearest existing parent plus filename
-before discovering the owner. Atomically publish discovery only after bind and
-compatible database initialization. Remove stale discovery under the lock only.
+before discovering the owner. Before SQLite exists, an existing regular owner
+sidecar anchors the filesystem's canonical filename spelling; symlink sidecars
+do not redirect the selected database. The owner resolves its endpoint again
+after acquiring the lock, since a competing opener may have created the sidecar
+with another equivalent spelling. Client startup refreshes discovery as the
+anchor appears, and Open uses that refreshed identity. Status does not create
+the anchor or the database. Publish the endpoint after bind and return Open
+readiness after compatible session initialization. Remove stale discovery under
+the lock only.
 
 Use a per-user private runtime directory and a stable digest of the canonical
 path to avoid socket length limits. Verify the canonical identity in the
 handshake, preventing digest collisions from connecting to the wrong queue.
 Do not expose an IP listener; it would add authentication and firewall concerns
 without a remote-client requirement.
+
+Windows assigns each pipe's owner explicitly to the current process user SID,
+including elevated launches whose default object owner could otherwise be a
+group. Clients query the connected handle's owner through a safe Windows API
+adapter and compare it with their own user SID before sending Open. Missing or
+unreadable ownership fails closed. Listener ACLs restrict incoming clients;
+neither a matching public path digest nor the listener ACL authenticates a server
+that another account created first. No PID-based ownership inference is used.
 
 ### Bounded typed request/response frames
 
@@ -59,6 +74,16 @@ frame, connection and response-write limits. Preserve canonical names without
 reparsing during DTO restoration. A successful response follows commit. Retry
 connection/start discovery before sending, but never replay a mutation whose
 response was lost; return an inspectable uncertain-result error.
+
+The initial empty input has an idle deadline. Once a complete request is queued,
+a keep-alive flag suspends that empty-input deadline until the session closes.
+Valid Open sessions can therefore survive long client output pauses between
+separately committed operations; invalid/control sessions close after handling.
+Any first byte starts a separate fixed whole-frame deadline; partial input cannot
+extend it even in an established session. Connection quotas bound retained
+sessions. The reader continues detecting EOF, Cancel and shutdown. Client
+response deadlines remain independent of input-idle timing, and no mutation is
+replayed to recover from an idle client pause.
 
 The CLI reads config and resolves db.path/ANYQ_DB/--db as today, passing the
 validated QueuePolicy snapshot per request. Config/help/version remain local.
@@ -75,6 +100,25 @@ rollback at the existing adapter boundaries. A slow request or locked database
 must not block cancellation, status or other connections. Owner shutdown cancels
 workers and closes clients with bounded draining; committed ownership survives.
 
+Separate quotas bound 64 command sessions and 64 wait/start-poll sessions. Before
+each operation the connection acquires its new class's permit and releases the
+previous one, preserving chained create/wait/complete behavior. CheckTaskRunning
+moves to waiting capacity after false, and StartTask after Busy, so immediate
+success does not require a waiting permit. Polls retain that permit until a
+different operation or disconnect. Waiting clients
+cannot exhaust command capacity. Eight reserved control connections keep Ping
+and Stop available when command capacity is full; Open requires a command permit
+before opening SQLite. Rejected transitions return a typed error before invoking
+the use case, and session exit releases its permit. No protocol change is needed.
+
+The first disconnected initialized session retains its opaque queue-service
+context until owner shutdown. Its stream and permit are released before that
+idle wait; only one worker is elected per owner, and no transaction is held or
+operation invoked. Keeping an initialized storage connection alive avoids tying
+WAL teardown and recreation to client connection churn. The owner joins this
+worker during the same bounded shutdown as other sessions. Inner layers remain
+independent of this transport lifetime policy.
+
 Integration gates move to a feature-only request context with per-session hit
 counts and selected gate directory. A CLI process forwards that context only in
 integration-test-hooks builds; production accepts no test-gate fields. Tests
@@ -88,9 +132,13 @@ their isolated owner during fixture cleanup, without adding production idle exit
 `start` waits for readiness, `status` probes without starting, `stop` requests
 bounded graceful shutdown, and `run` owns the foreground signal handler. Queue
 commands auto-start and wait for readiness without inheriting CLI stdout/stderr
-pipes. New lifecycle messages are localized in en/ru at the presentation boundary;
-wire error kinds remain language independent. Preserve existing default-English
+pipes. Lifecycle messages and help remain English-only, without language settings;
+wire error kinds stay separate from presentation. Preserve existing
 text and exit codes, including first Ctrl+C = 130 and forced second interruption.
+
+Protocol Stop uses an internal shutdown flag separate from the CLI's native
+interrupt token. Both drain the same sessions, but ordinary foreground shutdown
+returns 0 and native Ctrl+C retains exit 130.
 
 ## Risks / Trade-offs
 

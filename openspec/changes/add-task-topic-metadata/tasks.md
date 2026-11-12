@@ -16,7 +16,7 @@
 
 ## 3. CLI imports and atomic creation
 
-- [ ] 3.1 Add meta/metafile in both command orderings, read/unset/typed scalar handling and shared reserved names; verify aliases, quoted old names and en/ru error/help output.
+- [ ] 3.1 Add meta/metafile in both command orderings, read/unset/typed scalar handling and shared reserved names; verify aliases, quoted old names and English-only error/help output.
 - [ ] 3.2 Add bounded duplicate-aware JSON/YAML/TOML file parsing in outer adapters; verify root/type/tag/date/alias/depth/size errors preserve existing data and file paths resolve at the client.
 - [ ] 3.3 Add creation --metafile and repeated --meta pairs with documented precedence; verify CLI registration, links and metadata roll back together at native interruption gates.
 - [ ] 3.4 Add runnable task/topic examples and document whole-object replacement versus key patches; verify examples on temporary databases without installed plugins.

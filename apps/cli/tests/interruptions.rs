@@ -1,10 +1,126 @@
 #[path = "support/interrupt_process.rs"]
 mod interrupt_process;
+#[path = "support/native_interrupt.rs"]
+mod native_interrupt;
 mod support;
 
 use interrupt_process::InterruptProcess;
 use std::fs;
 use support::queue::Queue;
+
+#[test]
+fn chain_survives_idle_client_between_committed_operations() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    let owner = queue.call(&["daemon", "status"]);
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "paused", "-t", "cpu", "-wc"],
+        "cli.after-registration",
+        1,
+    );
+    assert_eq!(queue.state("paused"), "running");
+
+    std::thread::sleep(std::time::Duration::from_secs(31));
+    assert_eq!(queue.call(&["daemon", "status"]), owner);
+    let output = client.release();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(queue.call(&["task", "list"]), "- paused");
+    assert_eq!(queue.state("paused"), "completed");
+    assert_eq!(queue.usage("cpu"), 0);
+}
+
+#[test]
+fn active_request_survives_the_incoming_frame_idle_timeout() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "slow", "-t", "cpu", "-wc"],
+        "sqlite.before-commit",
+        1,
+    );
+
+    std::thread::sleep(std::time::Duration::from_secs(31));
+    assert!(
+        queue
+            .call(&["daemon", "status"])
+            .starts_with("daemon is running")
+    );
+    let output = client.release();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(queue.state("slow"), "completed");
+    assert_eq!(queue.usage("cpu"), 0);
+}
+
+#[test]
+fn native_owner_ctrl_c_rolls_back_or_preserves_its_active_client_commit() {
+    for (stage, committed) in [
+        ("sqlite.before-commit", false),
+        ("sqlite.after-commit", true),
+    ] {
+        let queue = Queue::new();
+        let owner = queue.spawn_owner();
+        resources(&queue);
+        let client = InterruptProcess::spawn(
+            &queue,
+            &["task", "create", "job", "-t", "cpu", "-t", "repo"],
+            stage,
+            1,
+        );
+
+        owner.interrupt();
+        assert!(!client.output().status.success());
+
+        assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
+        assert_eq!(
+            queue.call(&["task", "list"]),
+            if committed { "- job" } else { "" }
+        );
+        assert_eq!(queue.usage("cpu"), i64::from(committed));
+        assert_eq!(queue.usage("repo"), i64::from(committed));
+        if committed {
+            queue.call(&["task", "complete", "job"]);
+        }
+
+        queue.task("next", &["cpu", "repo"]);
+        assert_eq!(queue.state("next"), "running");
+    }
+}
+
+#[test]
+fn lost_owner_response_reports_uncertainty_without_replaying_committed_registration() {
+    let queue = Queue::new();
+    let owner = queue.spawn_owner();
+    resources(&queue);
+    let client = InterruptProcess::spawn(
+        &queue,
+        &["task", "create", "job", "-t", "cpu", "-t", "repo"],
+        "sqlite.after-commit",
+        1,
+    );
+
+    owner.stop();
+    let result = client.output();
+
+    assert_eq!(result.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("outcome is uncertain"));
+    assert_eq!(queue.call(&["daemon", "status"]), "daemon is stopped");
+    assert_eq!(queue.state("job"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+    assert_eq!(queue.usage("repo"), 1);
+    assert_eq!(queue.call(&["task", "list"]), "- job");
+}
 
 #[test]
 fn ctrl_c_interrupts_a_full_stdout_pipe_without_reading_it_or_releasing_ownership() {
