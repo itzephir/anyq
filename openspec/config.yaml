@@ -12,7 +12,7 @@ context: |
   anyq is a Rust local admission queue for named tasks and resource topics.
   A task requires one slot of every attached topic, acquired atomically.
   The global registration sequence orders queued tasks consistently across topics.
-  The caller performs external work after task wait returns; anyq never executes commands.
+  The queue core coordinates admission; explicitly enabled executable plugins use a public protocol and a managed-work completion barrier.
   Automatic admission defaults on; topic overrides task defaults. Explicit stop persists until start.
   Start must obtain admission immediately unless --wait is requested; wait only observes running.
   Running ownership persists until explicit task complete, including after caller failure.

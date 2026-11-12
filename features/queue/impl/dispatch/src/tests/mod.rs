@@ -402,3 +402,5 @@ fn autocreate_changes_are_staged_with_the_primary_operation_and_rollback_on_save
     );
     assert_eq!(store.data.borrow().topics.len(), 1);
 }
+
+mod events;

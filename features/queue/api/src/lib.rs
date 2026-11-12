@@ -162,3 +162,72 @@ pub use replace_topic_metadata::ReplaceTopicMetadata;
 
 mod replace_topic_metadata_request;
 pub use replace_topic_metadata_request::ReplaceTopicMetadataRequest;
+
+mod execution_directory;
+pub use execution_directory::ExecutionDirectory;
+
+mod queue_event_kind;
+pub use queue_event_kind::QueueEventKind;
+
+mod event_snapshot;
+pub use event_snapshot::EventSnapshot;
+
+mod queue_event;
+pub use queue_event::QueueEvent;
+
+mod read_queue_events;
+pub use read_queue_events::ReadQueueEvents;
+
+mod managed_work_state;
+pub use managed_work_state::ManagedWorkState;
+
+mod managed_work;
+pub use managed_work::{ManagedWork, validate_action_identity};
+
+mod managed_launch;
+pub use managed_launch::ManagedLaunch;
+
+mod completion_receipt;
+pub use completion_receipt::CompletionReceipt;
+
+mod complete_task_once_request;
+pub use complete_task_once_request::CompleteTaskOnceRequest;
+
+mod complete_task_once;
+pub use complete_task_once::CompleteTaskOnce;
+
+mod begin_completion_request;
+pub use begin_completion_request::BeginCompletionRequest;
+
+mod begin_completion;
+pub use begin_completion::BeginCompletion;
+
+mod register_managed_work_request;
+pub use register_managed_work_request::RegisterManagedWorkRequest;
+
+mod register_managed_work;
+pub use register_managed_work::RegisterManagedWork;
+
+mod report_managed_work_request;
+pub use report_managed_work_request::ReportManagedWorkRequest;
+
+mod report_managed_work;
+pub use report_managed_work::ReportManagedWork;
+
+mod list_managed_work_request;
+pub use list_managed_work_request::ListManagedWorkRequest;
+
+mod list_managed_work;
+pub use list_managed_work::ListManagedWork;
+
+mod resolve_managed_work_request;
+pub use resolve_managed_work_request::ResolveManagedWorkRequest;
+
+mod resolve_managed_work;
+pub use resolve_managed_work::ResolveManagedWork;
+
+mod work_services;
+pub use work_services::WorkServices;
+
+mod cancel_managed_work;
+pub use cancel_managed_work::CancelManagedWork;

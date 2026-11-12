@@ -3,7 +3,7 @@ use crate::{
     session_permit::SessionPermit,
 };
 use anyq_daemon_api::{
-    PROTOCOL_VERSION, QueueRequest, QueueResponse, QueueServices, RequestFrame, ResponseFrame,
+    DaemonServices, PROTOCOL_VERSION, QueueRequest, QueueResponse, RequestFrame, ResponseFrame,
 };
 use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_frame};
 use anyq_queue_api::{Error, QueuePolicy, Result};
@@ -90,12 +90,14 @@ impl Session {
         receiver: &Receiver<RequestFrame>,
         id: u64,
         policy: QueuePolicy,
-        retained_services: &mut Option<QueueServices>,
+        directory: anyq_queue_api::ExecutionDirectory,
+        retained_services: &mut Option<DaemonServices>,
     ) -> Result<()> {
         let services = match self.factory.open(
             &self.endpoint.database,
             policy,
             self.signals.cancelled.clone(),
+            directory,
         ) {
             Ok(services) => services,
             Err(error) => {
@@ -144,7 +146,7 @@ impl Session {
     fn handle(
         &mut self,
         receiver: &Receiver<RequestFrame>,
-        services: &mut Option<QueueServices>,
+        services: &mut Option<DaemonServices>,
     ) -> Result<()> {
         let frame = self.next(receiver)?;
         match frame.request {
@@ -194,12 +196,24 @@ impl Session {
                     );
 
                     anyq_integration_test_hooks::with_context(context, || {
-                        self.queue_loop(receiver, frame.id, policy.into(), services)
+                        self.queue_loop(
+                            receiver,
+                            frame.id,
+                            policy.into(),
+                            anyq_daemon_api::CallerDirectoryDto::from(caller_directory).into(),
+                            services,
+                        )
                     })
                 }
 
                 #[cfg(not(feature = "integration-test-hooks"))]
-                self.queue_loop(receiver, frame.id, policy.into(), services)
+                self.queue_loop(
+                    receiver,
+                    frame.id,
+                    policy.into(),
+                    anyq_daemon_api::CallerDirectoryDto::from(caller_directory).into(),
+                    services,
+                )
             }
             _ => self.reply(
                 frame.id,

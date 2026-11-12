@@ -1,10 +1,81 @@
-use anyq_daemon_api::{QueueRequest, QueueResponse, QueueServices};
+use anyq_daemon_api::{DaemonServices, QueueRequest, QueueResponse};
 use anyq_queue_api::{
     AddTaskToTopicsRequest, AddTasksToTopicRequest, Error, RegisterTaskRequest, Result,
     StartTaskOutcome,
 };
 
-pub(crate) fn route(request: QueueRequest, services: &mut QueueServices) -> Result<QueueResponse> {
+pub(crate) fn route(request: QueueRequest, services: &mut DaemonServices) -> Result<QueueResponse> {
+    match request {
+        QueueRequest::PluginEnable {
+            name,
+            executable,
+            arguments,
+        } => {
+            return Ok(QueueResponse::PluginStatus(
+                services
+                    .plugins
+                    .enable
+                    .enable(anyq_plugin_api::EnablePluginRequest {
+                        name,
+                        executable,
+                        arguments,
+                    })?
+                    .into(),
+            ));
+        }
+        QueueRequest::PluginList => {
+            return Ok(QueueResponse::Plugins(
+                services
+                    .plugins
+                    .list
+                    .list()?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+            ));
+        }
+        QueueRequest::PluginStatus { name } => {
+            return Ok(QueueResponse::PluginStatus(
+                services.plugins.status.status(&name)?.into(),
+            ));
+        }
+        QueueRequest::PluginDisable { name } => {
+            return Ok(QueueResponse::PluginStatus(
+                services.plugins.disable.disable(&name)?.into(),
+            ));
+        }
+        QueueRequest::ManagedInspect { owner } => {
+            return Ok(QueueResponse::ManagedList(
+                services
+                    .list_work
+                    .list(anyq_queue_api::ListManagedWorkRequest {
+                        owner: Some(owner),
+                        task: None,
+                    })?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+            ));
+        }
+        QueueRequest::ManagedResolve {
+            owner,
+            action_id,
+            confirmed_cleanup,
+        } => {
+            return Ok(QueueResponse::ManagedWork(
+                services
+                    .resolve_work
+                    .resolve(anyq_queue_api::ResolveManagedWorkRequest {
+                        owner,
+                        action_id,
+                        confirmed_cleanup,
+                    })?
+                    .into(),
+            ));
+        }
+        _ => {}
+    }
+    let services = &mut services.queue;
     Ok(match request {
         QueueRequest::GetTaskMetadata { task, key } => QueueResponse::Metadata(
             services

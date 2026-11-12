@@ -1,7 +1,9 @@
 use crate::begin_transaction::begin_transaction;
 use crate::checkpoint::checkpoint;
+use crate::system_clock::SystemClock;
 use crate::{sqlite_unit_of_work::SqliteUnitOfWork, storage_error::storage};
-use anyq_queue_api::{Error, Result};
+use anyq_queue_api::{Error, ExecutionDirectory, Result};
+use anyq_queue_dispatch::ports::Clock;
 use anyq_queue_dispatch::ports::{Store, UnitOfWork};
 use rusqlite::{Connection, TransactionBehavior};
 use std::{
@@ -19,21 +21,28 @@ const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct Sqlite {
     pub(crate) connection: Rc<RefCell<Connection>>,
     cancelled: Arc<AtomicBool>,
+    stop_waiting: Option<Arc<AtomicBool>>,
+    clock: Rc<dyn Clock>,
+    directory: Option<ExecutionDirectory>,
 }
 
-fn compatible_version(connection: &Connection, cancelled: &AtomicBool) -> Result<i64> {
-    let version: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, || {
+fn compatible_version(
+    connection: &Connection,
+    cancelled: &AtomicBool,
+    stop_waiting: Option<&AtomicBool>,
+) -> Result<i64> {
+    let version: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, stop_waiting, || {
         connection.pragma_query_value(None, "user_version", |row| row.get(0))
     })?;
 
-    if ![0, 2, 3, 4].contains(&version) {
+    if ![0, 2, 3, 4, 5].contains(&version) {
         return Err(Error::Storage(format!(
             "unsupported database schema version {version}; choose a separate database with --db"
         )));
     }
 
     if version == 0 {
-        let tables: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, || {
+        let tables: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, stop_waiting, || {
             connection.query_row(
             "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'",
             [], |row| row.get(0),
@@ -50,14 +59,18 @@ fn compatible_version(connection: &Connection, cancelled: &AtomicBool) -> Result
     Ok(version)
 }
 
-fn enable_wal(connection: &Connection, cancelled: &AtomicBool) -> Result<()> {
+fn enable_wal(
+    connection: &Connection,
+    cancelled: &AtomicBool,
+    stop_waiting: Option<&AtomicBool>,
+) -> Result<()> {
     let deadline = Instant::now() + LOCK_TIMEOUT;
 
     loop {
         checkpoint("sqlite.before-wal", cancelled)?;
         match connection.pragma_update(None, "journal_mode", "WAL") {
             Ok(()) => return Ok(()),
-            Err(error) if crate::retry_lock::contention(&error) && Instant::now() < deadline => {
+            Err(error) if crate::retry_lock::can_retry(&error, deadline, stop_waiting)? => {
                 // Journal-mode lock upgrades can return BUSY without calling the busy handler.
                 thread::sleep(Duration::from_millis(10));
             }
@@ -67,34 +80,89 @@ fn enable_wal(connection: &Connection, cancelled: &AtomicBool) -> Result<()> {
 }
 
 impl Sqlite {
+    pub fn with_clock(mut self, clock: Rc<dyn Clock>) -> Self {
+        self.clock = clock;
+
+        self
+    }
+
+    pub fn with_directory(mut self, directory: ExecutionDirectory) -> Self {
+        self.directory = Some(directory);
+
+        self
+    }
+
     pub fn open(path: &Path) -> Result<Self> {
         Self::open_with_cancellation(path, Arc::new(AtomicBool::new(false)))
     }
 
     pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
+        Self::open_with_initializer(path, cancelled, |_| Ok(()))
+    }
+
+    pub fn open_with_initializer(
+        path: &Path,
+        cancelled: Arc<AtomicBool>,
+        initialize: fn(&Connection) -> Result<()>,
+    ) -> Result<Self> {
+        Self::open_with_wait_policy(path, cancelled, initialize, None)
+    }
+
+    /// Background lock acquisition can wait for live client transactions. Only
+    /// a failed pre-mutation acquisition is retried; shutdown ends further waits.
+    pub fn open_background(
+        path: &Path,
+        stop_waiting: Arc<AtomicBool>,
+        initialize: fn(&Connection) -> Result<()>,
+    ) -> Result<Self> {
+        Self::open_with_wait_policy(
+            path,
+            Arc::new(AtomicBool::new(false)),
+            initialize,
+            Some(stop_waiting),
+        )
+    }
+
+    fn open_with_wait_policy(
+        path: &Path,
+        cancelled: Arc<AtomicBool>,
+        initialize: fn(&Connection) -> Result<()>,
+        stop_waiting: Option<Arc<AtomicBool>>,
+    ) -> Result<Self> {
         checkpoint("sqlite.before-open", &cancelled)?;
         let mut connection = Connection::open(path).map_err(storage)?;
         checkpoint("sqlite.after-open", &cancelled)?;
-        connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
+        connection
+            .busy_timeout(if stop_waiting.is_some() {
+                Duration::from_millis(100)
+            } else {
+                LOCK_TIMEOUT
+            })
+            .map_err(storage)?;
 
         // Check an existing database in one read snapshot before changing journal mode or schema.
         let read = connection
             .transaction_with_behavior(TransactionBehavior::Deferred)
             .map_err(storage)?;
-        compatible_version(&read, &cancelled)?;
+        compatible_version(&read, &cancelled, stop_waiting.as_deref())?;
         read.commit().map_err(storage)?;
 
         connection
             .pragma_update(None, "foreign_keys", "ON")
             .map_err(storage)?;
-        enable_wal(&connection, &cancelled)?;
+        enable_wal(&connection, &cancelled, stop_waiting.as_deref())?;
         connection
             .pragma_update(None, "synchronous", "FULL")
             .map_err(storage)?;
-        let tx = begin_transaction(&connection, &cancelled, LOCK_TIMEOUT)?;
+        let tx = begin_transaction(
+            &connection,
+            &cancelled,
+            LOCK_TIMEOUT,
+            stop_waiting.as_deref(),
+        )?;
 
         // Another opener may have initialized the database since the read-only check.
-        match compatible_version(&tx, &cancelled)? {
+        match compatible_version(&tx, &cancelled, stop_waiting.as_deref())? {
             0 => {
                 tx.execute_batch(include_str!("schema.sql"))
                     .map_err(storage)?;
@@ -115,6 +183,17 @@ impl Sqlite {
             _ => {}
         }
 
+        let version: i64 = tx
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .map_err(storage)?;
+        if version == 4 {
+            tx.execute_batch(include_str!("migrate_v4.sql"))
+                .map_err(storage)?;
+            tx.pragma_update(None, "user_version", 5).map_err(storage)?;
+        }
+
+        initialize(&tx)?;
+
         checkpoint("sqlite.schema.before-commit", &cancelled)?;
         tx.commit().map_err(storage)?;
         checkpoint("sqlite.schema.after-commit", &cancelled)?;
@@ -122,6 +201,9 @@ impl Sqlite {
         Ok(Self {
             connection: Rc::new(RefCell::new(connection)),
             cancelled,
+            stop_waiting,
+            clock: Rc::new(SystemClock),
+            directory: None,
         })
     }
 }
@@ -133,8 +215,18 @@ impl Store for Sqlite {
     ) -> Result<T> {
         checkpoint("sqlite.before-transaction", &self.cancelled)?;
         let connection = self.connection.borrow_mut();
-        let tx = begin_transaction(&connection, &self.cancelled, LOCK_TIMEOUT)?;
-        let result = operation(&mut SqliteUnitOfWork::new(&tx, &self.cancelled))?;
+        let tx = begin_transaction(
+            &connection,
+            &self.cancelled,
+            LOCK_TIMEOUT,
+            self.stop_waiting.as_deref(),
+        )?;
+        let result = operation(&mut SqliteUnitOfWork::new(
+            &tx,
+            &self.cancelled,
+            self.clock.as_ref(),
+            self.directory.as_ref(),
+        ))?;
         checkpoint("sqlite.before-commit", &self.cancelled)?;
         tx.commit().map_err(storage)?;
         checkpoint("sqlite.after-commit", &self.cancelled)?;

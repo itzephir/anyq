@@ -820,7 +820,7 @@ fn incompatible_database_returns_a_clear_error_without_modifying_it() {
     let connection = Connection::open(&q.db).unwrap();
     connection
         .execute_batch(
-            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=5",
+            "CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve-me'); PRAGMA user_version=6",
         )
         .unwrap();
     drop(connection);
@@ -902,3 +902,7 @@ fn unix_default_uses_xdg_then_home_without_touching_real_user_data() {
 }
 #[path = "support/daemon.rs"]
 mod daemon;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/plugins.rs"]
+mod plugins;

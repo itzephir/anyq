@@ -31,14 +31,3 @@ The shared domain policy SHALL require an ASCII Latin initial for bare names and
 #### Scenario: Previously valid command-like name
 - **WHEN** an existing canonical name is meta or metafile
 - **THEN** its backtick-quoted spelling still addresses it and restore does not reinterpret its identity
-
-### Requirement: Supported schema upgrade
-A version 2 or 3 database SHALL upgrade to 4 atomically, preserving names, registration, links, states, and ownership. Existing entities SHALL receive empty metadata. For version 2, tasks SHALL receive default autostart=true and stopped=false; topics SHALL inherit the default. Database open SHALL NOT perform admission. Interruption before commit SHALL preserve the previous schema, and afterward the complete new schema.
-
-#### Scenario: Existing ownership
-- **WHEN** a version 2 database with a running owner and queued successor is opened
-- **THEN** after upgrade the owner holds the same slots, and the successor remains queued until the owner's explicit complete
-
-#### Scenario: Existing schema 3
-- **WHEN** a schema 3 database with running and queued tasks is upgraded
-- **THEN** metadata defaults to empty objects and all states, order and ownership survive

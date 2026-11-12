@@ -76,3 +76,15 @@ pub use remote_unset_topic_metadata::RemoteUnsetTopicMetadata;
 
 mod remote_replace_topic_metadata;
 pub use remote_replace_topic_metadata::RemoteReplaceTopicMetadata;
+
+mod remote_enable_plugin;
+pub use remote_enable_plugin::RemoteEnablePlugin;
+
+mod remote_list_plugins;
+pub use remote_list_plugins::RemoteListPlugins;
+
+mod remote_get_plugin_status;
+pub use remote_get_plugin_status::RemoteGetPluginStatus;
+
+mod remote_disable_plugin;
+pub use remote_disable_plugin::RemoteDisablePlugin;

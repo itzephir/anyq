@@ -6,6 +6,7 @@ mod interrupt;
 mod metadata_input;
 mod output;
 mod paths;
+mod plugin_executable;
 mod presenters;
 mod start_task;
 mod task_flow;
@@ -35,7 +36,14 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         parse_yaml: anyq_queue_metadata::parse_yaml,
         parse_toml: anyq_queue_metadata::parse_toml,
     };
-    let request = Request::parse(cli.command, &metadata_input)?;
+    let mut request = Request::parse(cli.command, &metadata_input)?;
+    if let Request::Plugin(controllers::PluginCommand::Enable {
+        name, executable, ..
+    }) = &mut request
+    {
+        anyq_plugin_api::validate_plugin_name(name)?;
+        *executable = plugin_executable::resolve(executable)?;
+    }
     checkpoint("cli.before-command", &cancelled)?;
     let config_path = paths::home()?.join(".anyq/config.toml");
     let mut configuration = anyq_config_impl::open(&config_path, cancelled.clone());
@@ -129,6 +137,59 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         return Ok(());
     }
 
+    if let Request::Plugin(command) = request {
+        let mut plugins = anyq_daemon_impl::connect_plugins(&path, policy, cancelled.clone())?;
+        use controllers::PluginCommand;
+        let message = match command {
+            PluginCommand::Enable {
+                name,
+                executable,
+                arguments,
+            } => serde_json::to_string_pretty(&anyq_plugin_wire::PluginStatusDto::from(
+                plugins
+                    .enable
+                    .enable(anyq_plugin_api::EnablePluginRequest {
+                        name,
+                        executable,
+                        arguments,
+                    })?,
+            )),
+            PluginCommand::List => serde_json::to_string_pretty(
+                &plugins
+                    .list
+                    .list()?
+                    .into_iter()
+                    .map(anyq_plugin_wire::PluginStatusDto::from)
+                    .collect::<Vec<_>>(),
+            ),
+            PluginCommand::Status { name } => serde_json::to_string_pretty(
+                &anyq_plugin_wire::PluginStatusDto::from(plugins.status.status(&name)?),
+            ),
+            PluginCommand::Disable { name } => serde_json::to_string_pretty(
+                &anyq_plugin_wire::PluginStatusDto::from(plugins.disable.disable(&name)?),
+            ),
+            PluginCommand::Inspect { name } => serde_json::to_string_pretty(
+                &anyq_daemon_impl::inspect_managed(&path, policy, cancelled.clone(), name)?,
+            ),
+            PluginCommand::Resolve {
+                name,
+                action_id,
+                confirmed_cleanup,
+            } => serde_json::to_string_pretty(&anyq_daemon_impl::resolve_managed(
+                &path,
+                policy,
+                cancelled.clone(),
+                name,
+                action_id,
+                confirmed_cleanup,
+            )?),
+        }
+        .map_err(|error| Error::Invalid(error.to_string()))?;
+        output::emit(&message, &cancelled)?;
+
+        return Ok(());
+    }
+
     let mut cases = anyq_daemon_impl::connect(&path, policy, cancelled.clone())?;
     checkpoint("cli.before-operation", &cancelled)?;
 
@@ -163,6 +224,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             cases.replace_topic_metadata.replace(request)?;
             None
         }
+        Request::Plugin(_) => unreachable!("plugin operations handled before queue operations"),
         Request::Config(_) => unreachable!("configuration handled before opening the queue"),
         Request::Daemon(_) => unreachable!("daemon lifecycle handled before queue operations"),
         Request::GetTask { name } => Some(presenters::task(&cases.get_task.get(&name)?)),

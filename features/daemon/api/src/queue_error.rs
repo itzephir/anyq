@@ -14,6 +14,7 @@ pub enum QueueError {
     Conflict(String),
     Storage(String),
     Interrupted,
+    ManagedWorkPending,
 }
 
 impl From<Error> for QueueError {
@@ -23,6 +24,7 @@ impl From<Error> for QueueError {
             Error::NotFound(value) => Self::NotFound(value),
             Error::Conflict(value) => Self::Conflict(value),
             Error::Storage(value) => Self::Storage(value),
+            Error::ManagedWorkPending => Self::ManagedWorkPending,
             Error::Interrupted => Self::Interrupted,
         }
     }
@@ -35,6 +37,7 @@ impl From<QueueError> for Error {
             QueueError::NotFound(value) => Self::NotFound(value),
             QueueError::Conflict(value) => Self::Conflict(value),
             QueueError::Storage(value) => Self::Storage(value),
+            QueueError::ManagedWorkPending => Self::ManagedWorkPending,
             QueueError::Interrupted => Self::Interrupted,
         }
     }

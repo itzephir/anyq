@@ -1,5 +1,6 @@
 [package]
 name = "anyq"
+default-run = "anyq"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +10,9 @@ license.workspace = true
 integration-test-hooks = ["dep:anyq-integration-test-hooks", "anyq-daemon-impl/integration-test-hooks", "anyq-config-impl/integration-test-hooks"]
 
 [dependencies]
+serde_json = "1"
+anyq-plugin-api = { path = "../../features/plugins/api" }
+anyq-plugin-wire = { path = "../../features/plugins/api/wire" }
 anyq-queue-api = { path = "../../features/queue/api" }
 anyq-queue-metadata = { path = "../../features/queue/impl/metadata", features = ["files"] }
 anyq-daemon-impl = { path = "../../features/daemon/impl/composition" }
@@ -21,7 +25,6 @@ clap = { version = "4.6", features = ["derive", "env"] }
 [dev-dependencies]
 anyq-daemon-api = { path = "../../features/daemon/api" }
 anyq-daemon-transport = { path = "../../features/daemon/impl/transport" }
-serde_json = "1"
 tempfile = "3"
 rusqlite = { version = "0.39", features = ["bundled"] }
 
@@ -32,3 +35,9 @@ workspace = true
 name = "interruptions"
 path = "tests/interruptions.rs"
 required-features = ["integration-test-hooks"]
+
+[[bin]]
+name = "anyq-plugin-fixture"
+path = "test_support/plugin_fixture.rs"
+required-features = ["integration-test-hooks"]
+test = false

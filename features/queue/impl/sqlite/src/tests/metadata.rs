@@ -107,7 +107,7 @@ fn schema_two_and_three_upgrade_atomically_to_empty_metadata_without_new_admissi
             .borrow()
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(upgraded, 4);
+        assert_eq!(upgraded, 5);
     }
 }
 

@@ -259,6 +259,20 @@ impl Task {
         Ok(StartOutcome::Started)
     }
 
+    pub fn require_completion_permit(
+        &self,
+        states: impl IntoIterator<Item = crate::ManagedWorkState>,
+    ) -> Result<()> {
+        if states
+            .into_iter()
+            .any(crate::ManagedWorkState::blocks_completion)
+        {
+            return Err(Error::ManagedWorkPending);
+        }
+
+        Ok(())
+    }
+
     pub fn complete(&mut self, force: bool) -> Result<()> {
         if self.state == TaskState::Completed {
             return Err(Error::Conflict(format!(

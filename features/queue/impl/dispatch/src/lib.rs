@@ -80,3 +80,26 @@ pub use unset_topic_metadata::UnsetTopicMetadataInteractor;
 
 mod replace_topic_metadata;
 pub use replace_topic_metadata::ReplaceTopicMetadataInteractor;
+
+mod record_event;
+
+mod complete_task_once;
+pub use complete_task_once::CompleteTaskOnceInteractor;
+
+mod begin_completion;
+pub use begin_completion::BeginCompletionInteractor;
+
+mod register_managed_work;
+pub use register_managed_work::RegisterManagedWorkInteractor;
+
+mod report_managed_work;
+pub use report_managed_work::ReportManagedWorkInteractor;
+
+mod list_managed_work;
+pub use list_managed_work::ListManagedWorkInteractor;
+
+mod resolve_managed_work;
+pub use resolve_managed_work::ResolveManagedWorkInteractor;
+
+mod cancel_managed_work;
+pub use cancel_managed_work::CancelManagedWorkInteractor;

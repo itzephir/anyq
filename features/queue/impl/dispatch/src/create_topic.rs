@@ -1,4 +1,6 @@
 use crate::ports::*;
+use crate::record_event::topic_event;
+use anyq_queue_api::QueueEventKind;
 use anyq_queue_api::*;
 
 pub struct CreateTopicInteractor<S> {
@@ -29,6 +31,7 @@ impl<S: Store> CreateTopic for CreateTopicInteractor<S> {
                 return Ok(existing);
             } else {
                 records.topics().put_topic(&topic)?;
+                topic_event(records, QueueEventKind::TopicCreated, &topic)?;
             }
 
             Ok(topic)

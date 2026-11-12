@@ -75,6 +75,7 @@ jobs:
       - run: cargo build --locked -p anyq
       - run: python examples/demo.py
       - run: python examples/metadata.py
+      - run: python examples/plugins.py
   distribution:
     uses: ./.github/workflows/distribution.yml
   website:

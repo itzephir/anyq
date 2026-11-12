@@ -1,0 +1,15 @@
+[package]
+name = "anyq-plugin-process"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "process", "io-util", "time", "sync", "macros"] }
+anyq-plugin-api = { path = "../../api" }
+anyq-plugin-runtime = { path = "../runtime" }
+anyq-queue-api = { path = "../../../queue/api" }
+
+[lints]
+workspace = true
