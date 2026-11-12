@@ -202,6 +202,14 @@ Database schemas 2 and 3 upgrade to 4 in one transaction: tasks, ordering, links
 
 History is not cleaned up automatically. Keep the database on a local disk; SQLite uses WAL, synchronous FULL, and short IMMEDIATE transactions. Use SQLite backup for a live database.
 
+## Optional desktop panel
+
+The [desktop panel](docs/DESKTOP.md) displays existing queue topics, current tasks
+and slot usage through the daemon. It has a main window and menu-bar/tray access,
+English/Russian and light/dark themes, and panel-local database settings. It is
+built/packaged separately from the CLI; native acceptance still in progress is
+tracked in [desktop verification](docs/DESKTOP-VERIFICATION.md).
+
 ## Checks
 
 ```bash

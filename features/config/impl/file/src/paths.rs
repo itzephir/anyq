@@ -1,4 +1,4 @@
-use crate::error::{Error, Result};
+use anyq_config_api::{DatabaseSelection, DatabaseSource, Error, Result};
 use std::{env, path::PathBuf};
 
 pub fn home() -> Result<PathBuf> {
@@ -44,4 +44,26 @@ pub fn configured_db(value: &str) -> Result<PathBuf> {
     }
 
     Ok(PathBuf::from(value))
+}
+
+pub fn resolve_database(
+    explicit: Option<&std::path::Path>,
+    configured: Option<&str>,
+) -> Result<DatabaseSelection> {
+    let environment = env::var_os("ANYQ_DB");
+    let source = DatabaseSource::select(
+        explicit.is_some(),
+        environment.is_some(),
+        configured.is_some(),
+    );
+    let path = match source {
+        DatabaseSource::Override => explicit.expect("selected explicit path").to_owned(),
+        DatabaseSource::Environment => environment.expect("selected environment path").into(),
+        DatabaseSource::Configuration => {
+            configured_db(configured.expect("selected configuration path"))?
+        }
+        DatabaseSource::Default => default_db()?,
+    };
+
+    Ok(DatabaseSelection { path, source })
 }

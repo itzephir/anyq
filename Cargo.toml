@@ -6,6 +6,12 @@ members = [
   "features/shell/impl/process",
   "features/timeout/api",
   "features/timeout/impl/protocol",
+
+  "features/desktop/api",
+  "features/desktop/impl/dispatch",
+  "features/desktop/impl/file",
+  "features/desktop/impl/composition",
+  "apps/desktop",
   "features/queue/api",
   "features/queue/api/wire",
   "features/queue/impl/dispatch",

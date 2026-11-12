@@ -1,0 +1,16 @@
+[package]
+name = "anyq-desktop-file"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-desktop-api = { path = "../../api" }
+anyq-desktop-dispatch = { path = "../dispatch" }
+fs2 = "0.4.3"
+tempfile = "3.23"
+toml = "0.9"
+
+[lints]
+workspace = true

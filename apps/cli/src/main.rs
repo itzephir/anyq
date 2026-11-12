@@ -5,7 +5,6 @@ mod error;
 mod interrupt;
 mod metadata_input;
 mod output;
-mod paths;
 mod plugin_executable;
 mod plugin_presenters;
 mod presenters;
@@ -62,7 +61,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         *executable = plugin_executable::resolve(executable)?;
     }
     checkpoint("cli.before-command", &cancelled)?;
-    let config_path = paths::home()?.join(".anyq/config.toml");
+    let config_path = anyq_config_impl::paths::home()?.join(".anyq/config.toml");
     let mut configuration = anyq_config_impl::open(&config_path, cancelled.clone());
 
     if let Request::Config(command) = request {
@@ -120,13 +119,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     }
 
     let config = configuration.get_config.get()?;
-    let path = match cli.db {
-        Some(path) => path,
-        None => match config.db_path() {
-            Some(value) => paths::configured_db(value)?,
-            None => paths::default_db()?,
-        },
-    };
+    let path = anyq_config_impl::paths::resolve_database(cli.db.as_deref(), config.db_path())?.path;
 
     let policy = QueuePolicy {
         autocreate: AutoCreatePolicy {

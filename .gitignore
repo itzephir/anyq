@@ -10,3 +10,5 @@
 /website/site.zip
 /release-dist/
 __pycache__/
+
+/desktop-test-results/

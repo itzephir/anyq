@@ -1,6 +1,6 @@
 # anyq architecture
 
-anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config, daemon and plugin features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
+anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config, daemon, plugin and desktop features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
 
 | Module | Responsibility |
 | --- | --- |
@@ -26,7 +26,12 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | plugins/impl/runtime | Post-commit delivery, supervision policy and typed capability routing through injected ports |
 | plugins/impl/process | Bounded asynchronous child stdin/stdout/stderr and confirmed executable shutdown |
 | plugins/impl/composition | Explicit plugin adapter assembly |
-| apps/cli | Syntax, text responses, path resolution, blocking CheckTaskRunning polling, and signals |
+| desktop/api | Panel preferences, language/theme, generation-aware accepted snapshot model; separate preference contracts |
+| desktop/impl/dispatch | Separate preference get/set interactors and consumer-owned PreferenceStore |
+| desktop/impl/file | Strict panel-local TOML, file locking, atomic replacement |
+| desktop/impl/composition | Explicit preference adapter assembly |
+| apps/desktop | Optional Tauri composition root, read-only observation controller, presentation and native shell adapters |
+| apps/cli | Syntax, text responses, shared config path resolution, blocking CheckTaskRunning polling, and signals |
 | tooling/architecture-lint | Rust structure checks |
 | tooling/integration-test-hooks | Optional external integration-test checkpoints only |
 
@@ -64,7 +69,7 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, and apps/cli/src/main.rs; only they assemble implementations. The workspace has 30 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, features/desktop/impl/composition, apps/cli/src/main.rs, and apps/desktop/src/main.rs; only they assemble implementations. The workspace has 35 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
 
 Metadata/MetadataValue, exact normalized MetadataNumber, dotted paths and the incremental size/depth budget belong to queue API. Separate task/topic read, set, unset and replace interactors use the existing transaction. Task owns its edit-state restriction; metadata mutations never invoke admission. Creation saves initial metadata before links and admission. Topic capacity/autostart changes preserve its metadata.
 
@@ -109,3 +114,14 @@ Shell separates pure task-plan policy (`shell/api`), public protocol/supervision
 (`shell/impl/runtime`) and native process IO (`shell/impl/process`). Runtime-owned
 process ports are injected by the CLI root; neither policy nor runtime depends on
 queue implementation or SQLite. Per-action details use bounded managed capabilities.
+
+
+Desktop imports only the narrow ObserveQueue queue contract and separate
+preference contracts. Its main root injects daemon observation and shared config
+resolution; no desktop controller imports foreign implementation crates or queue
+mutation handles. DatabaseSource owns path precedence in config/api, while
+config/impl/file owns environment/platform/tilde expansion. A single external
+worker owns polling, deadlines and coalescing. PanelModel rejects old generations
+and distinguishes live/stale/error from empty snapshots. Both webviews receive
+the same projection. GUI dependencies are feature-gated; the reviewed desktop
+build script generates Tauri metadata only. See [DESKTOP.md](DESKTOP.md).

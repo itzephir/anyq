@@ -1,0 +1,2 @@
+Pillow==13.0.0
+pixelmatch==0.4.0

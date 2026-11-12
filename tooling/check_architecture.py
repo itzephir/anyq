@@ -31,6 +31,36 @@ ALLOWED = {
         "anyq-queue-wire",
         "anyq-plugin-wire",
     },
+    "anyq-desktop-api": {"anyq-queue-api"},
+    "anyq-desktop-dispatch": {"anyq-desktop-api"},
+    "anyq-desktop-file": {
+        "anyq-desktop-api",
+        "anyq-desktop-dispatch",
+        "toml",
+        "fs2",
+        "tempfile",
+    },
+    "anyq-desktop-impl": {
+        "anyq-desktop-api",
+        "anyq-desktop-dispatch",
+        "anyq-desktop-file",
+    },
+    "anyq-desktop": {
+        "anyq-desktop-api",
+        "anyq-desktop-impl",
+        "anyq-config-api",
+        "anyq-config-impl",
+        "anyq-daemon-api",
+        "anyq-daemon-impl",
+        "anyq-queue-api",
+        "serde",
+        "serde_json",
+        "tauri",
+        "tauri-build",
+        "tauri-plugin-dialog",
+        "ctrlc",
+        "zbus",
+    },
     "anyq-queue-api": set(),
     "anyq-queue-wire": {"anyq-queue-api", "serde"},
     "anyq-plugin-api": {"anyq-queue-api"},
@@ -195,6 +225,8 @@ INNER = {
     "anyq-plugin-dispatch",
     "anyq-plugin-wire",
     "anyq-queue-wire",
+    "anyq-desktop-api",
+    "anyq-desktop-dispatch",
     "anyq-daemon-api",
     "anyq-queue-api",
     "anyq-queue-dispatch",
@@ -231,16 +263,23 @@ def check(graph, sources):
             ):
                 errors.append(f"{path}: IO/FFI/external include in an inner layer")
             if (
-                name == "anyq"
-                and path != "apps/cli/src/main.rs"
+                name in {"anyq", "anyq-desktop"}
+                and path
+                != (
+                    "apps/cli/src/main.rs"
+                    if name == "anyq"
+                    else "apps/desktop/src/main.rs"
+                )
                 and re.search(
-                    r"\b(?:anyq_(?:daemon|queue|config|plugin|timeout|shell)_impl|anyq_queue_metadata|anyq_shell_(?:process|runtime))\b",
+                    r"\b(?:anyq_(?:daemon|queue|config|desktop|plugin|timeout|shell)_impl|anyq_queue_metadata|anyq_shell_(?:process|runtime))\b",
                     source,
                 )
             ):
                 errors.append(f"{path}: factory imports belong only to main.rs")
 
-            if name == "anyq" and re.search(r"\banyq_queue_impl\b", source):
+            if name in {"anyq", "anyq-desktop"} and re.search(
+                r"\banyq_queue_impl\b", source
+            ):
                 errors.append(f"{path}: CLI queue IO belongs behind the daemon")
 
     # Cargo rejects cycles too; check here for readable diagnostics/negative tests.
@@ -280,7 +319,13 @@ def main():
         }
         paths[name] = path.resolve()
         if "build" in manifest["package"] or (path / "build.rs").exists():
-            errors.append(f"{name}: unreviewed build script")
+            # Tauri generates native metadata only at the reviewed desktop root.
+            if (
+                name != "anyq-desktop"
+                or member != "apps/desktop"
+                or "build" in manifest["package"]
+            ):
+                errors.append(f"{name}: unreviewed build script")
         sources[name] = {
             p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
             for p in path.rglob("*.rs")
@@ -301,6 +346,10 @@ def main():
     errors += check(graph, sources)
     # These fixtures must fail, preventing a checker that only passes today's graph.
     for owner, dep in [
+        ("anyq-desktop-api", "tauri"),
+        ("anyq-desktop-dispatch", "anyq-daemon-impl"),
+        ("anyq-desktop-file", "anyq-config-impl"),
+        ("anyq-desktop", "anyq-queue-impl"),
         ("anyq-queue-api", "anyq-queue-dispatch"),
         ("anyq-queue-dispatch", "rusqlite"),
         ("anyq-queue-api", "anyq-queue-impl"),
@@ -340,6 +389,11 @@ def main():
     mutant = copy.deepcopy(sources)
     mutant["anyq"]["apps/cli/src/controllers.rs"] = (
         "use anyq_queue_metadata::parse_json;"
+    )
+    assert check(graph, mutant)
+    mutant = copy.deepcopy(sources)
+    mutant["anyq-desktop"]["apps/desktop/src/commands.rs"] = (
+        "use anyq_daemon_impl::observe;"
     )
     assert check(graph, mutant)
     if errors:
