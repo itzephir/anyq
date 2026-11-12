@@ -29,7 +29,10 @@ fn snapshot_is_current_ordered_and_observational_with_all_start_policies() {
         .observe(ObserveQueueRequest::default())
         .unwrap();
 
-    assert_eq!(snapshot.tasks, [owner.clone(), stopped.clone()]);
+    assert_eq!(
+        snapshot.tasks,
+        [owner.clone().into(), stopped.clone().into()]
+    );
     assert_eq!(snapshot.topics.len(), 3);
     assert_eq!(snapshot.count(TaskState::Running), 1);
     assert_eq!(snapshot.count(TaskState::Queued), 1);

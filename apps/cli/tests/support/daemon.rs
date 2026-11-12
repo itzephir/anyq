@@ -6,11 +6,31 @@ use anyq_daemon_transport::{Endpoint, FrameReader, Stream, send_frame};
 use anyq_queue_api::QueuePolicy;
 use std::{
     io::{Read, Write},
+    path::{Path, PathBuf},
     process::Stdio,
     sync::atomic::AtomicBool,
     thread,
     time::{Duration, Instant},
 };
+
+fn equivalent_new_database_path(path: &Path) -> PathBuf {
+    let parent = path.parent().unwrap();
+    let probe = parent.join("case-probe");
+    std::fs::write(&probe, "probe").unwrap();
+
+    if parent.join("CASE-PROBE").exists() {
+        path.with_file_name(
+            path.file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_ascii_uppercase(),
+        )
+    } else {
+        // A case-sensitive filesystem still exercises an equivalent missing path.
+        parent.join(".").join(path.file_name().unwrap())
+    }
+}
 
 fn open_session(queue: &Queue) -> Stream {
     queue.call(&["daemon", "start"]);
@@ -124,14 +144,40 @@ fn stop_restart_and_owner_crash_preserve_states_and_all_resource_slots() {
 }
 
 #[test]
+fn new_database_alias_reuses_the_foreground_owner_before_sqlite_exists() {
+    let queue = Queue::new();
+    let alias = equivalent_new_database_path(&queue.db);
+    let owner = queue.spawn_owner();
+    let status = queue.call(&["daemon", "status"]);
+
+    assert!(!queue.db.exists());
+    assert_eq!(
+        queue.call(&["daemon", "status", "--db", alias.to_str().unwrap()]),
+        status
+    );
+    assert!(!queue.db.exists());
+    queue.call(&["task", "create", "job", "--db", alias.to_str().unwrap()]);
+
+    assert_eq!(queue.state("job"), "registered");
+    assert_eq!(queue.call(&["task", "list"]), "- job");
+    assert_eq!(queue.call(&["daemon", "status"]), status);
+    queue.call(&["daemon", "stop", "--db", alias.to_str().unwrap()]);
+    assert!(owner.output().status.success());
+}
+
+#[test]
 fn concurrent_first_clients_share_one_owner_and_canonical_relative_paths() {
     let queue = Queue::new();
+    let alias = equivalent_new_database_path(&queue.db);
     let mut clients = Vec::new();
 
     for index in 0..12 {
+        let path = if index % 2 == 0 { &queue.db } else { &alias };
         clients.push(TestProcess::spawn(
             queue
                 .cmd(&["task", "create", &format!("job{index}")])
+                .arg("--db")
+                .arg(path)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped()),
         ));

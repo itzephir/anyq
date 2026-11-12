@@ -15,7 +15,7 @@ pub use frame_reader::FrameReader;
 mod windows_peer;
 
 mod send_frame;
-pub use send_frame::send_frame;
+pub use send_frame::{send_bounded_frame, send_frame};
 
 mod io_runtime;
 mod stream;

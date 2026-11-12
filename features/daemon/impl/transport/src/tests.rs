@@ -168,6 +168,75 @@ fn owner_lifetime_probe_observes_contention_without_creating_or_releasing_owners
     assert!(crate::OwnerLock::acquire(&endpoint).is_ok());
 }
 
+#[test]
+fn observation_response_limit_counts_all_continuation_chunks() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = Endpoint::resolve(&directory.path().join("queue.db")).unwrap();
+    let listener = endpoint.listen().unwrap();
+    let client = endpoint.connect().unwrap();
+    let stream = accept(&listener);
+    let server = thread::spawn(move || {
+        let mut stream = stream;
+        let first = [
+            ((32 * 1024u32) | crate::MORE).to_be_bytes().to_vec(),
+            vec![b'x'; 32 * 1024],
+        ]
+        .concat();
+        let second = (32 * 1024u32).to_be_bytes();
+        let deadline = Instant::now() + Duration::from_secs(5);
+
+        for bytes in [&first[..], &second[..]] {
+            let mut offset = 0;
+
+            while offset < bytes.len() {
+                match stream.write(&bytes[offset..]) {
+                    Ok(0) => panic!("fixture connection closed"),
+                    Ok(count) => offset += count,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline);
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(error) => panic!("fixture write failed: {error}"),
+                }
+            }
+        }
+    });
+
+    let error = FrameReader::for_bounded_responses(48 * 1024)
+        .receive::<String>(&client, &AtomicBool::new(false), Duration::from_secs(10))
+        .unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    server.join().unwrap();
+}
+
+#[test]
+fn bounded_sender_rejects_oversized_payload_before_emitting_any_bytes() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = Endpoint::resolve(&directory.path().join("queue.db")).unwrap();
+    let listener = endpoint.listen().unwrap();
+    let mut client = endpoint.connect().unwrap();
+    let stream = accept(&listener);
+    let cancelled = AtomicBool::new(false);
+
+    let error =
+        crate::send_bounded_frame(&stream, &"too large", &cancelled, Duration::from_secs(5), 4)
+            .unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    assert_eq!(
+        client.read(&mut [0; 4]).unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+
+    crate::send_bounded_frame(&stream, &"ok", &cancelled, Duration::from_secs(5), 4).unwrap();
+    let payload: String = FrameReader::for_bounded_responses(4)
+        .receive(&client, &cancelled, Duration::from_secs(5))
+        .unwrap();
+
+    assert_eq!(payload, "ok");
+}
+
 fn accept(listener: &crate::Listener) -> crate::Stream {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -319,4 +388,19 @@ fn active_input_still_observes_disconnect_and_shutdown() {
             }
         );
     }
+}
+#[cfg(unix)]
+#[test]
+fn symlink_owner_sidecar_does_not_redirect_a_missing_database() {
+    let directory = tempfile::tempdir().unwrap();
+    let endpoint = crate::Endpoint::resolve(&directory.path().join("selected.db")).unwrap();
+    let other = crate::Endpoint::resolve(&directory.path().join("other.db")).unwrap();
+    std::fs::write(other.lock_path(), "unrelated").unwrap();
+    std::os::unix::fs::symlink(other.lock_path(), endpoint.lock_path()).unwrap();
+
+    let resolved = crate::Endpoint::resolve(&endpoint.database).unwrap();
+
+    assert_eq!(resolved.database, endpoint.database);
+    assert_eq!(resolved.identity, endpoint.identity);
+    assert!(!resolved.database.exists());
 }

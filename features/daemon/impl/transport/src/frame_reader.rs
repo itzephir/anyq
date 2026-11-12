@@ -80,6 +80,10 @@ impl FrameReader {
         Self::with_limit(usize::MAX)
     }
 
+    pub fn for_bounded_responses(max_bytes: usize) -> Self {
+        Self::with_limit(max_bytes)
+    }
+
     pub fn receive<T: DeserializeOwned>(
         &mut self,
         stream: &Stream,
@@ -89,16 +93,16 @@ impl FrameReader {
         self.receive_inner(stream, cancelled, timeout, None)
     }
 
-    /// Suspend an empty input's idle timeout while the worker handles a request.
+    /// Suspend empty-input expiry while work or an established session stays alive.
     /// Once any byte arrives, the complete frame has its own fixed deadline.
     pub fn receive_request<T: DeserializeOwned>(
         &mut self,
         stream: &Stream,
         cancelled: &AtomicBool,
-        active: &AtomicBool,
+        keep_alive: &AtomicBool,
         timeout: Duration,
     ) -> io::Result<T> {
-        self.receive_inner(stream, cancelled, timeout, Some(active))
+        self.receive_inner(stream, cancelled, timeout, Some(keep_alive))
     }
 
     fn receive_inner<T: DeserializeOwned>(
@@ -106,10 +110,10 @@ impl FrameReader {
         stream: &Stream,
         cancelled: &AtomicBool,
         timeout: Duration,
-        active: Option<&AtomicBool>,
+        keep_alive: Option<&AtomicBool>,
     ) -> io::Result<T> {
         let started = self.prefix_read != 0 || !self.payload.is_empty();
-        let mut deadline = ReceiveDeadline::new(timeout, active, started);
+        let mut deadline = ReceiveDeadline::new(timeout, keep_alive, started);
 
         loop {
             fill(

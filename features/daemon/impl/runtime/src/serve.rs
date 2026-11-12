@@ -18,11 +18,16 @@ pub fn serve(
     let shutdown = Arc::new(AtomicBool::new(false));
     let _owner = OwnerLock::acquire(&endpoint)
         .map_err(|error| Error::Storage(format!("queue owner lock: {error}")))?;
+    // A competing opener may have created the sidecar before we locked it.
+    // Publish only the spelling anchored by the lock we now own.
+    let endpoint =
+        Endpoint::resolve(&endpoint.database).map_err(|error| Error::Storage(error.to_string()))?;
     let listener = endpoint
         .listen()
         .map_err(|error| Error::Storage(error.to_string()))?;
     let mut sessions = Vec::new();
     let capacity = Arc::new(SessionCapacity::default());
+    let retained = Arc::new(AtomicBool::new(false));
     let mut failure = None;
 
     while !shutdown.load(Ordering::SeqCst) {
@@ -53,6 +58,7 @@ pub fn serve(
                     factory: factory.clone(),
                     signals: signals.clone(),
                     shutdown: shutdown.clone(),
+                    retained: retained.clone(),
                     permit,
                 };
                 sessions.push((signals, thread::spawn(move || session.run())));

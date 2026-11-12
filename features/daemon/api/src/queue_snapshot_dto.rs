@@ -1,12 +1,12 @@
-use crate::{TaskDto, TopicDto};
+use crate::{ObservedTaskDto, ObservedTopicDto};
 use anyq_queue_api::{QueueSnapshot, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueueSnapshotDto {
-    pub topics: Vec<TopicDto>,
-    pub tasks: Vec<TaskDto>,
+    pub topics: Vec<ObservedTopicDto>,
+    pub tasks: Vec<ObservedTaskDto>,
 }
 
 impl From<QueueSnapshot> for QueueSnapshotDto {

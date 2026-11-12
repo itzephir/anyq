@@ -14,6 +14,11 @@ fn endpoint(path: &Path) -> Result<Endpoint> {
     Endpoint::resolve(path).map_err(|error| Error::Storage(error.to_string()))
 }
 
+/// Share the owner's canonical identity path without starting or creating a queue.
+pub fn canonical_database_path(path: &Path) -> Result<std::path::PathBuf> {
+    endpoint(path).map(|endpoint| endpoint.database)
+}
+
 pub fn observe(
     path: &Path,
     cancelled: Arc<AtomicBool>,

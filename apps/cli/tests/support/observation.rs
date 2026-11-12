@@ -229,7 +229,7 @@ fn observation_rejects_uninitialized_files_without_writes_and_cli_can_initialize
 
         assert!(matches!(
             response,
-            QueueResponse::Error(QueueError::Storage(ref message)) if message.contains("schema is uninitialized")
+            QueueResponse::Error(QueueError::Storage(ref message)) if message.contains("observation schema version 0")
         ));
         assert_eq!(std::fs::read(&queue.db).unwrap(), original);
         for suffix in ["-wal", "-shm", "-journal"] {
@@ -251,6 +251,89 @@ fn observation_rejects_uninitialized_files_without_writes_and_cli_can_initialize
             ),
             QueueResponse::Observation { .. }
         ));
+    }
+}
+
+#[test]
+fn known_extended_schemas_are_observed_without_loading_metadata_or_migrating() {
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.task("owner", &["cpu"]);
+    queue.call(&["daemon", "stop"]);
+    let metadata = format!("{{\"payload\":\"{}\"}}", "x".repeat(512_000));
+    let mut connection = rusqlite::Connection::open(&queue.db).unwrap();
+    connection
+        .execute_batch("ALTER TABLE tasks ADD COLUMN metadata TEXT; ALTER TABLE topics ADD COLUMN metadata TEXT")
+        .unwrap();
+    let transaction = connection.transaction().unwrap();
+    for index in 0..40 {
+        transaction
+            .execute(
+                "INSERT INTO tasks(name,state,stopped,metadata) VALUES (?1,'queued',1,?2)",
+                rusqlite::params![format!("task-{index:02}"), metadata],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO task_topics(task_id,topic_name) VALUES (?1,'cpu')",
+                [transaction.last_insert_rowid()],
+            )
+            .unwrap();
+    }
+    transaction.commit().unwrap();
+    drop(connection);
+
+    for version in [3, 4, 5, 6, 2, 7] {
+        let connection = rusqlite::Connection::open(&queue.db).unwrap();
+        connection
+            .pragma_update(None, "user_version", version)
+            .unwrap();
+        drop(connection);
+        let original = std::fs::read(&queue.db).unwrap();
+        let owner = queue.spawn_owner();
+        let endpoint = Endpoint::resolve(&queue.db).unwrap();
+        let stream = endpoint.connect().unwrap();
+
+        let opened = request(
+            &stream,
+            1,
+            QueueRequest::OpenObservation {
+                database_id: endpoint.identity,
+            },
+        );
+
+        if [3, 4, 5, 6].contains(&version) {
+            assert!(matches!(opened, QueueResponse::Ready { .. }));
+            let response = request(
+                &stream,
+                2,
+                QueueRequest::ObserveQueue {
+                    max_entities: 10_000,
+                    max_text_bytes: 1024,
+                },
+            );
+            let encoded = serde_json::to_string(&response).unwrap();
+            assert!(encoded.len() < 16 * 1024);
+            assert!(!encoded.contains("metadata"));
+            match response {
+                QueueResponse::Observation { snapshot, .. } => {
+                    let snapshot = QueueSnapshot::try_from(snapshot).unwrap();
+                    assert_eq!(snapshot.tasks.len(), 41);
+                    assert_eq!(snapshot.count(TaskState::Running), 1);
+                    assert_eq!(snapshot.count(TaskState::Queued), 40);
+                }
+                other => panic!("unexpected bounded projection: {other:?}"),
+            }
+        } else {
+            assert!(matches!(
+                opened,
+                QueueResponse::Error(QueueError::Storage(_))
+            ));
+        }
+
+        drop(stream);
+        owner.stop();
+        assert_eq!(std::fs::read(&queue.db).unwrap(), original);
     }
 }
 

@@ -21,11 +21,7 @@ pub struct Sqlite {
     pub(crate) cancelled: Arc<AtomicBool>,
 }
 
-fn compatible_version(
-    connection: &Connection,
-    cancelled: &AtomicBool,
-    allow_initialization: bool,
-) -> Result<i64> {
+fn compatible_version(connection: &Connection, cancelled: &AtomicBool) -> Result<i64> {
     let version: i64 = crate::retry_lock::retry(cancelled, LOCK_TIMEOUT, || {
         connection.pragma_query_value(None, "user_version", |row| row.get(0))
     })?;
@@ -47,13 +43,6 @@ fn compatible_version(
         if tables != 0 {
             return Err(Error::Storage(
                 "unversioned nonempty database; choose a separate database with --db".into(),
-            ));
-        }
-
-        if !allow_initialization {
-            return Err(Error::Storage(
-                "selected database schema is uninitialized; initialize it with the CLI before observing"
-                    .into(),
             ));
         }
     }
@@ -82,26 +71,42 @@ impl Sqlite {
         Self::open_with_cancellation(path, Arc::new(AtomicBool::new(false)))
     }
 
-    pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
-        Self::open_flags(path, cancelled, OpenFlags::default())
-    }
-
     pub fn open_existing(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
-        Self::open_flags(path, cancelled, OpenFlags::SQLITE_OPEN_READ_WRITE)
+        checkpoint("sqlite.before-open", &cancelled)?;
+        let mut connection =
+            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(storage)?;
+        connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
+
+        let read = connection
+            .transaction_with_behavior(TransactionBehavior::Deferred)
+            .map_err(storage)?;
+        let version: i64 = crate::retry_lock::retry(&cancelled, LOCK_TIMEOUT, || {
+            read.pragma_query_value(None, "user_version", |row| row.get(0))
+        })?;
+        if ![3, 4, 5, 6].contains(&version) {
+            return Err(Error::Storage(format!(
+                "unsupported observation schema version {version}; initialize or upgrade with a compatible CLI"
+            )));
+        }
+        read.commit().map_err(storage)?;
+
+        Ok(Self {
+            connection: Rc::new(RefCell::new(connection)),
+            cancelled,
+        })
     }
 
-    fn open_flags(path: &Path, cancelled: Arc<AtomicBool>, flags: OpenFlags) -> Result<Self> {
+    pub fn open_with_cancellation(path: &Path, cancelled: Arc<AtomicBool>) -> Result<Self> {
         checkpoint("sqlite.before-open", &cancelled)?;
-        let mut connection = Connection::open_with_flags(path, flags).map_err(storage)?;
+        let mut connection = Connection::open(path).map_err(storage)?;
         checkpoint("sqlite.after-open", &cancelled)?;
         connection.busy_timeout(LOCK_TIMEOUT).map_err(storage)?;
-        let allow_initialization = flags.contains(OpenFlags::SQLITE_OPEN_CREATE);
 
         // Check an existing database in one read snapshot before changing journal mode or schema.
         let read = connection
             .transaction_with_behavior(TransactionBehavior::Deferred)
             .map_err(storage)?;
-        compatible_version(&read, &cancelled, allow_initialization)?;
+        compatible_version(&read, &cancelled)?;
         read.commit().map_err(storage)?;
 
         connection
@@ -114,7 +119,7 @@ impl Sqlite {
         let tx = begin_transaction(&connection, &cancelled, LOCK_TIMEOUT)?;
 
         // Another opener may have initialized the database since the read-only check.
-        match compatible_version(&tx, &cancelled, allow_initialization)? {
+        match compatible_version(&tx, &cancelled)? {
             0 => {
                 tx.execute_batch(include_str!("schema.sql"))
                     .map_err(storage)?;
