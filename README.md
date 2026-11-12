@@ -237,3 +237,9 @@ Timeout and shell remain separate planned stages of the [stacked roadmap](docs/P
 Enable `anyq plugin-runtime timeout` through the ordinary plugin command to apply
 metadata deadlines. See [TIMEOUT.md](docs/TIMEOUT.md) for snapshot precedence,
 restart recovery and managed versus caller-owned work. The CLI is English-only.
+
+### Optional shell execution
+
+Register `anyq plugin-runtime shell` explicitly to execute task `shell.sh` or
+`shell.src` plans after admission. See [SHELL.md](docs/SHELL.md) for native syntax,
+captured directories, autocomplete, output inspection and uncertain recovery.

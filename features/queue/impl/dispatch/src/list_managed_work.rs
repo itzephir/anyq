@@ -16,9 +16,17 @@ impl<S: Store> ListManagedWork for ListManagedWorkInteractor<S> {
         self.store.transaction(|records| {
             let task = request.task.as_deref().map(parse_name).transpose()?;
 
-            records
-                .work()
-                .managed(request.owner.as_deref(), task.as_deref())
+            let filter = ManagedWorkFilter {
+                owner: request.owner,
+                task,
+                action: None,
+                after: request.after,
+                limit: request.limit,
+                states: request.states,
+            };
+            filter.validate()?;
+
+            records.work().managed(&filter)
         })
     }
 }

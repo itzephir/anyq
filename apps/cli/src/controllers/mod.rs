@@ -32,3 +32,5 @@ pub use plugin_command::PluginCommand;
 
 mod plugin_runtime;
 mod plugin_runtime_mode;
+
+pub use plugin_runtime_mode::PluginRuntimeMode;

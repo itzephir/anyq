@@ -1,5 +1,5 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub use anyq_queue_wire::MetadataDto;

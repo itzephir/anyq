@@ -28,7 +28,11 @@ impl<S: Store> RegisterManagedWork for RegisterManagedWorkInteractor<S> {
                 crate::lookup_task::lookup_task(records, &request.task, QueuePolicy::default())?;
             if let Some(work) = records
                 .work()
-                .managed(Some(&request.owner), None)?
+                .managed(&ManagedWorkFilter {
+                    owner: Some(request.owner.clone()),
+                    action: Some(request.action_id.clone()),
+                    ..Default::default()
+                })?
                 .into_iter()
                 .find(|work| work.action_id == request.action_id)
             {
@@ -46,6 +50,7 @@ impl<S: Store> RegisterManagedWork for RegisterManagedWorkInteractor<S> {
             let completion = records.work().completion_requested(task.name())?;
             ManagedWork::require_launch(task.state(), completion)?;
             let work = ManagedWork {
+                details: request.details,
                 owner: request.owner,
                 action_id: request.action_id,
                 task: task.name().into(),

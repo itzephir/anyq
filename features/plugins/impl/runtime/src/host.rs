@@ -28,21 +28,18 @@ pub struct Host<S> {
 
 impl<S: Store> Host<S> {
     fn unresolved(&mut self, name: &str) -> Result<Vec<ManagedWork>> {
-        Ok(self
-            .work
-            .list
-            .list(ListManagedWorkRequest {
-                owner: Some(name.into()),
-                task: None,
-            })?
-            .into_iter()
-            .filter(|work| work.state.blocks_completion())
-            .collect())
+        self.work.list.list(ListManagedWorkRequest {
+            owner: Some(name.into()),
+            task: None,
+            states: ManagedWorkState::BLOCKING_STATES.to_vec(),
+            ..Default::default()
+        })
     }
 
     fn uncertain(&mut self, name: &str) -> Result<()> {
         for work in self.unresolved(name)? {
             self.work.report.report(ReportManagedWorkRequest {
+                details: None,
                 owner: name.into(),
                 action_id: work.action_id,
                 state: ManagedWorkState::Uncertain,
@@ -104,15 +101,17 @@ impl<S: Store> Host<S> {
     }
 
     fn prune(&mut self) -> Result<()> {
-        if self
+        if !self
             .work
             .list
             .list(ListManagedWorkRequest {
                 owner: None,
                 task: None,
+                states: ManagedWorkState::BLOCKING_STATES.to_vec(),
+                limit: Some(1),
+                ..Default::default()
             })?
-            .iter()
-            .any(|work| work.state.blocks_completion())
+            .is_empty()
         {
             return Ok(());
         }

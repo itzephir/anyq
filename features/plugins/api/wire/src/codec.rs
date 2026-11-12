@@ -1,7 +1,7 @@
 use anyq_queue_api::{Error, Result};
 use serde::{Serialize, de::DeserializeOwned};
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub fn encode<T: Serialize>(frame: &T) -> Result<Vec<u8>> {

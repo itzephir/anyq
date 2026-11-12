@@ -7,9 +7,11 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-integration-test-hooks = ["dep:anyq-integration-test-hooks", "anyq-daemon-impl/integration-test-hooks", "anyq-config-impl/integration-test-hooks"]
+integration-test-hooks = ["anyq-shell-runtime/integration-test-hooks", "dep:anyq-integration-test-hooks", "anyq-daemon-impl/integration-test-hooks", "anyq-config-impl/integration-test-hooks"]
 
 [dependencies]
+anyq-shell-runtime = { path = "../../features/shell/impl/runtime" }
+anyq-shell-process = { path = "../../features/shell/impl/process" }
 anyq-timeout-impl = { path = "../../features/timeout/impl/protocol" }
 serde_json = "1"
 anyq-plugin-api = { path = "../../features/plugins/api" }

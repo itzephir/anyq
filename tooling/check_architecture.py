@@ -9,6 +9,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
+    "anyq-shell-api": {"anyq-queue-api"},
+    "anyq-shell-runtime": {
+        "anyq-shell-api",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "anyq-plugin-wire",
+    },
+    "anyq-shell-process": {
+        "anyq-shell-api",
+        "anyq-shell-runtime",
+        "anyq-queue-api",
+        "rustix",
+        "windows-spawn",
+        "win32job",
+    },
     "anyq-timeout-api": {"anyq-queue-api"},
     "anyq-timeout-impl": {
         "anyq-timeout-api",
@@ -150,6 +165,8 @@ ALLOWED = {
     },
     "anyq-integration-test-hooks": set(),
     "anyq": {
+        "anyq-shell-runtime",
+        "anyq-shell-process",
         "anyq-timeout-api",
         "anyq-queue-wire",
         "anyq-timeout-impl",
@@ -172,6 +189,7 @@ ALLOWED = {
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
+    "anyq-shell-api",
     "anyq-timeout-api",
     "anyq-plugin-api",
     "anyq-plugin-dispatch",
@@ -216,7 +234,7 @@ def check(graph, sources):
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
                 and re.search(
-                    r"\b(?:anyq_(?:daemon|queue|config|plugin|timeout)_impl|anyq_queue_metadata)\b",
+                    r"\b(?:anyq_(?:daemon|queue|config|plugin|timeout|shell)_impl|anyq_queue_metadata|anyq_shell_(?:process|runtime))\b",
                     source,
                 )
             ):
@@ -294,6 +312,8 @@ def main():
         ("anyq-daemon-api", "interprocess"),
         ("anyq-daemon-runtime", "anyq-queue-impl"),
         ("anyq", "anyq-queue-impl"),
+        ("anyq-shell-api", "anyq-shell-process"),
+        ("anyq-shell-runtime", "anyq-queue-sqlite"),
         ("anyq-plugin-api", "anyq-plugin-sqlite"),
         ("anyq-plugin-dispatch", "rusqlite"),
         ("anyq-plugin-runtime", "anyq-queue-sqlite"),

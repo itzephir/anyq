@@ -14,14 +14,19 @@ pub enum CapabilityRequest {
     },
     ReadState,
     ManagedRegister {
+        details: anyq_queue_wire::MetadataDto,
         action_id: String,
         task: String,
     },
     ManagedReport {
+        details: Option<anyq_queue_wire::MetadataDto>,
         action_id: String,
         state: String,
     },
-    ManagedList,
+    ManagedList {
+        #[serde(default)]
+        after: Option<String>,
+    },
 }
 
 impl CapabilityRequest {
@@ -30,9 +35,9 @@ impl CapabilityRequest {
             Self::ReadTask { .. } => "read",
             Self::Complete { .. } => "complete",
             Self::ReadState => "state",
-            Self::ManagedRegister { .. } | Self::ManagedReport { .. } | Self::ManagedList => {
-                "managed"
-            }
+            Self::ManagedRegister { .. }
+            | Self::ManagedReport { .. }
+            | Self::ManagedList { .. } => "managed",
         }
     }
 }

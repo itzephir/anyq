@@ -133,16 +133,19 @@ impl EventRecords for Memory {
 }
 
 impl WorkRecords for Memory {
-    fn managed(&mut self, owner: Option<&str>, task: Option<&str>) -> Result<Vec<ManagedWork>> {
-        Ok(self
+    fn managed(&mut self, filter: &ManagedWorkFilter) -> Result<Vec<ManagedWork>> {
+        let mut work = self
             .work
             .iter()
-            .filter(|work| {
-                owner.is_none_or(|owner| owner == work.owner)
-                    && task.is_none_or(|task| task == work.task)
-            })
+            .filter(|work| filter.matches(work))
             .cloned()
-            .collect())
+            .collect::<Vec<_>>();
+        work.sort_by(|a, b| (&a.owner, &a.action_id).cmp(&(&b.owner, &b.action_id)));
+        if let Some(limit) = filter.limit {
+            work.truncate(limit);
+        }
+
+        Ok(work)
     }
 
     fn save_managed(&mut self, work: &ManagedWork) -> Result<()> {

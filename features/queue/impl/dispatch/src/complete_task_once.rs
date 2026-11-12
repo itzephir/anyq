@@ -18,7 +18,11 @@ impl<S: Store> CompleteTaskOnce for CompleteTaskOnceInteractor<S> {
             let task = parse_name(&request.task)?;
             if records
                 .work()
-                .managed(Some(&request.owner), None)?
+                .managed(&ManagedWorkFilter {
+                    owner: Some(request.owner.clone()),
+                    action: Some(request.action_id.clone()),
+                    ..Default::default()
+                })?
                 .iter()
                 .any(|work| work.action_id == request.action_id)
             {

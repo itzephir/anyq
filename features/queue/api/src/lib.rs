@@ -231,3 +231,6 @@ pub use work_services::WorkServices;
 
 mod cancel_managed_work;
 pub use cancel_managed_work::CancelManagedWork;
+
+mod managed_work_filter;
+pub use managed_work_filter::ManagedWorkFilter;

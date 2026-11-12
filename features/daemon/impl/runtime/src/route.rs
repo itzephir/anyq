@@ -51,6 +51,7 @@ pub(crate) fn route(request: QueueRequest, services: &mut DaemonServices) -> Res
                     .list(anyq_queue_api::ListManagedWorkRequest {
                         owner: Some(owner),
                         task: None,
+                        ..Default::default()
                     })?
                     .into_iter()
                     .map(Into::into)

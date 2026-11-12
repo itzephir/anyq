@@ -18,7 +18,7 @@ pub(crate) fn capability(
     if !plugin.enabled
         && !matches!(
             request,
-            CapabilityRequest::ManagedReport { .. } | CapabilityRequest::ManagedList
+            CapabilityRequest::ManagedReport { .. } | CapabilityRequest::ManagedList { .. }
         )
     {
         return Err(Error::Conflict("plugin is disabled".into()));
@@ -57,8 +57,13 @@ pub(crate) fn capability(
                 Err(error) => return Err(error),
             }
         }
-        CapabilityRequest::ManagedRegister { action_id, task } => {
+        CapabilityRequest::ManagedRegister {
+            action_id,
+            task,
+            details,
+        } => {
             let launch = work.register.register(RegisterManagedWorkRequest {
+                details: details.try_into()?,
                 owner: plugin.name.clone(),
                 action_id,
                 task,
@@ -68,26 +73,34 @@ pub(crate) fn capability(
                 launch_allowed: launch.launch_allowed,
             }
         }
-        CapabilityRequest::ManagedReport { action_id, state } => CapabilityResult::ManagedWork {
+        CapabilityRequest::ManagedReport {
+            action_id,
+            state,
+            details,
+        } => CapabilityResult::ManagedWork {
             work: work
                 .report
                 .report(ReportManagedWorkRequest {
+                    details: details.map(TryInto::try_into).transpose()?,
                     owner: plugin.name.clone(),
                     action_id,
                     state: work_state(&state)?,
                 })?
                 .into(),
         },
-        CapabilityRequest::ManagedList => CapabilityResult::ManagedList {
-            work: work
-                .list
-                .list(ListManagedWorkRequest {
-                    owner: Some(plugin.name.clone()),
-                    task: None,
-                })?
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-        },
+        CapabilityRequest::ManagedList { after } => {
+            let page = work.list.list(ListManagedWorkRequest {
+                owner: Some(plugin.name.clone()),
+                task: None,
+                after,
+                limit: Some(1),
+                states: Vec::new(),
+            })?;
+            let next = page.last().map(|work| work.action_id.clone());
+            CapabilityResult::ManagedList {
+                next,
+                work: page.into_iter().map(Into::into).collect(),
+            }
+        }
     })
 }
