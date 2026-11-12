@@ -18,7 +18,7 @@ impl anyq_plugin_api::GetPluginStatus for RemoteGetPluginStatus {
             .channel
             .request(QueueRequest::PluginStatus { name: name.into() })?
         {
-            QueueResponse::PluginStatus(value) => Ok(value.into()),
+            QueueResponse::PluginStatus(value) => value.try_into(),
             _ => Err(Channel::unexpected()),
         }
     }

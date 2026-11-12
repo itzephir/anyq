@@ -9,6 +9,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
+    "anyq-timeout-api": {"anyq-queue-api"},
+    "anyq-timeout-impl": {
+        "anyq-timeout-api",
+        "anyq-queue-api",
+        "anyq-queue-wire",
+        "anyq-plugin-wire",
+    },
     "anyq-queue-api": set(),
     "anyq-queue-wire": {"anyq-queue-api", "serde"},
     "anyq-plugin-api": {"anyq-queue-api"},
@@ -143,6 +150,9 @@ ALLOWED = {
     },
     "anyq-integration-test-hooks": set(),
     "anyq": {
+        "anyq-timeout-api",
+        "anyq-queue-wire",
+        "anyq-timeout-impl",
         "anyq-plugin-api",
         "anyq-plugin-wire",
         "anyq-queue-metadata",
@@ -162,6 +172,7 @@ ALLOWED = {
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
+    "anyq-timeout-api",
     "anyq-plugin-api",
     "anyq-plugin-dispatch",
     "anyq-plugin-wire",
@@ -205,7 +216,7 @@ def check(graph, sources):
                 name == "anyq"
                 and path != "apps/cli/src/main.rs"
                 and re.search(
-                    r"\b(?:anyq_(?:daemon|queue|config|plugin)_impl|anyq_queue_metadata)\b",
+                    r"\b(?:anyq_(?:daemon|queue|config|plugin|timeout)_impl|anyq_queue_metadata)\b",
                     source,
                 )
             ):

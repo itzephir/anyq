@@ -11,6 +11,7 @@ pub(crate) fn read_status(records: &mut dyn Records, name: &str) -> Result<Plugi
     let unresolved_actions = records.count_managed(name, &ManagedWorkState::BLOCKING_STATES)?;
 
     Ok(PluginStatus {
+        state: plugin.state,
         name: plugin.name,
         enabled: plugin.enabled,
         running: plugin.running,

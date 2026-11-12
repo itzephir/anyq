@@ -26,3 +26,6 @@ pub use plugin_status_dto::PluginStatusDto;
 
 mod codec;
 pub use codec::{MAX_FRAME_BYTES, PROTOCOL_VERSION, decode, encode};
+
+/// Public namespaced state representation, shared with queue metadata.
+pub use anyq_queue_wire::MetadataDto as StateDto;

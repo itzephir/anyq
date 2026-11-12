@@ -906,3 +906,7 @@ mod daemon;
 #[cfg(feature = "integration-test-hooks")]
 #[path = "support/plugins.rs"]
 mod plugins;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/timeout.rs"]
+mod timeout;

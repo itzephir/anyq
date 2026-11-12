@@ -48,6 +48,11 @@ impl TestProcess {
         let deadline = Instant::now() + Duration::from_secs(20);
 
         while self.child.as_mut().unwrap().try_wait().unwrap().is_none() {
+            #[cfg(target_os = "macos")]
+            if Instant::now() >= deadline {
+                report_timeout(self.child.as_ref().unwrap());
+            }
+
             assert!(
                 Instant::now() < deadline,
                 "CLI did not finish within the test deadline: {}",
@@ -65,6 +70,25 @@ impl TestProcess {
 
             child.wait().unwrap();
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn report_timeout(child: &Child) {
+    let mut command = Command::new("/usr/bin/sample");
+    command
+        .arg(child.id().to_string())
+        .args(["1", "1"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    match super::process_spawn::spawn(&mut command).and_then(|child| child.wait_with_output()) {
+        Ok(output) => eprintln!(
+            "CLI timeout sample:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ),
+        Err(error) => eprintln!("Could not sample timed-out CLI: {error}"),
     }
 }
 

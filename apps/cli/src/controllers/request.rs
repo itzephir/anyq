@@ -6,6 +6,7 @@ use anyq_queue_api::{RegisterTaskRequest, StartPreference, Topic};
 
 /// Parsed CLI syntax, routed only in the outer composition root.
 pub enum Request {
+    PluginRuntime(super::plugin_runtime_mode::PluginRuntimeMode),
     Plugin(super::PluginCommand),
     GetTaskMetadata(anyq_queue_api::GetTaskMetadataRequest),
     SetTaskMetadata(anyq_queue_api::SetTaskMetadataRequest),
@@ -136,6 +137,7 @@ impl Request {
     }
     pub fn parse(command: Commands, input: &MetadataInput) -> Result<Self> {
         match command {
+            Commands::PluginRuntime(args) => Ok(Self::PluginRuntime(args.mode)),
             Commands::Plugin(args) => Ok(Self::Plugin(args.command)),
             Commands::Daemon(args) => Ok(Self::Daemon(args.command)),
             Commands::Config(args) => {

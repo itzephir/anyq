@@ -22,7 +22,7 @@ impl anyq_plugin_api::EnablePlugin for RemoteEnablePlugin {
             executable: request.executable,
             arguments: request.arguments,
         })? {
-            QueueResponse::PluginStatus(value) => Ok(value.into()),
+            QueueResponse::PluginStatus(value) => value.try_into(),
             _ => Err(Channel::unexpected()),
         }
     }

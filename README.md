@@ -231,3 +231,9 @@ Committed lifecycle events, durable acknowledgements, namespaced state/timers,
 replay-safe completion and managed cancellation are described in [PLUGINS.md](docs/PLUGINS.md).
 Run `python3 examples/plugins.py` after building anyq for an isolated public-protocol example.
 Timeout and shell remain separate planned stages of the [stacked roadmap](docs/PLUGIN-ROADMAP.md).
+
+### Optional timeout policy
+
+Enable `anyq plugin-runtime timeout` through the ordinary plugin command to apply
+metadata deadlines. See [TIMEOUT.md](docs/TIMEOUT.md) for snapshot precedence,
+restart recovery and managed versus caller-owned work. The CLI is English-only.

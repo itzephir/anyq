@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PluginStatusDto {
+    pub state: anyq_queue_wire::MetadataDto,
     pub name: String,
     pub enabled: bool,
     pub running: bool,
@@ -18,6 +19,7 @@ pub struct PluginStatusDto {
 impl From<PluginStatus> for PluginStatusDto {
     fn from(status: PluginStatus) -> Self {
         Self {
+            state: status.state.into(),
             name: status.name,
             enabled: status.enabled,
             running: status.running,
@@ -31,9 +33,11 @@ impl From<PluginStatus> for PluginStatusDto {
     }
 }
 
-impl From<PluginStatusDto> for PluginStatus {
-    fn from(status: PluginStatusDto) -> Self {
-        Self {
+impl TryFrom<PluginStatusDto> for PluginStatus {
+    type Error = anyq_queue_api::Error;
+    fn try_from(status: PluginStatusDto) -> Result<Self, Self::Error> {
+        Ok(Self {
+            state: status.state.try_into()?,
             name: status.name,
             enabled: status.enabled,
             running: status.running,
@@ -43,6 +47,6 @@ impl From<PluginStatusDto> for PluginStatus {
             last_failure: status.last_failure,
             active_timers: status.active_timers,
             unresolved_actions: status.unresolved_actions,
-        }
+        })
     }
 }

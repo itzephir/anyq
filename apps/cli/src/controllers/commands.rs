@@ -4,6 +4,8 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[command(about = "Run a first-party plugin over the public stdio protocol")]
+    PluginRuntime(super::plugin_runtime::PluginRuntime),
     #[command(about = "Enable, inspect or disable trusted local plugins")]
     Plugin(super::plugin_args::PluginArgs),
     #[command(about = "Start, inspect or stop the background queue owner")]
