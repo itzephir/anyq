@@ -4,6 +4,25 @@ Every UI behavior change requires real native integration and screenshot checks
 on Linux, macOS and Windows. The required CI matrix is in
 `.github/workflows/desktop.yml`, included in the stable `CI passed` gate.
 
+`tooling/test_desktop_package.py` installs the actual production app bundle,
+NSIS installer or Debian package, launches the installed executable, quits the
+client, removes the package and repeats installation/removal. It checks a real
+visible native window, the same live daemon, unchanged queue ownership and
+byte-identical preferences/shared configuration. Windows/Linux installation
+requires a disposable GitHub Actions machine; macOS uses an isolated per-user
+Applications directory. Shipping packages do not contain the UI test transport.
+
+`tooling/test_desktop_shell.py` uses `native.json` to configure real desktop-host
+and display scenarios. Operating-system helpers inspect native windows and
+post real input independently of the private application driver. Native shell
+state is read without evaluating a hidden webview. Platform helpers are test
+tools only and are never included in app packages. macOS display setup uses
+the private CoreGraphics interfaces also exercised by
+[Chromium's display tests](https://chromium.googlesource.com/chromium/src/+/HEAD/ui/display/mac/test/virtual_display_util_mac.mm);
+the production app uses public AppKit screen APIs. Native input and capture
+permissions are environmental requirements, and a denied operation fails the
+scenario rather than simulating a click or accepting incomplete evidence.
+
 The modes are explicit: `verify` compares with committed goldens and fails on a
 regression; `generate` writes new goldens for review. Both modes launch every
 visual case twice from independent clean processes and databases, and reject

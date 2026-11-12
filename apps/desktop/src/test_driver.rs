@@ -89,6 +89,14 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                 if let Some(id) = command["id"].as_u64().filter(|id| *id > seen) {
                     seen = id;
                     let label = command["window"].as_str().unwrap_or("main");
+                    if command["native"] == "shell-state" {
+                        let payload = match crate::test_shell_state::snapshot(&app) {
+                            Ok(value) => json!({"ok":true,"value":value}),
+                            Err(error) => json!({"ok":false,"error":error.to_string()}),
+                        };
+                        let _ = write_response(&driver, id, json!({"payload":payload}));
+                        continue;
+                    }
                     if let Some(window) = app.get_webview_window(label) {
                         let result = match command["native"].as_str() {
                             Some("publish-state") => app
@@ -99,6 +107,16 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                                 .show()
                                 .and_then(|()| window.set_focus())
                                 .map_err(|error| error.to_string()),
+                            Some("position") => {
+                                let x = command["x"].as_f64().unwrap_or(0.0);
+                                let y = command["y"].as_f64().unwrap_or(0.0);
+                                let result = if cfg!(target_os = "macos") {
+                                    window.set_position(tauri::LogicalPosition::new(x, y))
+                                } else {
+                                    window.set_position(tauri::PhysicalPosition::new(x, y))
+                                };
+                                result.map_err(|error| error.to_string())
+                            }
                             Some("cursor") => window
                                 .inner_position()
                                 .and_then(|position| {
@@ -149,6 +167,14 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                                 &driver,
                                 id,
                                 json!({"payload":{"ok":false,"error":error}}),
+                            );
+                            continue;
+                        }
+                        if command["native"] == "position" {
+                            let _ = write_response(
+                                &driver,
+                                id,
+                                json!({"payload":{"ok":true,"value":null}}),
                             );
                             continue;
                         }

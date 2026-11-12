@@ -60,6 +60,8 @@ ALLOWED = {
         "tauri-plugin-dialog",
         "ctrlc",
         "zbus",
+        "objc2",
+        "objc2-app-kit",
     },
     "anyq-queue-api": set(),
     "anyq-queue-wire": {"anyq-queue-api", "serde"},
@@ -347,6 +349,7 @@ def main():
     # These fixtures must fail, preventing a checker that only passes today's graph.
     for owner, dep in [
         ("anyq-desktop-api", "tauri"),
+        ("anyq-desktop-api", "objc2-app-kit"),
         ("anyq-desktop-dispatch", "anyq-daemon-impl"),
         ("anyq-desktop-file", "anyq-config-impl"),
         ("anyq-desktop", "anyq-queue-impl"),

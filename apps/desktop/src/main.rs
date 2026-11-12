@@ -4,6 +4,8 @@
 )]
 
 mod commands;
+mod compact_layout;
+mod compact_window;
 mod controller;
 mod panel_session;
 mod preference_input;
@@ -12,6 +14,9 @@ mod shell;
 
 #[cfg(feature = "integration-test-hooks")]
 mod test_driver;
+
+#[cfg(feature = "integration-test-hooks")]
+mod test_shell_state;
 
 use anyq_desktop_api::PanelPreferences;
 use anyq_queue_api::{Error, ObserveQueueRequest};

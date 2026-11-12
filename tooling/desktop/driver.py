@@ -111,6 +111,18 @@ class Driver:
             "return await window.__TAURI__.core.invoke('get_panel_state');"
         )["payload"]["value"]
 
+    def shell_state(self):
+        return self.call(native="shell-state")["payload"]["value"]
+
+    def wait_shell(self, condition, timeout=20):
+        deadline = time.monotonic() + timeout
+        while True:
+            state = self.shell_state()
+            if condition(state):
+                return state
+            assert time.monotonic() < deadline, state
+            time.sleep(0.05)
+
     def click(self, selector, window="main"):
         return self.call(
             f"document.querySelector({json.dumps(selector)}).click();", window

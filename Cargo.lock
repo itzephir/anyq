@@ -243,6 +243,8 @@ dependencies = [
  "anyq-desktop-impl",
  "anyq-queue-api",
  "ctrlc",
+ "objc2",
+ "objc2-app-kit",
  "serde",
  "serde_json",
  "tauri",

@@ -124,4 +124,7 @@ config/impl/file owns environment/platform/tilde expansion. A single external
 worker owns polling, deadlines and coalescing. PanelModel rejects old generations
 and distinguishes live/stale/error from empty snapshots. Both webviews receive
 the same projection. GUI dependencies are feature-gated; the reviewed desktop
-build script generates Tauri metadata only. See [DESKTOP.md](DESKTOP.md).
+build script generates Tauri metadata only. The macOS shell uses safe AppKit
+bindings for screen and pointer coordinates; those SDK dependencies remain in
+the outer desktop application and are rejected from inner crates. See
+[DESKTOP.md](DESKTOP.md).
