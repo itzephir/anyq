@@ -53,6 +53,45 @@ class DpiSetting(c.Structure):
     _fields_ = [("header", Header), ("relative", w.INT)]
 
 
+class SourceName(c.Structure):
+    _fields_ = [("header", Header), ("name", w.WCHAR * 32)]
+
+
+class DisplayMode(c.Structure):
+    _fields_ = [
+        ("device", w.WCHAR * 32),
+        ("spec", w.WORD),
+        ("driver", w.WORD),
+        ("size", w.WORD),
+        ("extra", w.WORD),
+        ("fields", w.DWORD),
+        ("x", w.LONG),
+        ("y", w.LONG),
+        ("orientation", w.DWORD),
+        ("fixed_output", w.DWORD),
+        ("color", w.SHORT),
+        ("duplex", w.SHORT),
+        ("y_resolution", w.SHORT),
+        ("tt_option", w.SHORT),
+        ("collate", w.SHORT),
+        ("form", w.WCHAR * 32),
+        ("log_pixels", w.WORD),
+        ("bits", w.DWORD),
+        ("width", w.DWORD),
+        ("height", w.DWORD),
+        ("display_flags", w.DWORD),
+        ("frequency", w.DWORD),
+        ("icm_method", w.DWORD),
+        ("icm_intent", w.DWORD),
+        ("media", w.DWORD),
+        ("dither", w.DWORD),
+        ("reserved1", w.DWORD),
+        ("reserved2", w.DWORD),
+        ("panning_width", w.DWORD),
+        ("panning_height", w.DWORD),
+    ]
+
+
 def configure():
     assert os.environ.get("GITHUB_ACTIONS") == "true", (
         "Configure native DPI only in disposable CI"
@@ -72,6 +111,26 @@ def configure():
     assert paths.value >= 2, "Windows needs at least two real active display paths"
     configured = []
     for index, path in enumerate(active[: paths.value]):
+        source = SourceName()
+        source.header = Header(
+            1, c.sizeof(SourceName), path.source.adapter, path.source.id
+        )
+        assert user.DisplayConfigGetDeviceInfo(c.byref(source)) == 0
+        if index > 0:
+            mode = DisplayMode()
+            mode.size = c.sizeof(mode)
+            assert mode.size == 220
+            assert user.EnumDisplaySettingsW(source.name, -1, c.byref(mode))
+            mode.fields = 0x20 | 0x80000 | 0x100000 | 0x400000
+            mode.x = -1920 if index == 1 else (index - 1) * 1920
+            mode.y = -120 if index == 1 else 0
+            mode.width, mode.height, mode.frequency = 1920, 1080, 60
+            assert (
+                user.ChangeDisplaySettingsExW(
+                    source.name, c.byref(mode), None, 0x10000001, None
+                )
+                == 0
+            )
         info = DpiInfo()
         info.header = Header(
             0xFFFFFFFD, c.sizeof(DpiInfo), path.source.adapter, path.source.id
@@ -98,4 +157,5 @@ def configure():
                 "scale": 1 if index == 0 else 1.5,
             }
         )
+    assert user.ChangeDisplaySettingsExW(None, None, None, 0, None) == 0
     return configured

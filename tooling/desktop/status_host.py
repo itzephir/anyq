@@ -19,7 +19,8 @@ class StatusHost:
       <property name="position" type="string" value="p=6;x=640;y=0"/>
       <property name="position-locked" type="bool" value="true"/>
       <property name="size" type="uint" value="40"/>
-      <property name="length" type="uint" value="10"/>
+      <property name="length" type="uint" value="1"/>
+      <property name="length-adjust" type="bool" value="true"/>
       <property name="plugin-ids" type="array"><value type="int" value="1"/></property>
     </property>
   </property>

@@ -139,6 +139,10 @@ def run(cli, bundles, home, output, configuration):
                     window["width"] >= 360 and window["height"] >= 500
                     for window in windows
                 ), windows
+                if sys.platform == "win32":
+                    assert not Path(str(package.executable) + ".WebView2").exists(), (
+                        "Browser state must live outside the installation"
+                    )
                 deadline = time.monotonic() + 20
                 while "running" not in (
                     current := fixtures.call(["daemon", "status"], database)
@@ -152,7 +156,7 @@ def run(cli, bundles, home, output, configuration):
                 assert current == owner
                 if sys.platform in ("darwin", "win32"):
                     native.click_tray(client.pid, right=True)
-                    native.key("up")
+                    native.key("end")
                     native.key("enter")
                 else:
                     native.close_window(client.pid)

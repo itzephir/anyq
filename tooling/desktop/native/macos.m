@@ -50,6 +50,12 @@ static id perform(NSDictionary *command) {
     NSString *action = command[@"action"];
     if ([action isEqual:@"capabilities"]) return @{ @"input":@(CGPreflightPostEventAccess()), @"capture":@(CGPreflightScreenCaptureAccess()), @"screens":@(NSScreen.screens.count) };
     if ([action isEqual:@"windows"]) return windows([command[@"pid"] intValue]);
+    if ([action isEqual:@"menu-open"]) {
+        for (NSDictionary *window in windows([command[@"pid"] intValue])) {
+            if ([window[@"layer"] intValue] >= 100 && [window[@"width"] intValue] > 100 && [window[@"height"] intValue] > 50) return @YES;
+        }
+        return @NO;
+    }
     if ([action isEqual:@"tray"]) {
         for (NSDictionary *window in windows([command[@"pid"] intValue])) {
             if ([window[@"layer"] intValue] >= 20 && [window[@"width"] intValue] <= 100 && [window[@"height"] intValue] <= 100) return window;
@@ -61,7 +67,8 @@ static id perform(NSDictionary *command) {
         double top = NSScreen.screens.firstObject.frame.size.height;
         for (NSScreen *screen in NSScreen.screens) {
             NSRect rect = screen.visibleFrame;
-            [result addObject:@{ @"x":@(rect.origin.x), @"y":@(top - rect.origin.y - rect.size.height), @"width":@(rect.size.width), @"height":@(rect.size.height), @"scale":@(screen.backingScaleFactor) }];
+            NSRect frame = screen.frame;
+            [result addObject:@{ @"x":@(rect.origin.x), @"y":@(top - rect.origin.y - rect.size.height), @"width":@(rect.size.width), @"height":@(rect.size.height), @"scale":@(screen.backingScaleFactor), @"bounds":@{ @"x":@(frame.origin.x), @"y":@(top - frame.origin.y - frame.size.height), @"width":@(frame.size.width), @"height":@(frame.size.height) } }];
         }
         return result;
     }

@@ -31,6 +31,14 @@
       "host": "none",
       "restart_host": false,
       "file_picker": false
+    },
+    "linux-gnome-wayland": {
+      "minimum_monitors": 2,
+      "displays": [],
+      "host": "gnome",
+      "backend": "wayland",
+      "restart_host": true,
+      "file_picker": false
     }
   }
 }

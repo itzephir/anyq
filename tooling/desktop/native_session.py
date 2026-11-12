@@ -85,6 +85,8 @@ class NativeSession:
             y=rect["y"] + rect["height"] / 2,
             right=right,
         )
+        if right:
+            self.wait("menu-open", pid=pid)
         return rect
 
     def key(self, name):
@@ -95,6 +97,7 @@ class NativeSession:
                 "down": (125, 0),
                 "up": (126, 0),
                 "end": (119, 0),
+                "home": (115, 0),
                 "close": (13, 1 << 20),
                 "go": (5, (1 << 20) | (1 << 17)),
             }[name]
@@ -106,6 +109,7 @@ class NativeSession:
                 "down": 0x28,
                 "up": 0x26,
                 "end": 0x23,
+                "home": 0x24,
             }[name]
         else:
             code = {
@@ -114,7 +118,10 @@ class NativeSession:
                 "down": "Down",
                 "up": "Up",
                 "end": "End",
+                "home": "Home",
                 "go": "ctrl+l",
+                "monitor-right": "super+shift+Right",
+                "monitor-left": "super+shift+Left",
             }[name]
         return self.call("key", code=code)
 

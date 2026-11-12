@@ -1,6 +1,7 @@
 """Inspect a real GTK session and operate its native windows and status host."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -107,6 +108,39 @@ def tray():
     return None
 
 
+def menu_open():
+    pending = [Atspi.get_desktop(0)]
+    while pending:
+        item = pending.pop()
+        if (
+            item.get_role() == Atspi.Role.MENU_ITEM
+            and item.get_name() == "Open window"
+            and item.get_state_set().contains(Atspi.StateType.SHOWING)
+        ):
+            return True
+        pending.extend(
+            child
+            for index in range(item.get_child_count())
+            if (child := item.get_child_at_index(index)) is not None
+        )
+    menus = subprocess.run(
+        ["xdotool", "search", "--onlyvisible", "--class", "xfce4-panel"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    for handle in menus.stdout.splitlines():
+        values = dict(
+            line.split("=", 1)
+            for line in run(
+                "xdotool", "getwindowgeometry", "--shell", handle
+            ).splitlines()
+        )
+        if int(values["HEIGHT"]) > 80:
+            return True
+    return False
+
+
 def perform(command):
     action = command["action"]
     if action == "monitors":
@@ -115,15 +149,24 @@ def perform(command):
         for index in range(display.get_n_monitors()):
             monitor = display.get_monitor(index)
             bounds = monitor.get_workarea()
+            frame = monitor.get_geometry()
             result.append(
                 {key: getattr(bounds, key) for key in ["x", "y", "width", "height"]}
-                | {"scale": monitor.get_scale_factor()}
+                | {
+                    "scale": monitor.get_scale_factor(),
+                    "bounds": {
+                        key: getattr(frame, key)
+                        for key in ["x", "y", "width", "height"]
+                    },
+                }
             )
         return result
     if action == "windows":
         return windows(command["pid"])
     if action == "tray":
         return tray()
+    if action == "menu-open":
+        return menu_open()
     if action == "click":
         run(
             "xdotool",
@@ -138,8 +181,9 @@ def perform(command):
     elif action == "type":
         run("xdotool", "type", "--clearmodifiers", "--", command["text"])
     elif action == "close":
-        target = max(windows(command["pid"]), key=lambda item: item["height"])
-        run("xdotool", "windowactivate", "--sync", target["handle"])
+        if os.environ.get("GDK_BACKEND") != "wayland":
+            target = max(windows(command["pid"]), key=lambda item: item["height"])
+            run("xdotool", "windowactivate", "--sync", target["handle"])
         run("xdotool", "key", "--clearmodifiers", "alt+F4")
     else:
         raise AssertionError(f"Unknown native action: {action}")

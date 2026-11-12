@@ -32,6 +32,16 @@ retained. Per-display DPI is configured through native DisplayConfig packets,
 following the interfaces exercised by [SetDPI](https://github.com/imniko/SetDPI).
 No driver, native input helper or test transport is shipped with the panel.
 
+The Linux profiles use two real Xorg dummy outputs with the Xfce StatusNotifier
+host, a no-host X11 session, and a nested GNOME Wayland compositor with two
+virtual outputs and the packaged AppIndicator extension. The Wayland profile
+uses compositor monitor-move shortcuts and toggles the extension to test host
+loss without destroying the compositor connection. Absolute window placement is
+not assumed on Wayland. Monitor mode/scale controls follow
+[Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
+Native menu input waits for an actual visible menu before sending Home/End and
+Enter, and notification-icon lookup excludes ordinary application/taskbar buttons.
+
 The NSIS fixture passes its final `/D=` argument without quotes, including for
 the configured installation path with spaces, as required by the
 [NSIS command-line contract](https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage).

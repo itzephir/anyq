@@ -44,7 +44,14 @@ def monitors():
             )
             == 0
         )
-        result.append(rect(info.work) | {"scale": x.value / 96, "device": info.device})
+        result.append(
+            rect(info.work)
+            | {
+                "scale": x.value / 96,
+                "device": info.device,
+                "bounds": rect(info.bounds),
+            }
+        )
         return True
 
     assert user.EnumDisplayMonitors(None, None, visit, 0)
@@ -61,7 +68,11 @@ def windows(pid):
         if owner.value == pid and user.IsWindowVisible(w.HWND(handle)):
             bounds = w.RECT()
             assert user.GetWindowRect(w.HWND(handle), c.byref(bounds))
-            result.append(rect(bounds) | {"handle": handle, "layer": 0})
+            name = c.create_unicode_buffer(256)
+            user.GetClassNameW(w.HWND(handle), name, len(name))
+            result.append(
+                rect(bounds) | {"handle": handle, "layer": 0, "class": name.value}
+            )
         return True
 
     assert user.EnumWindows(visit, 0)
@@ -75,20 +86,39 @@ Add-Type -AssemblyName UIAutomationTypes
 $root = [System.Windows.Automation.AutomationElement]::RootElement
 $scope = [System.Windows.Automation.TreeScope]::Descendants
 $property = [System.Windows.Automation.AutomationElement]::NameProperty
-$condition = [System.Windows.Automation.PropertyCondition]::new($property, 'anyq')
-$item = $root.FindFirst($scope, $condition)
+$buttons = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+function Is-NotificationArea($element) {
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+    for ($depth = 0; $element -and $depth -lt 10; $depth++) {
+        $class = $element.Current.ClassName
+        if ($class -match 'TaskList') { return $false }
+        if ($class -match 'SystemTray|TrayNotifyWnd|NotifyIconOverflowWindow' -or $element.Current.Name -match 'Notification Area') { return $true }
+        $element = $walker.GetParent($element)
+    }
+    return $false
+}
+function Find-TrayButton {
+    foreach ($candidate in $root.FindAll($scope, $buttons)) {
+        if ($candidate.Current.Name -match '(?i)anyq' -and !$candidate.Current.IsOffscreen -and (Is-NotificationArea $candidate)) { return $candidate }
+    }
+    return $null
+}
+$item = Find-TrayButton
 if (!$item) {
     $chevron = $root.FindFirst($scope, [System.Windows.Automation.PropertyCondition]::new($property, 'Show hidden icons'))
     if ($chevron) {
         $chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
         $deadline = [DateTime]::UtcNow.AddSeconds(5)
-        do { $item = $root.FindFirst($scope, $condition) } while (!$item -and [DateTime]::UtcNow -lt $deadline)
+        do { $item = Find-TrayButton } while (!$item -and [DateTime]::UtcNow -lt $deadline)
     }
 }
 if ($item) {
     $r = $item.Current.BoundingRectangle
     @{x=$r.X;y=$r.Y;width=$r.Width;height=$r.Height} | ConvertTo-Json -Compress
-} else { 'null' }
+} else {
+    [Console]::Error.WriteLine('Tray button names: ' + (($root.FindAll($scope, $buttons) | ForEach-Object {$_.Current.Name}) -join ', '))
+    'null'
+}
 """
     output = subprocess.check_output(
         ["powershell", "-NoProfile", "-Command", script], text=True, timeout=15
@@ -106,6 +136,8 @@ def perform(command):
         return configure()
     if action == "windows":
         return windows(command["pid"])
+    if action == "menu-open":
+        return any(window["class"] == "#32768" for window in windows(command["pid"]))
     if action == "tray":
         return tray()
     if action == "click":

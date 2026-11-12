@@ -9,8 +9,10 @@ import sys
 from contextlib import closing
 from pathlib import Path
 
+import display_scenarios
 from driver import Driver
 from fixtures import Fixtures
+from gnome_status_host import GnomeStatusHost
 from native_session import NativeSession
 from screenshots import platform_name
 from status_host import StatusHost
@@ -27,6 +29,8 @@ def run(cli, panel, home, output, configuration, profile):
     driver = Driver(panel, home, database, configuration["clock_ms"])
     native = NativeSession(home, fixtures.environment)
     host = StatusHost(home, fixtures.environment) if profile["host"] == "xfce" else None
+    if profile["host"] == "gnome":
+        host = GnomeStatusHost(home, fixtures.environment)
     report = []
 
     def fingerprint():
@@ -40,7 +44,7 @@ def run(cli, panel, home, output, configuration, profile):
 
     def menu_open():
         native.click_tray(driver.process.pid, right=True)
-        native.key("down")
+        native.key("home")
         native.key("enter")
         driver.wait_shell(
             lambda state: state["windows"]["main"]["visible"]
@@ -70,6 +74,10 @@ def run(cli, panel, home, output, configuration, profile):
         if host:
             host.start()
         driver.start(viewport=configuration["visual_defaults"]["viewport"])
+        assert (
+            driver.state()["snapshot"]
+            == configuration["fixtures"]["primary"]["expected_snapshot"]
+        )
         before = fingerprint()
         owner = fixtures.call(["daemon", "status"], database)
         assert "running" in owner
@@ -86,71 +94,7 @@ def run(cli, panel, home, output, configuration, profile):
             menu_open()
             report.append({"scenario": "native-menu-reopens-main", "result": "passed"})
 
-            for monitor in monitors:
-                target = "main" if sys.platform.startswith("linux") else "compact"
-                scale = monitor["scale"] if sys.platform.startswith("linux") else 1
-                driver.call(
-                    window=target,
-                    native="position",
-                    x=(monitor["x"] + 30) * scale,
-                    y=(monitor["y"] + 60) * scale,
-                )
-
-                def moved(state):
-                    window = state["windows"][target]
-                    divisor = window["scale"] if sys.platform == "darwin" else scale
-                    return (
-                        abs(window["position"]["x"] / divisor - monitor["x"] - 30) <= 4
-                        and abs(window["position"]["y"] / divisor - monitor["y"] - 60)
-                        <= 4
-                    )
-
-                driver.wait_shell(moved)
-                if target == "compact":
-                    native.click_tray(driver.process.pid)
-                    state = driver.wait_shell(
-                        lambda state: state["windows"]["compact"]["visible"]
-                        and state["windows"]["compact"]["focused"]
-                    )
-                    rect = state["windows"]["compact"]
-                    x, y = rect["position"]["x"], rect["position"]["y"]
-                    width, height = rect["size"]["width"], rect["size"]["height"]
-                    if sys.platform == "darwin":
-                        x, y, width, height = (
-                            value / rect["scale"] for value in (x, y, width, height)
-                        )
-                    assert any(
-                        area["x"] <= x
-                        and area["y"] <= y
-                        and x + width <= area["x"] + area["width"]
-                        and y + height <= area["y"] + area["height"]
-                        for area in monitors
-                    ), state
-                    native.key("escape")
-                    driver.wait_shell(
-                        lambda state: not state["windows"]["compact"]["visible"]
-                    )
-                    native.click_tray(driver.process.pid)
-                    driver.wait_shell(
-                        lambda state: state["windows"]["compact"]["visible"]
-                    )
-                    main = driver.shell_state()["windows"]["main"]
-                    divisor = main["scale"] if sys.platform == "darwin" else 1
-                    native.call(
-                        "click",
-                        x=main["position"]["x"] / divisor + 50,
-                        y=main["position"]["y"] / divisor + 100,
-                    )
-                    driver.wait_shell(
-                        lambda state: not state["windows"]["compact"]["visible"]
-                    )
-                report.append(
-                    {
-                        "scenario": "native-display-roundtrip",
-                        "monitor": monitor,
-                        "result": "passed",
-                    }
-                )
+            report.extend(display_scenarios.run(driver, native, monitors, profile))
 
             if profile["file_picker"]:
                 driver.click("#settings")
@@ -227,7 +171,7 @@ def run(cli, panel, home, output, configuration, profile):
                 report.append({"scenario": "real-host-restart", "result": "passed"})
 
             native.click_tray(driver.process.pid, right=True)
-            native.key("up")
+            native.key("end")
             native.key("enter")
             assert driver.process.wait(timeout=15) == 0
             report.append({"scenario": "native-menu-quit", "result": "passed"})

@@ -83,6 +83,14 @@ NSIS installer, and an Ubuntu 24.04 x64 Debian package. Review artifacts are
 unsigned; signing/notarization and public desktop release are separate work.
 The existing CLI installers and static Linux CLI distribution remain independent.
 
+macOS review bundles use an explicit ad-hoc identity to seal the complete bundle;
+package acceptance verifies the seal again after installation. Windows webview
+profiles live in `~/.anyq/panel-webview/main` and `compact`, outside the installation
+directory, so package removal and replacement do not own browser-profile files.
+The macOS shell uses the lock-file-pinned objc2 0.6.5 and AppKit bindings 0.3.2
+for public screen/pointer coordinates. Private virtual-display interfaces and
+the Windows virtual-display driver are CI tools only.
+
 ```sh
 npm ci --ignore-scripts
 # On Debian/Ubuntu, before compiling GUI features:
