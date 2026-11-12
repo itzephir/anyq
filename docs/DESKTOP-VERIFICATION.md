@@ -95,16 +95,25 @@ clock 1000 → 2001, two independent panel starts, and 40 tasks containing about
 admission, unchanged metadata, no historical running events, and an owner that
 survives panel exit. The complete panel snapshot remains below 16 KiB.
 
-The mandatory native UI matrix runs both application scenarios before verifying
-all 45 existing PNGs. Current-head Linux/macOS/Windows CI remains the acceptance
-gate; local results do not establish those platform passes. Manual host, monitor,
-and installed-package acceptance below remains separate.
+Combined panel commit `a6e0600` passed [CI run 43210294059](https://github.com/itzephir/anyq/actions/runs/43210294059).
+Linux, macOS and Windows passed both native application scenarios, including
+canonical alias retargeting and panel-first plugin recovery, then verified all
+45 existing PNGs twice from independent clean fixtures. The same run passed the
+native CLI/plugin and Ctrl+C matrices, all four GUI package builds and CLI
+distribution checks. Current-head CI remains mandatory for later commits.
+This verifies the existing-only bootstrap requirement synchronized into the
+plugin-runtime baseline; the desktop change remains active for the manual host,
+monitor and installed-package acceptance below.
 
 Windows fixtures compare actual file identity, including canonical paths with an
 extended-length prefix. The disappearance scenario removes the target after
 client discovery and before owner startup: current-schema runtime recovery
 legitimately retains a SQLite handle, so deletion after startup is not a valid
-session-free fixture on Windows. Both scenarios remain mandatory on every OS.
+session-free fixture on Windows. The stale-state fixture temporarily renames
+the isolated queue's topics table, waits for the real owner's read error, and
+restores it to verify recovery. It preserves task data and source identity
+without renaming a file held open by the runtime. All scenarios remain mandatory
+on every OS, with the same reviewed stale-state PNG.
 
 ## Manual native acceptance
 
@@ -140,7 +149,7 @@ Pending native configurations remain explicit:
 
 These rows require actual desktop sessions. A build, mock or headless controller
 test is not a substitute. Corresponding OpenSpec tasks remain unchecked until
-that evidence exists; the implementation PR remains a draft meanwhile.
+that evidence exists; the desktop change stays active after implementation merge.
 
 The local macOS menu-bar follow-up could not proceed because the screen was
 locked. The main window was accessible before the lock; no additional tray or

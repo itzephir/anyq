@@ -48,6 +48,21 @@ Enabled plugins SHALL have namespaced durable state and timers addressed by stab
 - **WHEN** the daemon restarts after a saved plugin deadline
 - **THEN** the plugin receives the original due timer without resetting its deadline
 
+### Requirement: Existing-only background recovery
+Starting an owner on a complete current queue SHALL resume enabled plugin delivery and timers without a queue request. Background recovery SHALL NOT create or migrate missing, uninitialized, legacy or incompatible storage. Such storage SHALL leave lifecycle and observation sessions available until ordinary queue initialization succeeds.
+
+#### Scenario: Observation starts the owner after a deadline
+- **WHEN** an observation client starts the owner of a complete schema-6 queue with an enabled plugin and an overdue persisted timer
+- **THEN** the original timer becomes eligible without any queue RPC, and existing completion receipts and uncertain-work barriers still apply
+
+#### Scenario: Observation of legacy or incomplete storage
+- **WHEN** an owner starts on missing, empty, schema-2/3/4/5 or incomplete schema-6 storage
+- **THEN** background startup leaves selected storage unchanged and lifecycle and observation remain available without triggering creation, upgrade or repair
+
+#### Scenario: Disabled recovery preserves state
+- **WHEN** an owner starts after a disabled plugin's saved deadline
+- **THEN** that plugin does not launch and its cursor, state, receipts and original deadline remain saved
+
 ### Requirement: Managed execution completion barrier
 A plugin SHALL be able to register managed execution against a running task before launching work. Completion requests SHALL require that execution to report stopped before releasing slots. Cancellation failure or uncertain execution state SHALL retain ownership and expose a recoverable error. Pending launch and completion SHALL be serialized for the same task.
 

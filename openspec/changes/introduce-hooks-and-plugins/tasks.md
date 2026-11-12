@@ -38,7 +38,7 @@
 - [x] 6.1 Add existing-only schema-6 bootstrap with explicit missing, uninitialized, upgrade-required and incompatible outcomes; verify adapter tests reject incomplete queue/work/plugin storage without changing selected files or migrating legacy schemas.
 - [x] 6.2 Start persisted plugin delivery without a queue RPC and serialize bootstrap with normal initialization; verify native process tests recover deadlines and pending events while preserving disabled registrations, receipts and uncertain work. Document bootstrap states and recovery limits.
 - [x] 6.3 Run all mandatory local checks and record their results for the integration handoff.
-- [ ] 6.4 Verify the combined observation/plugin build on Linux, macOS and Windows, including a panel-first launch with no queue RPC; synchronize only verified bootstrap scenarios into the baseline specs.
+- [x] 6.4 Verify the combined observation/plugin build on Linux, macOS and Windows, including a panel-first launch with no queue RPC; synchronize only verified bootstrap scenarios into the baseline specs.
 
 ## Workflow follow-up
 

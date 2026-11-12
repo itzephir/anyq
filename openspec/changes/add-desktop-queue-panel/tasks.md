@@ -49,12 +49,12 @@
 ## 7. Cross-stack compatibility
 
 - [x] 7.1 Keep observation read models, SQL, and wire DTOs independent of metadata/history; verify read-only schemas 3–6, rejected schemas unchanged, and the whole encoded response limit through real native owners on Linux/macOS/Windows.
-- [ ] 7.2 Canonicalize each refreshed source through daemon discovery and verify alias retargeting clears details and rejects old generations in the real native panel on all three systems.
-- [ ] 7.3 Form the sequential stack #14 → #17 → #18 → #19 → #20 → #16 → #15 with combined protocol 7 and require native CLI/plugin/panel and tracked screenshot verification on all three systems before each sequential merge.
-- [ ] 7.4 Recover current-schema plugin runtime when the panel is the first owner client, without creating or migrating databases, admission, or historical events; verify deadlines, receipts, disabled plugins, and uncertain-work barriers through native processes and panel integration.
+- [x] 7.2 Canonicalize each refreshed source through daemon discovery and verify alias retargeting clears details and rejects old generations in the real native panel on all three systems.
+- [x] 7.3 Form the sequential stack #14 → #17 → #18 → #19 → #20 → #16 → #15 with combined protocol 7 and require applicable native CLI/plugin/panel and tracked screenshot verification on all three systems before each sequential merge.
+- [x] 7.4 Recover current-schema plugin runtime when the panel is the first owner client, without creating or migrating databases, admission, or historical events; verify deadlines, receipts, disabled plugins, and uncertain-work barriers through native processes and panel integration.
 
 ## Workflow follow-up
 
-- Implementation is in progress in the stacked desktop PR. A task is checked only after its stated implementation and verification exist; pending native desktop sessions remain explicit in docs/DESKTOP-VERIFICATION.md.
+- The implementation is tracked in PR #15. A task is checked only after its stated implementation and verification exist; pending native desktop sessions remain explicit in docs/DESKTOP-VERIFICATION.md, and this change stays active until that acceptance exists.
 - Delivery follows the unified sequential stack; the panel's observation contract remains read-only when plugins are configured.
 - Do not merge without the user's instruction. Sync only verified behavior to baseline specifications and archive after implementation merge and the project's verification/review requirements are satisfied.
