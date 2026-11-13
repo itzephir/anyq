@@ -50,6 +50,17 @@ static id perform(NSDictionary *command) {
     NSString *action = command[@"action"];
     if ([action isEqual:@"capabilities"]) return @{ @"input":@(CGPreflightPostEventAccess()), @"capture":@(CGPreflightScreenCaptureAccess()), @"screens":@(NSScreen.screens.count) };
     if ([action isEqual:@"windows"]) return windows([command[@"pid"] intValue]);
+    if ([action isEqual:@"focus"]) {
+        NSRunningApplication *application = [NSRunningApplication runningApplicationWithProcessIdentifier:[command[@"pid"] intValue]];
+        if (application.active) return @YES;
+        [application activateWithOptions:0];
+        return @NO;
+    }
+    if ([action isEqual:@"clipboard-clear"]) {
+        [NSPasteboard.generalPasteboard clearContents];
+        return @YES;
+    }
+    if ([action isEqual:@"clipboard-text"]) return [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString] ?: @"";
     if ([action isEqual:@"menu-open"]) {
         for (NSDictionary *window in windows([command[@"pid"] intValue])) {
             if ([window[@"layer"] intValue] >= 100 && [window[@"width"] intValue] > 100 && [window[@"height"] intValue] > 50) return @YES;
@@ -58,7 +69,11 @@ static id perform(NSDictionary *command) {
     }
     if ([action isEqual:@"tray"]) {
         for (NSDictionary *window in windows([command[@"pid"] intValue])) {
-            if ([window[@"layer"] intValue] >= 20 && [window[@"width"] intValue] <= 100 && [window[@"height"] intValue] <= 100) return window;
+            NSDictionary *monitor = command[@"monitor"];
+            double x = [window[@"x"] doubleValue] + [window[@"width"] doubleValue] / 2;
+            double y = [window[@"y"] doubleValue] + [window[@"height"] doubleValue] / 2;
+            BOOL matches = !monitor || (x >= [monitor[@"x"] doubleValue] && x < [monitor[@"x"] doubleValue] + [monitor[@"width"] doubleValue] && y >= [monitor[@"y"] doubleValue] && y < [monitor[@"y"] doubleValue] + [monitor[@"height"] doubleValue]);
+            if (matches && [window[@"layer"] intValue] >= 20 && [window[@"width"] intValue] <= 100 && [window[@"height"] intValue] <= 100) return window;
         }
         return [NSNull null];
     }
@@ -68,9 +83,24 @@ static id perform(NSDictionary *command) {
         for (NSScreen *screen in NSScreen.screens) {
             NSRect rect = screen.visibleFrame;
             NSRect frame = screen.frame;
-            [result addObject:@{ @"x":@(rect.origin.x), @"y":@(top - rect.origin.y - rect.size.height), @"width":@(rect.size.width), @"height":@(rect.size.height), @"scale":@(screen.backingScaleFactor), @"bounds":@{ @"x":@(frame.origin.x), @"y":@(top - frame.origin.y - frame.size.height), @"width":@(frame.size.width), @"height":@(frame.size.height) } }];
+            NSNumber *identifier = screen.deviceDescription[@"NSScreenNumber"];
+            [result addObject:@{ @"id":identifier, @"primary":@([identifier unsignedIntValue] == CGMainDisplayID()), @"x":@(rect.origin.x), @"y":@(top - rect.origin.y - rect.size.height), @"width":@(rect.size.width), @"height":@(rect.size.height), @"scale":@(screen.backingScaleFactor), @"bounds":@{ @"x":@(frame.origin.x), @"y":@(top - frame.origin.y - frame.size.height), @"width":@(frame.size.width), @"height":@(frame.size.height) } }];
         }
         return result;
+    }
+    if ([action isEqual:@"tray-monitor"]) {
+        NSCAssert(getenv("GITHUB_ACTIONS") && strcmp(getenv("GITHUB_ACTIONS"), "true") == 0, @"Display fixtures require disposable CI");
+        CGDirectDisplayID target = [command[@"monitor"] unsignedIntValue];
+        CGRect origin = CGDisplayBounds(target);
+        CGDisplayConfigRef configuration;
+        NSCAssert(CGBeginDisplayConfiguration(&configuration) == kCGErrorSuccess, @"Primary display configuration failed");
+        for (NSScreen *screen in NSScreen.screens) {
+            CGDirectDisplayID identifier = [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
+            CGRect bounds = CGDisplayBounds(identifier);
+            NSCAssert(CGConfigureDisplayOrigin(configuration, identifier, bounds.origin.x - origin.origin.x, bounds.origin.y - origin.origin.y) == kCGErrorSuccess, @"Primary display origin failed");
+        }
+        NSCAssert(CGCompleteDisplayConfiguration(configuration, kCGConfigureForSession) == kCGErrorSuccess, @"Primary display commit failed");
+        return @YES;
     }
     if ([action isEqual:@"displays"]) {
         displays = [NSMutableArray array];

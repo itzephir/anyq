@@ -50,6 +50,7 @@ def monitors():
                 "scale": x.value / 96,
                 "device": info.device,
                 "bounds": rect(info.bounds),
+                "primary": bool(info.flags & 1),
             }
         )
         return True
@@ -90,6 +91,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class ShellWindows {
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [StructLayout(LayoutKind.Sequential)]
     public struct Point { public int X; public int Y; }
     public delegate bool Visitor(IntPtr handle, IntPtr data);
@@ -132,6 +135,7 @@ public static class ShellWindows {
     }
 }
 '@
+[ShellWindows]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
 $buttons = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
 function Get-TrayButtons {
     $handles = [ShellWindows]::GetWindows()
@@ -219,6 +223,40 @@ def menu_item(pid, label):
 
 def perform(command):
     action = command["action"]
+    if action == "tray-monitor":
+        from windows_monitors import set_primary
+
+        return set_primary(command["monitor"], monitors())
+    if action == "focus":
+        target = max(windows(command["pid"]), key=lambda item: item["height"])
+        user.ShowWindow(w.HWND(target["handle"]), 9)
+        user.SetForegroundWindow(w.HWND(target["handle"]))
+        owner = w.DWORD()
+        user.GetForegroundWindow.restype = w.HWND
+        user.GetWindowThreadProcessId(
+            w.HWND(user.GetForegroundWindow()), c.byref(owner)
+        )
+        return owner.value == command["pid"]
+    if action in ("clipboard-clear", "clipboard-text"):
+        if not user.OpenClipboard(None):
+            return "" if action == "clipboard-text" else False
+        try:
+            if action == "clipboard-clear":
+                return bool(user.EmptyClipboard())
+            user.GetClipboardData.restype = w.HANDLE
+            handle = user.GetClipboardData(13)
+            if not handle:
+                return ""
+            kernel = c.windll.kernel32
+            kernel.GlobalLock.restype = c.c_void_p
+            pointer = kernel.GlobalLock(w.HANDLE(handle))
+            assert pointer, "Unicode clipboard data is not readable"
+            try:
+                return c.wstring_at(pointer)
+            finally:
+                kernel.GlobalUnlock(w.HANDLE(handle))
+        finally:
+            user.CloseClipboard()
     if action == "process-path":
         kernel = c.WinDLL("kernel32", use_last_error=True)
         kernel.OpenProcess.restype = w.HANDLE

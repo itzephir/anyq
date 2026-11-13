@@ -11,6 +11,15 @@ visible native window, the same live daemon, unchanged queue ownership and
 byte-identical preferences/shared configuration. Windows/Linux installation
 requires a disposable GitHub Actions machine; macOS uses an isolated per-user
 Applications directory. Shipping packages do not contain the UI test transport.
+The package fixture owns a three-stage queue in `config.json`. In each cycle,
+real native focus/click and Select All/Copy commands read the installed WebView's
+document through the OS clipboard. Required topic/task names, states and slot
+usage must appear before and after a configured CLI task creation; the second
+cycle must show the previous update before accepting the next one. Blank,
+stale or wrong-slot documents fail even when the daemon and native frame are
+alive. Clipboard use is restricted to disposable CI sessions. Queue fingerprints
+are compared after each authorized CLI update and after removal; the GUI itself
+must not mutate the queue. Native logs and package JSON retain the copied states.
 
 `tooling/test_desktop_shell.py` uses `native.json` to configure real desktop-host
 and display scenarios. Operating-system helpers inspect native windows and
@@ -77,6 +86,17 @@ The read adapter follows the upstream
 and [Text](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Text.xml)
 protocols. It never invokes accessibility actions: pointer/keyboard events still
 travel through the real desktop input system.
+Popup scenarios move the actual system tray between primary displays in the
+disposable macOS/Windows session, then require an icon on the selected output
+and open it through native input. They check both 1x/2x on macOS and 100%/150%
+on Windows, including the popup's actual DPI, 380×355 logical size (clamped on
+small work areas), scaled eight-unit margins and centered/clamped icon anchoring.
+The geometry oracle allows at most two native coordinate units of rounding;
+a popup merely somewhere inside the work area is insufficient. Contract tests
+reject 1×1, misplaced, wrong-DPI, blank-document and stale-document regressions.
+These checks supplement the existing tracked PNG verification; visual fixtures
+that explicitly resize a webview cannot prove native tray placement.
+
 Host-loss scenarios close the restored last window while the host is still
 absent, verify client exit with unchanged owner/slots, then reconnect through
 a restarted client and host.

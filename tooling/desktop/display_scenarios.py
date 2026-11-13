@@ -3,6 +3,8 @@
 import json
 import sys
 
+import popup_geometry
+
 
 def run(driver, native, monitors, profile):
     results = []
@@ -34,72 +36,11 @@ def run(driver, native, monitors, profile):
             print(json.dumps(results[-1]), flush=True)
         return results
 
+    if not sys.platform.startswith("linux"):
+        return popups(driver, native, monitors)
+
     for monitor in monitors:
-        target = "main" if sys.platform.startswith("linux") else "compact"
-        scale = monitor["scale"] if sys.platform.startswith("linux") else 1
-        driver.call(
-            window=target,
-            native="position",
-            x=(monitor["x"] + 30) * scale,
-            y=(monitor["y"] + 60) * scale,
-        )
-
-        def moved(state):
-            window = state["windows"][target]
-            divisor = window["scale"] if sys.platform == "darwin" else scale
-            return (
-                abs(window["position"]["x"] / divisor - monitor["x"] - 30) <= 4
-                and abs(window["position"]["y"] / divisor - monitor["y"] - 60) <= 4
-            )
-
-        driver.wait_shell(moved)
-        if target == "compact":
-            icon = native.click_tray(driver.process.pid)
-            state = driver.wait_shell(
-                lambda state: state["windows"]["compact"]["visible"]
-                and state["windows"]["compact"]["focused"]
-            )
-            rect = state["windows"]["compact"]
-            x, y = rect["position"]["x"], rect["position"]["y"]
-            width, height = rect["size"]["width"], rect["size"]["height"]
-            if sys.platform == "darwin":
-                x, y, width, height = (
-                    value / rect["scale"] for value in (x, y, width, height)
-                )
-            center_x, center_y = (
-                icon["x"] + icon["width"] / 2,
-                icon["y"] + icon["height"] / 2,
-            )
-            anchors = [
-                area
-                for area in monitors
-                if area["bounds"]["x"]
-                <= center_x
-                < area["bounds"]["x"] + area["bounds"]["width"]
-                and area["bounds"]["y"]
-                <= center_y
-                < area["bounds"]["y"] + area["bounds"]["height"]
-            ]
-            assert len(anchors) == 1, (icon, monitors)
-            area = anchors[0]
-            assert (
-                area["x"] <= x
-                and area["y"] <= y
-                and x + width <= area["x"] + area["width"]
-                and y + height <= area["y"] + area["height"]
-            ), state
-            native.key("escape")
-            driver.wait_shell(lambda state: not state["windows"]["compact"]["visible"])
-            native.click_tray(driver.process.pid)
-            driver.wait_shell(lambda state: state["windows"]["compact"]["visible"])
-            main = driver.shell_state()["windows"]["main"]
-            divisor = main["scale"] if sys.platform == "darwin" else 1
-            native.call(
-                "click",
-                x=main["position"]["x"] / divisor + 50,
-                y=main["position"]["y"] / divisor + 100,
-            )
-            driver.wait_shell(lambda state: not state["windows"]["compact"]["visible"])
+        move(driver, "main", monitor)
         results.append(
             {
                 "scenario": "native-display-roundtrip",
@@ -107,4 +48,104 @@ def run(driver, native, monitors, profile):
                 "result": "passed",
             }
         )
+    return results
+
+
+def move(driver, label, monitor):
+    scale = monitor["scale"] if sys.platform.startswith("linux") else 1
+    driver.call(
+        window=label,
+        native="position",
+        x=(monitor["x"] + 30) * scale,
+        y=(monitor["y"] + 60) * scale,
+    )
+
+    def moved(state):
+        window = state["windows"][label]
+        divisor = window["scale"] if sys.platform == "darwin" else scale
+        return all(
+            abs(window["position"][axis] / divisor - monitor[axis] - offset) <= 4
+            for axis, offset in (("x", 30), ("y", 60))
+        )
+
+    driver.wait_shell(moved)
+
+
+def popups(driver, native, monitors):
+    identifier = "id" if sys.platform == "darwin" else "device"
+    results, scales = [], set()
+    for original in monitors:
+        identity = original[identifier]
+        native.call("tray-monitor", monitor=identity)
+        current = native.wait(
+            "monitors",
+            predicate=lambda items: any(
+                item[identifier] == identity and item["primary"] for item in items
+            ),
+        )
+        target = next(item for item in current if item[identifier] == identity)
+        move(driver, "main", target)
+        native.wait("focus", pid=driver.process.pid)
+        main = driver.shell_state()["windows"]["main"]
+        divisor = main["scale"] if sys.platform == "darwin" else 1
+        native.call(
+            "click",
+            x=main["position"]["x"] / divisor + 50,
+            y=main["position"]["y"] / divisor + 100,
+        )
+        move(driver, "compact", target)
+        icon = native.click_tray(driver.process.pid, monitor=target)
+
+        def placed(state):
+            window = state["windows"]["compact"]
+            if not window["visible"] or not window["focused"]:
+                return False
+            try:
+                popup_geometry.verify(
+                    window, icon, current, logical_coordinates=sys.platform == "darwin"
+                )
+                return True
+            except AssertionError:
+                return False
+
+        try:
+            state = driver.wait_shell(placed)
+        except AssertionError:
+            popup_geometry.verify(
+                driver.shell_state()["windows"]["compact"],
+                icon,
+                current,
+                logical_coordinates=sys.platform == "darwin",
+            )
+            raise
+        geometry = popup_geometry.verify(
+            state["windows"]["compact"],
+            icon,
+            current,
+            logical_coordinates=sys.platform == "darwin",
+        )
+        assert geometry["monitor"][identifier] == identity, geometry
+        scales.add(geometry["monitor"]["scale"])
+        results.append(
+            {
+                "scenario": "native-popup-placement",
+                "original_monitor": original,
+                **geometry,
+                "result": "passed",
+            }
+        )
+        native.key("escape")
+        driver.wait_shell(lambda state: not state["windows"]["compact"]["visible"])
+        native.click_tray(driver.process.pid, monitor=target)
+        driver.wait_shell(placed)
+        native.call(
+            "click",
+            x=main["position"]["x"] / divisor + 50,
+            y=main["position"]["y"] / divisor + 100,
+        )
+        driver.wait_shell(lambda state: not state["windows"]["compact"]["visible"])
+    assert ({1, 2} if sys.platform == "darwin" else {1, 1.5}).issubset(scales), (
+        "Opened popup scales",
+        scales,
+    )
     return results

@@ -95,8 +95,24 @@ class NativeSession:
             assert time.monotonic() < deadline, (action, result)
             time.sleep(0.05)
 
-    def click_tray(self, pid, right=False):
-        rect = self.wait("tray", pid=pid)
+    def click_tray(self, pid, right=False, monitor=None):
+        def matches(rect):
+            return rect and (
+                monitor is None
+                or all(
+                    monitor["bounds"][axis]
+                    <= rect[axis] + rect[size] / 2
+                    < monitor["bounds"][axis] + monitor["bounds"][size]
+                    for axis, size in (("x", "width"), ("y", "height"))
+                )
+            )
+
+        rect = self.wait(
+            "tray",
+            predicate=matches,
+            pid=pid,
+            **({"monitor": monitor["bounds"]} if monitor else {}),
+        )
         self.call(
             "click",
             x=rect["x"] + rect["width"] / 2,
@@ -116,6 +132,8 @@ class NativeSession:
                 "home": (115, 0),
                 "close": (13, 1 << 20),
                 "go": (5, (1 << 20) | (1 << 17)),
+                "select-all": (0, 1 << 20),
+                "copy": (8, 1 << 20),
             }[name]
             return self.call("key", code=code, flags=flags)
         if sys.platform == "win32":
@@ -126,7 +144,14 @@ class NativeSession:
                 "up": 0x26,
                 "end": 0x23,
                 "home": 0x24,
+                "select-all": 0x41,
+                "copy": 0x43,
             }[name]
+            return self.call(
+                "key",
+                code=code,
+                modifiers=[0x11] if name in ("select-all", "copy") else [],
+            )
         else:
             code = {
                 "escape": "Escape",
@@ -138,8 +163,27 @@ class NativeSession:
                 "go": "ctrl+l",
                 "monitor-right": "super+shift+Right",
                 "monitor-left": "super+shift+Left",
+                "select-all": "ctrl+a",
+                "copy": "ctrl+c",
             }[name]
         return self.call("key", code=code)
+
+    def document_text(self, pid):
+        assert os.environ.get("GITHUB_ACTIONS") == "true", (
+            "Clipboard fixtures require a disposable CI session"
+        )
+        self.wait("focus", pid=pid)
+        windows = self.call("windows", pid=pid)
+        window = max(windows, key=lambda item: item["width"] * item["height"])
+        self.call(
+            "click",
+            x=window["x"] + window["width"] - 50,
+            y=window["y"] + window["height"] - 80,
+        )
+        self.wait("clipboard-clear")
+        self.key("select-all")
+        self.key("copy")
+        return self.wait("clipboard-text")
 
     def select_menu(self, pid, label, *, right=True):
         self.click_tray(pid, right=right)

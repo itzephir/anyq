@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 
+import document_observation
 from fixtures import Fixtures, queue_fingerprint
 from native_session import NativeSession
 from renderer_lifetime import wait_for_renderers
@@ -98,7 +99,9 @@ class Package:
 def run(cli, bundles, home, output, configuration):
     home = Path(home)
     fixtures = Fixtures(cli, home, configuration)
-    database = fixtures.create("primary")
+    observation = configuration["package_observation"]
+    assert len(observation["stages"]) == 3
+    database = fixtures.create(observation["fixture"])
     preferences = home / ".anyq/panel.toml"
     preferences.write_text(
         f'database_override = {json.dumps(str(database))}\ntheme = "dark"\nlanguage = "en"\n',
@@ -149,6 +152,24 @@ def run(cli, bundles, home, output, configuration):
                 if owner is None:
                     owner = current
                 assert current == owner
+
+                def expected(stage):
+                    state = observation["stages"][stage]
+                    return state | {
+                        "required": observation["required"] + state["required"]
+                    }
+
+                initial_document = document_observation.wait(
+                    native, client.pid, expected(cycle)
+                )
+                assert queue_fingerprint(database) == before
+                for command in observation["stages"][cycle + 1]["commands"]:
+                    fixtures.call(command, database)
+                before = queue_fingerprint(database)
+                updated_document = document_observation.wait(
+                    native, client.pid, expected(cycle + 1)
+                )
+                assert queue_fingerprint(database) == before
                 if sys.platform == "win32":
                     match = re.fullmatch(r"daemon is running \(pid (\d+)\)", owner)
                     assert match, owner
@@ -179,6 +200,10 @@ def run(cli, bundles, home, output, configuration):
                     "owner": owner,
                     "removal": "passed",
                     "queue_and_preferences": "unchanged",
+                    "ui_observation": {
+                        "initial_document": initial_document,
+                        "after_cli_update": updated_document,
+                    },
                 }
             )
         destination = Path(output) / platform_name() / "package-integration.json"

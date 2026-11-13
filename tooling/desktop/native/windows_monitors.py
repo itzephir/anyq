@@ -92,6 +92,30 @@ class DisplayMode(c.Structure):
     ]
 
 
+def set_primary(device, outputs):
+    assert os.environ.get("GITHUB_ACTIONS") == "true", (
+        "Change the primary display only in disposable CI"
+    )
+    user = c.windll.user32
+    target = next(item for item in outputs if item["device"] == device)
+    for output in outputs:
+        mode = DisplayMode()
+        mode.size = c.sizeof(mode)
+        assert user.EnumDisplaySettingsW(output["device"], -1, c.byref(mode))
+        mode.fields = 0x20
+        mode.x -= target["bounds"]["x"]
+        mode.y -= target["bounds"]["y"]
+        flags = 0x10000001 | (0x10 if output["device"] == device else 0)
+        assert (
+            user.ChangeDisplaySettingsExW(
+                output["device"], c.byref(mode), None, flags, None
+            )
+            == 0
+        )
+    assert user.ChangeDisplaySettingsExW(None, None, None, 0, None) == 0
+    return True
+
+
 def configure():
     assert os.environ.get("GITHUB_ACTIONS") == "true", (
         "Configure native DPI only in disposable CI"

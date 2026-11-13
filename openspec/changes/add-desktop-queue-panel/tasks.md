@@ -53,6 +53,11 @@
 - [x] 7.3 Form the sequential stack #14 → #17 → #18 → #19 → #20 → #16 → #15 with combined protocol 7 and require applicable native CLI/plugin/panel and tracked screenshot verification on all three systems before each sequential merge.
 - [x] 7.4 Recover current-schema plugin runtime when the panel is the first owner client, without creating or migrating databases, admission, or historical events; verify deadlines, receipts, disabled plugins, and uncertain-work barriers through native processes and panel integration.
 
+## 8. Review acceptance regressions
+
+- [ ] 8.1 Verify popup width, height, DPI and anchoring against the real icon and work area; open through actual tray input on macOS 1x/2x and Windows 100%/150% displays, and reject tiny, misplaced or incorrectly scaled popup states.
+- [ ] 8.2 Verify the installed production application's actual document shows the configured topics, tasks and occupied slots before and after CLI mutations in both installation cycles on every package target; reject blank, stale and incorrect-slot documents without shipping a test transport.
+
 ## Workflow follow-up
 
 - The implementation stack through PR #15 is merged. PR #21 completes the native shell, multiple-monitor and installed-package follow-up; docs/DESKTOP-VERIFICATION.md records its real desktop evidence and the late adapter-verification sequencing deviation. A task is checked only after its implementation and verification exist. Review, merge, baseline synchronization and archival remain separate.

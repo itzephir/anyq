@@ -151,6 +151,19 @@ def menu_item(pid, label):
 
 def perform(command):
     action = command["action"]
+    if action == "focus":
+        target = max(windows(command["pid"]), key=lambda item: item["height"])
+        run("xdotool", "windowactivate", "--sync", target["handle"])
+        return int(run("xdotool", "getwindowfocus", "getwindowpid")) == command["pid"]
+    if action in ("clipboard-clear", "clipboard-text"):
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import Gtk
+
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        if action == "clipboard-clear":
+            clipboard.set_text("", -1)
+            return True
+        return clipboard.wait_for_text() or ""
     if action in ("extension", "extension-state"):
         method = (
             "GetExtensionInfo"
