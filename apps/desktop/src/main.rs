@@ -12,6 +12,9 @@ mod preference_input;
 mod presentation;
 mod shell;
 
+#[cfg(any(windows, test))]
+mod owner_executable;
+
 #[cfg(feature = "integration-test-hooks")]
 mod test_driver;
 
@@ -95,8 +98,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         Ok(selection)
     });
-    let observe = Arc::new(|path: &Path, cancelled: Arc<AtomicBool>| {
-        anyq_daemon_impl::observe(path, cancelled)?.observe(ObserveQueueRequest::default())
+    #[cfg(windows)]
+    let owner_executable = owner_executable::retain(&anyq_config_impl::paths::home()?)?;
+    let observe = Arc::new(move |path: &Path, cancelled: Arc<AtomicBool>| {
+        #[cfg(windows)]
+        let mut observer =
+            anyq_daemon_impl::observe_with_owner(path, cancelled, &owner_executable)?;
+        #[cfg(not(windows))]
+        let mut observer = anyq_daemon_impl::observe(path, cancelled)?;
+        observer.observe(ObserveQueueRequest::default())
     });
     let clock: Arc<DisplayClock> = Arc::new(|| {
         std::time::SystemTime::now()

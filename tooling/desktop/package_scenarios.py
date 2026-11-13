@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -145,6 +146,14 @@ def run(cli, bundles, home, output, configuration):
                 if owner is None:
                     owner = current
                 assert current == owner
+                if sys.platform == "win32":
+                    match = re.fullmatch(r"daemon is running \(pid (\d+)\)", owner)
+                    assert match, owner
+                    executable = Path(native.call("process-path", pid=int(match[1])))
+                    digest = hashlib.sha256(package.executable.read_bytes()).hexdigest()
+                    assert executable.name == "anyq-owner.exe", executable
+                    assert executable.parent.name == digest, executable
+                    assert hashlib.sha256(executable.read_bytes()).hexdigest() == digest
                 if sys.platform in ("darwin", "win32"):
                     native.select_menu(client.pid, "Quit anyq")
                 else:

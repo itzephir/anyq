@@ -4,6 +4,7 @@ use anyq_daemon_transport::Endpoint;
 use anyq_queue_api::{Error, QueuePolicy, Result};
 use std::{
     cell::RefCell,
+    path::Path,
     rc::Rc,
     sync::{Arc, atomic::AtomicBool},
 };
@@ -14,14 +15,18 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn open_observer(endpoint: &Endpoint, cancelled: Arc<AtomicBool>) -> Result<Self> {
+    pub fn open_observer(
+        endpoint: &Endpoint,
+        cancelled: Arc<AtomicBool>,
+        owner_executable: Option<&Path>,
+    ) -> Result<Self> {
         if !endpoint.database.is_file() {
             return Err(Error::NotFound(
                 "selected queue database does not exist".into(),
             ));
         }
-        let (endpoint, stream) =
-            start_owner(endpoint, &cancelled).map_err(|error| Error::Storage(error.to_string()))?;
+        let (endpoint, stream) = start_owner(endpoint, &cancelled, owner_executable)
+            .map_err(|error| Error::Storage(error.to_string()))?;
         let channel = Self {
             session: Rc::new(RefCell::new(ClientSession::new(stream, cancelled))),
         };
@@ -43,7 +48,7 @@ impl Channel {
     ) -> Result<Self> {
         let caller_directory =
             std::env::current_dir().map_err(|error| Error::Storage(error.to_string()))?;
-        let (endpoint, stream) = start_owner(endpoint, &cancelled).map_err(|error| {
+        let (endpoint, stream) = start_owner(endpoint, &cancelled, None).map_err(|error| {
             if error.kind() == std::io::ErrorKind::Interrupted {
                 Error::Interrupted
             } else {

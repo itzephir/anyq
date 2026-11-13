@@ -12,6 +12,7 @@ from driver import Driver
 from fixtures import Fixtures, queue_fingerprint, same_source_path
 from gnome_status_host import GnomeStatusHost
 from native_session import NativeSession
+from PIL import ImageGrab
 from screenshots import platform_name
 from status_host import StatusHost
 
@@ -19,6 +20,9 @@ from status_host import StatusHost
 def run(cli, panel, home, output, configuration, profile):
     home = Path(home)
     fixtures = Fixtures(cli, home, configuration)
+    if sys.platform.startswith("linux"):
+        fixtures.environment["GTK_MODULES"] = "atk-bridge"
+        fixtures.environment["NO_AT_BRIDGE"] = "0"
     database = fixtures.create("primary")
     alternate = fixtures.create("alternate")
     (home / ".anyq/panel.toml").write_text(
@@ -32,7 +36,9 @@ def run(cli, panel, home, output, configuration, profile):
     report = []
 
     def menu_open():
-        native.select_menu(driver.process.pid, "Open window")
+        native.select_menu(
+            driver.process.pid, "Open window", right=profile["host"] != "xfce"
+        )
         driver.wait_shell(
             lambda state: state["windows"]["main"]["visible"]
             and state["windows"]["main"]["focused"]
@@ -166,7 +172,9 @@ def run(cli, panel, home, output, configuration, profile):
                 menu_open()
                 report.append({"scenario": "real-host-restart", "result": "passed"})
 
-            native.select_menu(driver.process.pid, "Quit anyq")
+            native.select_menu(
+                driver.process.pid, "Quit anyq", right=profile["host"] != "xfce"
+            )
             assert driver.process.wait(timeout=15) == 0
             report.append({"scenario": "native-menu-quit", "result": "passed"})
 
@@ -195,6 +203,15 @@ def run(cli, panel, home, output, configuration, profile):
             encoding="utf-8",
         )
     finally:
+        destination = Path(output) / platform_name()
+        destination.mkdir(parents=True, exist_ok=True)
+        if sys.exc_info()[0] is not None:
+            try:
+                ImageGrab.grab(all_screens=True).save(
+                    destination / "native-failure.png"
+                )
+            except OSError as error:
+                print(f"Native failure capture unavailable: {error}", file=sys.stderr)
         if driver.process and driver.process.poll() is None:
             driver.process.terminate()
             driver.process.wait(timeout=10)
@@ -204,7 +221,5 @@ def run(cli, panel, home, output, configuration, profile):
             host.close()
         native.stop()
         fixtures.stop()
-        destination = Path(output) / platform_name()
-        destination.mkdir(parents=True, exist_ok=True)
         for log in home.glob("*.log"):
             shutil.copyfile(log, destination / log.name)

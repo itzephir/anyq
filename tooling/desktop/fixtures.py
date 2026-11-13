@@ -4,10 +4,12 @@ import json
 import os
 import sqlite3
 import subprocess
+import sys
 import time
 from contextlib import closing, contextmanager
 from pathlib import Path
 
+from owner_lifetime import owner_exit
 from renderer_lifetime import wait_for_renderers
 
 
@@ -146,9 +148,13 @@ class Fixtures:
 
     def stop(self):
         for path in self.paths:
-            self.call(["daemon", "stop"], path)
-            deadline = time.monotonic() + 10
-            while "running" in self.call(["daemon", "status"], path):
-                assert time.monotonic() < deadline, "Fixture owner did not stop"
-                time.sleep(0.02)
+            status = (
+                self.call(["daemon", "status"], path) if sys.platform == "win32" else ""
+            )
+            with owner_exit(status):
+                self.call(["daemon", "stop"], path)
+                deadline = time.monotonic() + 10
+                while "running" in self.call(["daemon", "status"], path):
+                    assert time.monotonic() < deadline, "Fixture owner did not stop"
+                    time.sleep(0.02)
         wait_for_renderers(self.home)

@@ -2,7 +2,6 @@
 
 import ctypes as c
 import json
-import os
 import subprocess
 import sys
 from ctypes import wintypes as w
@@ -136,37 +135,42 @@ def menu_item(pid, label):
     menus = [window for window in windows(pid) if window["class"] == "#32768"]
     if not menus:
         return None
-    script = """
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
-$root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr][long]$env:ANYQ_MENU_HWND)
-$condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::MenuItem)
-$items = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)
-$item = $items | Where-Object { $_.Current.ProcessId -eq [int]$env:ANYQ_MENU_PID -and $_.Current.Name -eq $env:ANYQ_MENU_LABEL -and !$_.Current.IsOffscreen } | Select-Object -First 1
-if ($item) {
-    $r = $item.Current.BoundingRectangle
-    @{x=$r.X;y=$r.Y;width=$r.Width;height=$r.Height} | ConvertTo-Json -Compress
-} else {
-    [Console]::Error.WriteLine('Native menu items: ' + (($items | ForEach-Object {$_.Current.Name + ' pid=' + $_.Current.ProcessId}) -join ', '))
-    'null'
-}
-"""
-    output = subprocess.check_output(
-        ["powershell", "-NoProfile", "-Command", script],
-        env=os.environ
-        | {
-            "ANYQ_MENU_PID": str(pid),
-            "ANYQ_MENU_LABEL": label,
-            "ANYQ_MENU_HWND": str(menus[0]["handle"]),
-        },
-        text=True,
-        timeout=15,
+    handle = c.c_size_t()
+    assert user.SendMessageTimeoutW(
+        w.HWND(menus[0]["handle"]), 0x01E1, 0, 0, 2, 1000, c.byref(handle)
     )
-    return json.loads(output)
+    menu = w.HMENU(handle.value)
+    count = user.GetMenuItemCount(menu)
+    assert count >= 0, "The visible popup has no readable native menu"
+    labels = []
+    for index in range(count):
+        name = c.create_unicode_buffer(512)
+        user.GetMenuStringW(menu, index, name, len(name), 0x400)
+        labels.append(name.value)
+        if name.value.replace("&", "").split("\t")[0] == label:
+            bounds = w.RECT()
+            assert user.GetMenuItemRect(None, menu, index, c.byref(bounds))
+            return rect(bounds)
+    print(f"Native menu items: {labels}", file=sys.stderr, flush=True)
+    return None
 
 
 def perform(command):
     action = command["action"]
+    if action == "process-path":
+        kernel = c.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.restype = w.HANDLE
+        handle = kernel.OpenProcess(0x1000, False, command["pid"])
+        assert handle, c.WinError(c.get_last_error())
+        try:
+            path = c.create_unicode_buffer(32768)
+            length = w.DWORD(len(path))
+            assert kernel.QueryFullProcessImageNameW(
+                w.HANDLE(handle), 0, path, c.byref(length)
+            )
+            return path.value
+        finally:
+            kernel.CloseHandle(w.HANDLE(handle))
     if action == "monitors":
         return monitors()
     if action == "configure-displays":

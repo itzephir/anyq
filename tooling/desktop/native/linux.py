@@ -110,8 +110,16 @@ def tray():
 
 def menu_item(label):
     pending = [Atspi.get_desktop(0)]
+    candidates = []
     while pending:
         item = pending.pop()
+        if item.get_role() in (Atspi.Role.MENU_ITEM, Atspi.Role.CHECK_MENU_ITEM):
+            candidates.append(
+                {
+                    "name": item.get_name(),
+                    "showing": item.get_state_set().contains(Atspi.StateType.SHOWING),
+                }
+            )
         if (
             item.get_role() == Atspi.Role.MENU_ITEM
             and (item.get_name() or "").replace("_", "") == label
@@ -124,6 +132,7 @@ def menu_item(label):
             for index in range(item.get_child_count())
             if (child := item.get_child_at_index(index)) is not None
         )
+    print(f"Native menu items: {candidates}", file=sys.stderr, flush=True)
     return None
 
 

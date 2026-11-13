@@ -39,10 +39,12 @@ uses compositor monitor-move shortcuts and toggles the extension to test host
 loss without destroying the compositor connection. Absolute window placement is
 not assumed on Wayland. Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
-Native menu input waits for an actual visible menu. Windows and Linux select
-the requested native menu item's accessibility bounds with real pointer input;
-macOS uses Home/End and Enter. Linux opens its AppIndicator menu with the primary
-button. Notification-icon lookup excludes ordinary application/taskbar buttons
+Native menu input waits for an actual visible menu. Windows reads the real
+Win32 popup handle, item labels and screen rectangles, following
+[pywinauto's popup adapter](https://github.com/pywinauto/pywinauto/blob/master/pywinauto/controls/win32_controls.py).
+Linux reads native AT-SPI menu item bounds. Both use real pointer input;
+macOS uses Home/End and Enter. Xfce uses the primary button; GNOME uses its
+AppIndicator extension's secondary-button context menu. Notification-icon lookup excludes ordinary application/taskbar buttons
 and restricts Windows accessibility searches to actual shell windows.
 
 Windows fixture teardown waits for its own WebView2 processes to exit before

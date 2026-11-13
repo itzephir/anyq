@@ -62,6 +62,8 @@ ALLOWED = {
         "zbus",
         "objc2",
         "objc2-app-kit",
+        "sha2",
+        "tempfile",
     },
     "anyq-queue-api": set(),
     "anyq-queue-wire": {"anyq-queue-api", "serde"},

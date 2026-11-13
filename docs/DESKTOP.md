@@ -87,6 +87,12 @@ macOS review bundles use an explicit ad-hoc identity to seal the complete bundle
 package acceptance verifies the seal again after installation. Windows webview
 profiles live in `~/.anyq/panel-webview/main` and `compact`, outside the installation
 directory, so package removal and replacement do not own browser-profile files.
+On Windows, a panel-started owner runs an immutable, hash-verified copy of the
+panel executable at `~/.anyq/owners/<sha256>/anyq-owner.exe`. NSIS may remove or
+replace the GUI executable without killing the queue owner or deleting an
+executable that Windows still has mapped. Different panel builds retain separate
+copies; removing the panel never removes a live owner's copy. Ordinary CLI
+startup continues to launch its own executable.
 The macOS shell uses the lock-file-pinned objc2 0.6.5 and AppKit bindings 0.3.2
 for public screen/pointer coordinates. Private virtual-display interfaces and
 the Windows virtual-display driver are CI tools only.

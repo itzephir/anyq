@@ -14,7 +14,10 @@ $ErrorActionPreference = 'Stop'
 $deadline = [DateTime]::UtcNow.AddSeconds(25)
 do {
     $owned = @(Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" | Where-Object {
-        $_.CommandLine -and $_.CommandLine.IndexOf($env:ANYQ_RENDERER_HOME, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        $_.CommandLine -and (
+            $_.CommandLine.IndexOf($env:ANYQ_RENDERER_HOME, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+            $_.CommandLine.IndexOf($env:ANYQ_RENDERER_CANONICAL_HOME, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        )
     })
     if (!$owned.Count) { exit 0 }
     if ([DateTime]::UtcNow -ge $deadline) { throw "Fixture WebView2 processes did not exit: $($owned.ProcessId -join ', ')" }
@@ -23,7 +26,11 @@ do {
 """
     subprocess.run(
         ["powershell", "-NoProfile", "-Command", script],
-        env=os.environ | {"ANYQ_RENDERER_HOME": str(Path(home).resolve()) + os.sep},
+        env=os.environ
+        | {
+            "ANYQ_RENDERER_HOME": str(Path(home).absolute()) + os.sep,
+            "ANYQ_RENDERER_CANONICAL_HOME": str(Path(home).resolve()) + os.sep,
+        },
         check=True,
         timeout=35,
     )

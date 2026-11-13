@@ -74,6 +74,15 @@ class NativeSession:
         except queue.Empty as error:
             raise AssertionError(f"Native operation timed out: {action}") from error
         assert reply["ok"], reply
+        self.log.write(
+            (
+                json.dumps(
+                    {"action": action, "arguments": values, "result": reply["value"]}
+                )
+                + "\n"
+            ).encode()
+        )
+        self.log.flush()
         return reply["value"]
 
     def wait(self, action, predicate=bool, **values):
@@ -131,8 +140,8 @@ class NativeSession:
             }[name]
         return self.call("key", code=code)
 
-    def select_menu(self, pid, label):
-        self.click_tray(pid, right=not sys.platform.startswith("linux"))
+    def select_menu(self, pid, label, *, right=True):
+        self.click_tray(pid, right=right)
         self.wait("menu-open", pid=pid)
         if sys.platform == "darwin":
             self.key("end" if label == "Quit anyq" else "home")

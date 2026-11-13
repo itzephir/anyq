@@ -126,5 +126,8 @@ and distinguishes live/stale/error from empty snapshots. Both webviews receive
 the same projection. GUI dependencies are feature-gated; the reviewed desktop
 build script generates Tauri metadata only. The macOS shell uses safe AppKit
 bindings for screen and pointer coordinates; those SDK dependencies remain in
-the outer desktop application and are rejected from inner crates. See
+the outer desktop application and are rejected from inner crates. Windows owner
+executable retention also stays in this outer application: the composition root
+injects its retained executable path into the narrow observation factory. The
+ordinary CLI retains its existing default bootstrap. See
 [DESKTOP.md](DESKTOP.md).
