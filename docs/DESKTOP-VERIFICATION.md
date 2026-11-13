@@ -142,12 +142,19 @@ native file picker, SystemUIServer restart and native-menu Quit. The same daemon
 PID and exact task/topic/slot rows survive these transitions. These are direct
 native checks, independent of the successful window and OpenDesign preview.
 
+The Windows shell profile passed on `f4ef115` in
+[CI run 43356127012](https://github.com/itzephir/anyq/actions/runs/43356127012).
+The `desktop-shell-windows` artifact records actual notification-icon/menu input,
+flyout placement and focus/dismissal after moves across three native outputs:
+1024×768 at 100%, plus two 1920×1080 outputs at 150%, including a negative origin.
+Explorer restart restores a reachable main window; the icon/menu recover and
+native Quit preserves the same daemon PID and exact queue ownership. This shell
+profile pass does not waive the run's remaining package/Linux/core failures.
+
 Pending native configurations remain explicit:
 
-- Windows: real notification-area activation, right-click menu, flyout focus,
-  work-area placement at different scale factors and monitor/taskbar positions,
-  Explorer restart, last-window closure, installer launch/removal and owner
-  survival after client exit.
+- Windows: installed production package launch/removal/reinstall with the same
+  owner process surviving removal.
 - Linux: a real compatible StatusNotifier host, GNOME with AppIndicator
   integration, host disappearance, no-host window fallback, supported X11 and
   Wayland sessions, package launch/removal and owner survival after client exit.

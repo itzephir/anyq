@@ -44,6 +44,14 @@ def run(cli, panel, home, output, configuration, profile):
             and state["windows"]["main"]["focused"]
         )
 
+    def exit_without_host():
+        native.close_window(driver.process.pid)
+        assert driver.process.wait(timeout=15) == 0
+        driver.stop()
+        assert fixtures.call(["daemon", "status"], database) == owner
+        assert queue_fingerprint(database) == before
+        report.append({"scenario": "host-loss-last-window-exits", "result": "passed"})
+
     try:
         if profile["displays"]:
             native.call("displays", displays=profile["displays"])
@@ -137,7 +145,9 @@ def run(cli, panel, home, output, configuration, profile):
                         lambda state: not state["tray"]["usable"]
                         and state["windows"]["main"]["visible"]
                     )
+                    exit_without_host()
                     host.start()
+                    driver.start(viewport=configuration["visual_defaults"]["viewport"])
                 elif sys.platform == "win32":
                     subprocess.run(
                         [
@@ -153,6 +163,7 @@ def run(cli, panel, home, output, configuration, profile):
                         lambda state: not state["tray"]["usable"]
                         and state["windows"]["main"]["visible"]
                     )
+                    exit_without_host()
                     subprocess.run(
                         [
                             "powershell",
@@ -163,6 +174,7 @@ def run(cli, panel, home, output, configuration, profile):
                         check=True,
                         timeout=15,
                     )
+                    driver.start(viewport=configuration["visual_defaults"]["viewport"])
                 else:
                     subprocess.run(
                         ["killall", "SystemUIServer"], check=True, timeout=15

@@ -12,12 +12,12 @@ import gi
 def desktop_types():
     gi.require_version("Gdk", "3.0")
     gi.require_version("Atspi", "2.0")
-    from gi.repository import Atspi, Gdk
+    from gi.repository import Atspi, Gdk, GLib
 
-    return Atspi, Gdk
+    return Atspi, Gdk, GLib
 
 
-Atspi, Gdk = desktop_types()
+Atspi, Gdk, GLib = desktop_types()
 
 
 def run(*arguments):
@@ -33,8 +33,6 @@ def windows(pid):
             "--onlyvisible",
             "--pid",
             str(pid),
-            "--name",
-            "^anyq$",
         ],
         capture_output=True,
         text=True,
@@ -121,8 +119,8 @@ def menu_item(label):
                 }
             )
         if (
-            item.get_role() == Atspi.Role.MENU_ITEM
-            and (item.get_name() or "").replace("_", "") == label
+            item.get_role() in (Atspi.Role.MENU_ITEM, Atspi.Role.CHECK_MENU_ITEM)
+            and accessible_label(item).replace("_", "") == label
             and item.get_state_set().contains(Atspi.StateType.SHOWING)
         ):
             bounds = item.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
@@ -136,8 +134,36 @@ def menu_item(label):
     return None
 
 
+def accessible_label(item):
+    if name := item.get_name():
+        return name
+    pending = [item]
+    while pending:
+        child = pending.pop()
+        if name := child.get_name():
+            return name
+        if text := child.get_text_iface():
+            if value := text.get_text(0, -1):
+                return value
+        pending.extend(
+            nested
+            for index in range(child.get_child_count())
+            if (nested := child.get_child_at_index(index)) is not None
+        )
+    return ""
+
+
 def perform(command):
+    context = GLib.MainContext.default()
+    while context.pending():
+        context.iteration(False)
     action = command["action"]
+    if action in ("tray", "menu-open", "menu-item"):
+        desktop = Atspi.get_desktop(0)
+        if desktop is None:
+            return None
+        desktop.set_cache_mask(Atspi.Cache.NONE)
+        desktop.clear_cache()
     if action == "monitors":
         display = Gdk.Display.get_default()
         result = []

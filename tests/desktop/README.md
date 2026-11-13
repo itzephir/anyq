@@ -52,6 +52,11 @@ removing profile files. Test transport retries transient Windows sharing denials
 within the existing response deadline; it never replays a request or accepts
 an incomplete response. Linux D-Bus activation receives the private display,
 configuration and Xauthority settings before starting desktop services.
+AT-SPI queries dispatch pending accessibility events, disable property caching
+and read descendant label text when a native menu container has no own name.
+Host-loss scenarios close the restored last window while the host is still
+absent, verify client exit with unchanged owner/slots, then reconnect through
+a restarted client and host.
 
 The NSIS fixture passes its final `/D=` argument without quotes, including for
 the configured installation path with spaces, as required by the

@@ -79,8 +79,9 @@ runtime dependencies. Build prerequisites follow the official
 [system tray adapter](https://v2.tauri.app/learn/system-tray/) documentation.
 
 The current package matrix builds macOS ARM64/Intel app bundles, a Windows x64
-NSIS installer, and an Ubuntu 24.04 x64 Debian package. Review artifacts are
-unsigned; signing/notarization and public desktop release are separate work.
+NSIS installer, and an Ubuntu 24.04 x64 Debian package. Review artifacts have
+no publisher identity; release signing/notarization and public desktop release
+are separate work.
 The existing CLI installers and static Linux CLI distribution remain independent.
 
 macOS review bundles use an explicit ad-hoc identity to seal the complete bundle;

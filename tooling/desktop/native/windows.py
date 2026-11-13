@@ -83,14 +83,40 @@ def tray():
     script = """
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-$root = [System.Windows.Automation.AutomationElement]::RootElement
 $scope = [System.Windows.Automation.TreeScope]::Descendants
+Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class ShellWindows {
+    public delegate bool Visitor(IntPtr handle, IntPtr data);
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(Visitor callback, IntPtr data);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr handle, StringBuilder name, int length);
+    public static IntPtr[] GetWindows() {
+        var handles = new List<IntPtr>();
+        EnumWindows((handle, data) => {
+            var name = new StringBuilder(256);
+            GetClassName(handle, name, name.Capacity);
+            var type = name.ToString();
+            if (type == "Shell_TrayWnd" || type == "Shell_SecondaryTrayWnd" || type == "NotifyIconOverflowWindow" || type == "TopLevelWindow" || type == "Xaml_WindowedPopupClass") handles.Add(handle);
+            return true;
+        }, IntPtr.Zero);
+        return handles.ToArray();
+    }
+}
+'@
 $buttons = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
 function Get-TrayButtons {
-    $shellWindows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object {
-        $_.Current.ClassName -match '^Shell_(Secondary)?TrayWnd$|^NotifyIconOverflowWindow$' -or $_.Current.Name -match '(?i)System tray overflow'
+    $handles = [ShellWindows]::GetWindows()
+    foreach ($handle in $handles) {
+        if ($handle -ne [IntPtr]::Zero) {
+            $shellWindow = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
+            $shellWindow.FindAll($scope, $buttons)
+        }
     }
-    foreach ($shellWindow in $shellWindows) { $shellWindow.FindAll($scope, $buttons) }
 }
 function Is-NotificationArea($element) {
     $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
