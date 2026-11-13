@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import gi
@@ -202,13 +203,23 @@ def perform(command):
     if action == "menu-item":
         return menu_item(command["pid"], command["label"])
     if action == "click":
-        run(
-            "xdotool",
-            "mousemove",
-            "--sync",
-            str(round(command["x"])),
-            str(round(command["y"])),
-        )
+        x, y = round(command["x"]), round(command["y"])
+        run("xdotool", "mousemove", str(x), str(y))
+        deadline = time.monotonic() + 2
+        while True:
+            location = dict(
+                line.split("=", 1)
+                for line in run("xdotool", "getmouselocation", "--shell").splitlines()
+            )
+            if (int(location["X"]), int(location["Y"])) == (x, y):
+                break
+            assert time.monotonic() < deadline, (
+                "Native cursor position",
+                location,
+                x,
+                y,
+            )
+            time.sleep(0.01)
         run("xdotool", "click", "3" if command.get("right") else "1")
     elif action == "key":
         run("xdotool", "key", "--clearmodifiers", command["code"])
