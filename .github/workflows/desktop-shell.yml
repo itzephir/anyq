@@ -37,7 +37,7 @@ jobs:
       - run: python -m pip install -r tooling/requirements-desktop.txt
       - name: Linux native host prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev librsvg2-dev patchelf xvfb dbus-x11 openbox xdotool x11-xserver-utils xfce4-panel python3-gi gir1.2-atspi-2.0 at-spi2-core xserver-xorg-core xserver-xorg-video-dummy
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev librsvg2-dev patchelf xvfb dbus-x11 openbox xdotool x11-utils x11-xserver-utils xfce4-panel python3-gi gir1.2-atspi-2.0 at-spi2-core xserver-xorg-core xserver-xorg-video-dummy
       - name: Windows virtual display setup
         if: runner.os == 'Windows'
         shell: pwsh

@@ -58,19 +58,23 @@ def windows(pid):
 
 
 def tray():
+    candidates = []
     with Accessibility() as accessibility:
         for item in accessibility.descendants(accessibility.applications()):
-            if (
-                accessibility.name(item).strip().lower() == "anyq"
-                and accessibility.call(item, "GetRole") != Atspi.Role.APPLICATION
-                and accessibility.showing(item, Atspi.StateType.SHOWING)
-            ):
+            name = accessibility.name(item).strip().lower()
+            if "anyq" not in name:
+                continue
+            role = accessibility.call(item, "GetRole")
+            showing = accessibility.showing(item, Atspi.StateType.SHOWING)
+            candidates.append({"name": name, "role": role, "showing": showing})
+            if name.startswith("anyq") and role != Atspi.Role.APPLICATION and showing:
                 if "org.a11y.atspi.Component" in accessibility.call(
                     item, "GetInterfaces"
                 ):
                     bounds = accessibility.bounds(item)
                     if 0 < bounds["width"] < 100 and 0 < bounds["height"] < 100:
                         return bounds
+    print(f"Native status icon candidates: {candidates}", file=sys.stderr, flush=True)
     panels = subprocess.run(
         ["xdotool", "search", "--onlyvisible", "--class", "xfce4-panel"],
         capture_output=True,
