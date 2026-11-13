@@ -5,9 +5,10 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import gi
-from accessibility import Accessibility
+from accessibility import HOST_PROCESSES, Accessibility
 from gi.repository import Gio, GLib
 
 
@@ -60,8 +61,9 @@ def tray():
     with Accessibility() as accessibility:
         for item in accessibility.descendants(accessibility.applications()):
             if (
-                "anyq" in accessibility.name(item).lower()
+                accessibility.name(item).strip().lower() == "anyq"
                 and accessibility.call(item, "GetRole") != Atspi.Role.APPLICATION
+                and accessibility.showing(item, Atspi.StateType.SHOWING)
             ):
                 if "org.a11y.atspi.Component" in accessibility.call(
                     item, "GetInterfaces"
@@ -87,6 +89,40 @@ def tray():
                 key: int(values[key.upper()]) for key in ["x", "y", "width", "height"]
             }
     return None
+
+
+def x11_menu(pid):
+    handles = subprocess.run(
+        ["xdotool", "search", "--onlyvisible", "--name", ""],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert handles.returncode in (0, 1), handles.stderr
+    for handle in handles.stdout.splitlines():
+        properties = run("xprop", "-id", handle, "_NET_WM_WINDOW_TYPE", "_NET_WM_PID")
+        if not any(
+            kind in properties
+            for kind in (
+                "_NET_WM_WINDOW_TYPE_POPUP_MENU",
+                "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU",
+            )
+        ):
+            continue
+        process = next(
+            (
+                int(line.rsplit(" = ", 1)[1])
+                for line in properties.splitlines()
+                if line.startswith("_NET_WM_PID(CARDINAL) = ")
+            ),
+            None,
+        )
+        if process == pid or (
+            process
+            and Path(f"/proc/{process}/comm").read_text().strip() in HOST_PROCESSES
+        ):
+            return True
+    return False
 
 
 def menu_item(pid, label):
@@ -156,6 +192,8 @@ def perform(command):
     if action == "tray":
         return tray()
     if action == "menu-open":
+        if os.environ.get("GDK_BACKEND") == "x11":
+            return x11_menu(command["pid"])
         return bool(menu_item(command["pid"], "Open window"))
     if action == "menu-item":
         return menu_item(command["pid"], command["label"])

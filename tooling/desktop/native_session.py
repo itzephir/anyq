@@ -1,6 +1,7 @@
 """Drive operating-system input independently from the application's test transport."""
 
 import json
+import os
 import queue
 import subprocess
 import sys
@@ -143,7 +144,9 @@ class NativeSession:
     def select_menu(self, pid, label, *, right=True):
         self.click_tray(pid, right=right)
         self.wait("menu-open", pid=pid)
-        if sys.platform == "darwin":
+        if sys.platform == "darwin" or (
+            sys.platform.startswith("linux") and os.environ.get("GDK_BACKEND") == "x11"
+        ):
             self.key("end" if label == "Quit anyq" else "home")
             self.key("enter")
         else:
@@ -153,6 +156,7 @@ class NativeSession:
                 x=rect["x"] + rect["width"] / 2,
                 y=rect["y"] + rect["height"] / 2,
             )
+        self.wait("menu-open", pid=pid, predicate=lambda opened: not opened)
 
     def close_window(self, pid):
         if sys.platform == "darwin":

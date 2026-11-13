@@ -44,11 +44,15 @@ not assumed on Wayland. Each move waits for the specific destination monitor
 and its scale, rather than accepting an intermediate monitor change.
 Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
-Native menu input waits for an actual visible menu. Windows reads the real
+Native menu input waits for an actual visible menu and its dismissal after selection.
+Windows reads the real
 Win32 popup handle, item labels and screen rectangles, following
 [pywinauto's popup adapter](https://github.com/pywinauto/pywinauto/blob/master/pywinauto/controls/win32_controls.py).
-Linux reads native AT-SPI menu item bounds. Both use real pointer input;
-macOS uses Home/End and Enter. Xfce uses the primary button; GNOME uses its
+GNOME reads native AT-SPI menu item bounds. Windows and GNOME use real pointer input;
+macOS and Xfce use Home/End and Enter after observing the native popup.
+X11 checks the visible popup's actual window type and application/host PID;
+detached GTK menus need not appear in the AT-SPI application tree.
+Xfce uses the primary button; GNOME uses its
 AppIndicator extension's secondary-button context menu. Notification-icon lookup excludes ordinary application/taskbar buttons
 and restricts Windows accessibility searches to actual shell windows.
 
@@ -65,7 +69,7 @@ bridge in the panel as well as its host. Windows enumerates visible Explorer
 windows, including the separate overflow popup, before querying their
 accessibility trees. A hung Linux query records its Python stack before the
 native-operation deadline.
-Windows checks the actual element at the button's screen position before
+Windows checks the native window at the button's screen position before
 returning its bounds, so a hidden overflow panel cannot supply stale coordinates.
 The read adapter follows the upstream
 [Accessible](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Accessible.xml),

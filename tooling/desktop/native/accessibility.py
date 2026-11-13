@@ -9,6 +9,13 @@ from gi.repository import Gio, GLib
 ACCESSIBLE = "org.a11y.atspi.Accessible"
 PROPERTIES = "org.freedesktop.DBus.Properties"
 ROOT = "/org/a11y/atspi/accessible/root"
+HOST_PROCESSES = (
+    "xfce4-panel",
+    "wrapper-2.0",
+    "panel-1-systray",
+    "gnome-shell",
+    "plasmashell",
+)
 
 
 class Accessibility:
@@ -73,13 +80,7 @@ class Accessibility:
             name = Path(f"/proc/{process}/comm")
             process_name = name.read_text().strip()
             self.applications_seen.append((process, process_name, item))
-            if process == pid or process_name in (
-                "xfce4-panel",
-                "wrapper-2.0",
-                "panel-1-systray",
-                "gnome-shell",
-                "plasmashell",
-            ):
+            if process == pid or process_name in HOST_PROCESSES:
                 yield item
 
     def diagnose(self):

@@ -90,6 +90,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class ShellWindows {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Point { public int X; public int Y; }
     public delegate bool Visitor(IntPtr handle, IntPtr data);
     [DllImport("user32.dll")]
     public static extern bool EnumWindows(Visitor callback, IntPtr data);
@@ -103,6 +105,13 @@ public static class ShellWindows {
     public static extern uint GetWindowThreadProcessId(IntPtr handle, out uint process);
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr handle);
+    [DllImport("user32.dll")]
+    public static extern IntPtr WindowFromPoint(Point point);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetAncestor(IntPtr handle, uint flags);
+    public static bool ContainsPoint(IntPtr handle, int x, int y) {
+        return GetAncestor(handle, 2) == GetAncestor(WindowFromPoint(new Point { X = x, Y = y }), 2);
+    }
     public static IntPtr[] GetWindows() {
         var handles = new List<IntPtr>();
         uint shellProcess;
@@ -147,12 +156,15 @@ function Find-TrayButton {
     foreach ($candidate in (Get-TrayButtons)) {
         if ($candidate.Current.Name -notmatch '(?i)anyq' -or $candidate.Current.IsOffscreen -or !(Is-NotificationArea $candidate)) { continue }
         $rect = $candidate.Current.BoundingRectangle
-        $point = [System.Windows.Point]::new($rect.X + $rect.Width / 2, $rect.Y + $rect.Height / 2)
-        $hit = [System.Windows.Automation.AutomationElement]::FromPoint($point)
+        $owner = $candidate
         $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-        for ($depth = 0; $hit -and $depth -lt 10; $depth++) {
-            if ([System.Windows.Automation.Automation]::Compare($hit, $candidate)) { return $candidate }
-            $hit = $walker.GetParent($hit)
+        for ($depth = 0; $owner -and $depth -lt 10; $depth++) {
+            $handle = $owner.Current.NativeWindowHandle
+            if ($handle -ne 0) {
+                if ([ShellWindows]::ContainsPoint([IntPtr]$handle, [int]($rect.X + $rect.Width / 2), [int]($rect.Y + $rect.Height / 2))) { return $candidate }
+                break
+            }
+            $owner = $walker.GetParent($owner)
         }
         [Console]::Error.WriteLine('Tray button is occluded: ' + $candidate.Current.Name)
     }
