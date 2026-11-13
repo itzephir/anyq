@@ -4,6 +4,7 @@ import ctypes as c
 import json
 import subprocess
 import sys
+import traceback
 from ctypes import wintypes as w
 
 user = c.windll.user32
@@ -310,5 +311,6 @@ for line in sys.stdin:
     try:
         reply = {"ok": True, "value": perform(json.loads(line))}
     except Exception as error:
+        traceback.print_exc(file=sys.stderr)
         reply = {"ok": False, "error": str(error)}
     print(json.dumps(reply), flush=True)

@@ -98,21 +98,33 @@ def set_primary(device, outputs):
     )
     user = c.windll.user32
     target = next(item for item in outputs if item["device"] == device)
-    for output in outputs:
+    plans = []
+    for output in sorted(outputs, key=lambda item: item["device"] != device):
         mode = DisplayMode()
         mode.size = c.sizeof(mode)
-        assert user.EnumDisplaySettingsW(output["device"], -1, c.byref(mode))
+        assert user.EnumDisplaySettingsW(output["device"], -1, c.byref(mode)), (
+            "Read display mode",
+            output,
+        )
         mode.fields = 0x20
         mode.x -= target["bounds"]["x"]
         mode.y -= target["bounds"]["y"]
         flags = 0x10000001 | (0x10 if output["device"] == device else 0)
-        assert (
-            user.ChangeDisplaySettingsExW(
-                output["device"], c.byref(mode), None, flags, None
-            )
-            == 0
+        plans.append((output, mode, flags))
+    for output, mode, flags in plans:
+        result = user.ChangeDisplaySettingsExW(
+            output["device"], c.byref(mode), None, flags, None
         )
-    assert user.ChangeDisplaySettingsExW(None, None, None, 0, None) == 0
+        assert result == 0, (
+            "Prepare primary display",
+            output,
+            mode.x,
+            mode.y,
+            flags,
+            result,
+        )
+    result = user.ChangeDisplaySettingsExW(None, None, None, 0, None)
+    assert result == 0, ("Apply primary display", device, result)
     return True
 
 

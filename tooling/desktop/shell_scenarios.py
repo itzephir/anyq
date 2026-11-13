@@ -33,6 +33,8 @@ def run(cli, panel, home, output, configuration, profile):
     )
     driver = Driver(panel, home, database, configuration["clock_ms"])
     driver.environment.update(native_environment)
+    if profile.get("backend") == "wayland":
+        driver.environment["WAYLAND_DEBUG"] = "client"
     native = NativeSession(home, fixtures.environment)
     host = StatusHost(home, fixtures.environment) if profile["host"] == "xfce" else None
     if profile["host"] == "gnome":

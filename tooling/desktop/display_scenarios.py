@@ -4,32 +4,52 @@ import json
 import sys
 
 import popup_geometry
+import wayland_outputs
 
 
 def run(driver, native, monitors, profile):
     results = []
     if profile.get("backend") == "wayland":
         targets = sorted(
-            driver.shell_state()["monitors"],
-            key=lambda monitor: monitor["position"]["x"],
+            native.call("monitors"),
+            key=lambda monitor: monitor["bounds"]["x"],
         )
         assert len(targets) == 2, targets
         for direction, target in zip(
             ["monitor-right", "monitor-left"], [targets[1], targets[0]], strict=True
         ):
-            before = driver.shell_state()["windows"]["main"]["monitor"]
+
+            def actual():
+                return wayland_outputs.current(
+                    (driver.home / "panel.log").read_text(errors="replace")
+                )
+
+            before = actual()
             native.key(direction)
-            after = driver.wait_shell(
-                lambda state: state["windows"]["main"]["monitor"]
-                == {key: target[key] for key in ("position", "size", "scale")}
-                and state["windows"]["main"]["scale"] == target["scale"]
-            )
+
+            def arrived(state):
+                observed = actual()["outputs"]
+                return (
+                    len(observed) == 1
+                    and observed[0]["position"]
+                    == [target["bounds"]["x"], target["bounds"]["y"]]
+                    and observed[0]["scale"] == target["scale"]
+                    and state["windows"]["main"]["scale"] == target["scale"]
+                )
+
+            try:
+                after = driver.wait_shell(arrived)
+            except AssertionError as error:
+                raise AssertionError(
+                    {"wayland": actual(), "target": target, "gtk": driver.shell_state()}
+                ) from error
             results.append(
                 {
                     "scenario": "compositor-monitor-move",
                     "direction": direction,
                     "before": before,
-                    "after": after["windows"]["main"]["monitor"],
+                    "after": actual(),
+                    "gtk_monitor": after["windows"]["main"]["monitor"],
                     "result": "passed",
                 }
             )

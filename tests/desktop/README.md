@@ -51,6 +51,12 @@ directly and waits for the reported active/inactive state, avoiding a settings-o
 fallback in the extension command-line tool. Absolute window placement is
 not assumed on Wayland. Each move waits for the specific destination monitor
 and its scale, rather than accepting an intermediate monitor change.
+The Wayland profile observes the mapped main surface's actual output-enter/leave
+protocol events and logical output positions from `WAYLAND_DEBUG=client`, alongside
+the window's resulting DPI. It requires exactly the destination output, so a
+surface straddling both outputs cannot pass. GTK's monitor-at-window result is
+retained only as diagnostics: it can lag behind the actual compositor transition.
+The observer follows the upstream [Wayland surface/output protocol](https://wayland.freedesktop.org/docs/html/apa.html#protocol-spec-wl_surface).
 Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
 Native menu input waits for an actual visible menu and its dismissal after selection.

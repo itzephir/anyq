@@ -56,7 +56,7 @@
 ## 8. Review acceptance regressions
 
 - [ ] 8.1 Verify popup width, height, DPI and anchoring against the real icon and work area; open through actual tray input on macOS 1x/2x and Windows 100%/150% displays, and reject tiny, misplaced or incorrectly scaled popup states.
-- [ ] 8.2 Verify the installed production application's actual document shows the configured topics, tasks and occupied slots before and after CLI mutations in both installation cycles on every package target; reject blank, stale and incorrect-slot documents without shipping a test transport.
+- [x] 8.2 Verify the installed production application's actual document shows the configured topics, tasks and occupied slots before and after CLI mutations in both installation cycles on every package target; reject blank, stale and incorrect-slot documents without shipping a test transport.
 
 ## Workflow follow-up
 

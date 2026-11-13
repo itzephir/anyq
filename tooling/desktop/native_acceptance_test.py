@@ -6,9 +6,41 @@ from pathlib import Path
 
 import document_observation
 import popup_geometry
+import wayland_outputs
 
 
 class NativeAcceptanceContractTests(unittest.TestCase):
+    def test_wayland_uses_surface_enter_leave_and_logical_output_positions(self):
+        initial = """wl_output@10.geometry(0, 0, 400, 300, 0, "test", "left", 0)
+wl_output@10.scale(1)
+wl_output@20.geometry(3840, 0, 400, 300, 0, "test", "right", 0)
+wl_output@20.scale(2)
+zxdg_output_manager_v1@7.get_xdg_output(new id zxdg_output_v1@21, wl_output@20)
+zxdg_output_v1@21.logical_position(1920, 0)
+xdg_wm_base@5.get_xdg_surface(new id xdg_surface@31, wl_surface@30)
+xdg_surface@31.get_toplevel(new id xdg_toplevel@32)
+xdg_toplevel@32.set_title("anyq")
+wl_surface@30.enter(wl_output@10)
+"""
+        self.assertEqual(
+            wayland_outputs.current(initial)["outputs"],
+            [{"id": "10", "position": [0, 0], "scale": 1}],
+        )
+        overlapping = initial + "wl_surface@30.enter(wl_output@20)\n"
+        self.assertEqual(len(wayland_outputs.current(overlapping)["outputs"]), 2)
+        moved = overlapping + "wl_surface@30.leave(wl_output@10)\n"
+        self.assertEqual(
+            wayland_outputs.current(moved)["outputs"],
+            [{"id": "20", "position": [1920, 0], "scale": 2}],
+        )
+        returned = (
+            moved
+            + "wl_surface@30.enter(wl_output@10)\nwl_surface@30.leave(wl_output@20)\n"
+        )
+        self.assertEqual(
+            wayland_outputs.current(returned), wayland_outputs.current(initial)
+        )
+
     def test_popup_rejects_tiny_size_wrong_anchor_and_wrong_dpi(self):
         monitor = {
             "x": 0,
