@@ -1,5 +1,6 @@
 """Read the real AT-SPI D-Bus tree without libatspi's process-wide cache."""
 
+import sys
 import time
 from pathlib import Path
 
@@ -28,6 +29,7 @@ class Accessibility:
             None,
         )
         self.names = {}
+        self.applications_seen = []
         return self
 
     def __exit__(self, *_error):
@@ -69,13 +71,22 @@ class Accessibility:
                 interface="org.freedesktop.DBus",
             )
             name = Path(f"/proc/{process}/comm")
-            if process == pid or name.read_text().strip() in (
+            process_name = name.read_text().strip()
+            self.applications_seen.append((process, process_name, item))
+            if process == pid or process_name in (
                 "xfce4-panel",
                 "wrapper-2.0",
                 "gnome-shell",
                 "plasmashell",
             ):
                 yield item
+
+    def diagnose(self):
+        print(
+            f"Native accessibility applications: {self.applications_seen}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     def descendants(self, roots):
         pending, visited = list(roots), set()

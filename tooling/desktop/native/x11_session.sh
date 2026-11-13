@@ -50,4 +50,6 @@ xrandr --addmode DUMMY1 1280x960
 xrandr --output DUMMY1 --mode 1280x960 --pos 1920x0
 xrandr --listmonitors | tee desktop-shell-results/linux/xrandr-monitors.txt
 openbox >desktop-shell-results/linux/openbox.log 2>&1 &
+gsettings set org.gnome.desktop.interface toolkit-accessibility true
+gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled '<true>'
 python tooling/test_desktop_shell.py --cli target/debug/anyq --panel target/debug/anyq-panel --profile linux-x11

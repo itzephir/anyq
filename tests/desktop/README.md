@@ -37,7 +37,9 @@ host, a no-host X11 session, and a nested GNOME Wayland compositor with two
 virtual outputs and the packaged AppIndicator extension. The Wayland profile
 uses compositor monitor-move shortcuts and toggles the extension to test host
 loss without destroying the compositor connection. Absolute window placement is
-not assumed on Wayland. Monitor mode/scale controls follow
+not assumed on Wayland. Each move waits for the specific destination monitor
+and its scale, rather than accepting an intermediate monitor change.
+Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
 Native menu input waits for an actual visible menu. Windows reads the real
 Win32 popup handle, item labels and screen rectangles, following

@@ -1,16 +1,26 @@
 """Move actual native windows between configured displays and validate tray anchoring."""
 
+import json
 import sys
 
 
 def run(driver, native, monitors, profile):
     results = []
     if profile.get("backend") == "wayland":
-        for direction in ["monitor-right", "monitor-left"]:
+        targets = sorted(
+            driver.shell_state()["monitors"],
+            key=lambda monitor: monitor["position"]["x"],
+        )
+        assert len(targets) == 2, targets
+        for direction, target in zip(
+            ["monitor-right", "monitor-left"], [targets[1], targets[0]], strict=True
+        ):
             before = driver.shell_state()["windows"]["main"]["monitor"]
             native.key(direction)
             after = driver.wait_shell(
-                lambda state: state["windows"]["main"]["monitor"] != before
+                lambda state: state["windows"]["main"]["monitor"]
+                == {key: target[key] for key in ("position", "size", "scale")}
+                and state["windows"]["main"]["scale"] == target["scale"]
             )
             results.append(
                 {
@@ -21,6 +31,7 @@ def run(driver, native, monitors, profile):
                     "result": "passed",
                 }
             )
+            print(json.dumps(results[-1]), flush=True)
         return results
 
     for monitor in monitors:

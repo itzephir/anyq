@@ -102,6 +102,7 @@ def menu_item(pid, label):
             candidates.append({"name": name, "showing": showing})
             if showing and name == label:
                 return accessibility.bounds(item)
+        accessibility.diagnose()
     print(f"Native menu items: {candidates}", file=sys.stderr, flush=True)
     return None
 
