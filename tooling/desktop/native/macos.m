@@ -32,7 +32,7 @@ static NSArray *windows(pid_t pid) {
     for (NSDictionary *window in all) {
         if ([window[(id)kCGWindowOwnerPID] intValue] != pid) continue;
         NSDictionary *bounds = window[(id)kCGWindowBounds];
-        [result addObject:@{ @"x":bounds[@"X"], @"y":bounds[@"Y"], @"width":bounds[@"Width"], @"height":bounds[@"Height"], @"layer":window[(id)kCGWindowLayer] }];
+        [result addObject:@{ @"handle":window[(id)kCGWindowNumber], @"x":bounds[@"X"], @"y":bounds[@"Y"], @"width":bounds[@"Width"], @"height":bounds[@"Height"], @"layer":window[(id)kCGWindowLayer] }];
     }
     return result;
 }

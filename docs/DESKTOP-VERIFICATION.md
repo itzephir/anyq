@@ -213,6 +213,33 @@ on time. The remaining capability, Linux-host, lifecycle and integrated native
 acceptance tasks are closed against the actual results above. Other OS versions
 and desktop hosts, including KDE Plasma, are not inferred to be verified.
 
+### PR #21 review follow-up
+
+The stricter tray oracle checks the real client rectangle, DPI, icon anchoring
+and work-area margins. On `06a2815`, [run 43453103726](https://github.com/itzephir/anyq/actions/runs/43453103726)
+recorded all three macOS popup cases at 1x/2x and passed the complete Windows
+shell profile at 100%/150%. It also passed both GNOME Wayland monitor roundtrips
+with actual surface/output enter and leave events, including recreated surfaces,
+host loss and recovery. Windows now measures invisible frame insets independently
+of screen-origin changes and reapplies placement after showing a hidden popup.
+The geometry contracts reject tiny, misplaced and incorrectly scaled popups.
+
+The same run passed production package acceptance for macOS ARM64/Intel,
+Windows and Linux. Each installed application's real document is copied through
+native keyboard input and the system clipboard, with no shipping test transport.
+Both installation cycles verify configured topics, running/stopped tasks and
+slot usage before and after distinct CLI additions: 1/4 → 2/4 → 3/4 occupied
+slots. Blank, stale and incorrect-slot documents fail; the owner PID and
+preferences/shared configuration remain unchanged.
+
+That run also passed all three native UI/screenshot matrices and their existing
+45 PNGs, but its aggregate gate remained red because macOS file selection was
+confirmed before the Open panel was ready. The follow-up observes the actual
+panel/sheet window identifiers, waits for sheet dismissal and confirms until
+the specific panel closes, then requires the selected file's exact identity.
+The [current PR checks](https://github.com/itzephir/anyq/pull/21/checks) must pass
+on the final head; the component evidence above does not waive that gate.
+
 The earlier local macOS menu-bar follow-up could not proceed because the screen was
 locked. The main window was accessible before the lock; no additional tray or
 file-picker acceptance is inferred from that partial session. Its isolated panel

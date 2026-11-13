@@ -106,27 +106,52 @@ def run(cli, panel, home, output, configuration, profile):
             if profile["file_picker"]:
                 driver.click("#settings")
                 driver.click("#automatic")
-                prior = len(native.call("windows", pid=driver.process.pid))
+                prior = {
+                    item["handle"]
+                    for item in native.call("windows", pid=driver.process.pid)
+                }
+
+                def new_window(items, seen):
+                    return next(
+                        (
+                            item
+                            for item in items
+                            if item["handle"] not in seen and item["layer"] == 0
+                        ),
+                        None,
+                    )
+
                 driver.click("#choose")
-                native.wait(
+                opened = native.wait(
                     "windows",
-                    predicate=lambda items: len(items) > prior,
+                    predicate=lambda items: new_window(items, prior),
                     pid=driver.process.pid,
                 )
+                picker = new_window(opened, prior)["handle"]
                 native.key("go")
-                native.wait(
+                sheet = native.wait(
                     "windows",
-                    predicate=lambda items: len(items) > prior + 1,
+                    predicate=lambda items: new_window(items, prior | {picker}),
                     pid=driver.process.pid,
                 )
+                sheet = new_window(sheet, prior | {picker})["handle"]
                 native.call("type", text=str(alternate))
                 native.key("enter")
                 native.wait(
                     "windows",
-                    predicate=lambda items: len(items) <= prior + 1,
+                    predicate=lambda items: all(
+                        item["handle"] != sheet for item in items
+                    ),
                     pid=driver.process.pid,
                 )
-                native.key("enter")
+
+                def confirm(items):
+                    if all(item["handle"] != picker for item in items):
+                        return True
+                    native.key("enter")
+                    return False
+
+                native.wait("windows", predicate=confirm, pid=driver.process.pid)
                 driver.wait(
                     f"return document.querySelector('#database-path')?.value.endsWith({json.dumps('/' + alternate.name)});"
                 )

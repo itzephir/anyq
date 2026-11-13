@@ -111,6 +111,13 @@ reject 1×1, misplaced, wrong-DPI, blank-document and stale-document regressions
 These checks supplement the existing tracked PNG verification; visual fixtures
 that explicitly resize a webview cannot prove native tray placement.
 
+The macOS file-picker scenario observes actual WindowServer window identifiers
+for the Open panel and its Go to Folder sheet. It waits for the sheet to close,
+then confirms the selected file through native input until that specific Open
+panel closes. This handles asynchronous file selection without relying on
+window counts or assuming the Open button is immediately ready. The resulting
+database path must still identify the configured alternate file.
+
 Host-loss scenarios close the restored last window while the host is still
 absent, verify client exit with unchanged owner/slots, then reconnect through
 a restarted client and host.
