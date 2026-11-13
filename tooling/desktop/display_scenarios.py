@@ -27,6 +27,22 @@ def run(driver, native, monitors, profile):
             before = actual()
             native.key(direction)
 
+            def entered_target(state):
+                return (
+                    any(
+                        output["position"]
+                        == [target["bounds"]["x"], target["bounds"]["y"]]
+                        for output in actual()["outputs"]
+                    )
+                    and state["windows"]["main"]["scale"] == target["scale"]
+                )
+
+            driver.wait_shell(entered_target)
+            native.key("move-window")
+            for _ in range(8):
+                native.key("right")
+            native.key("enter")
+
             def arrived(state):
                 observed = actual()["outputs"]
                 return (
@@ -73,20 +89,29 @@ def run(driver, native, monitors, profile):
 
 def move(driver, label, monitor):
     scale = monitor["scale"] if sys.platform.startswith("linux") else 1
-    driver.call(
-        window=label,
-        native="position",
-        x=(monitor["x"] + 30) * scale,
-        y=(monitor["y"] + 60) * scale,
-    )
+    offsets = {"x": 8, "y": 8} if label == "main" else {"x": 30, "y": 60}
+
+    def position():
+        driver.call(
+            window=label,
+            native="position",
+            x=(monitor["x"] + offsets["x"]) * scale,
+            y=(monitor["y"] + offsets["y"]) * scale,
+        )
+
+    position()
 
     def moved(state):
         window = state["windows"][label]
         divisor = window["scale"] if sys.platform == "darwin" else scale
-        return all(
+        matches = all(
             abs(window["position"][axis] / divisor - monitor[axis] - offset) <= 4
-            for axis, offset in (("x", 30), ("y", 60))
+            for axis, offset in offsets.items()
         )
+        if matches and (label == "compact" or window["scale"] == monitor["scale"]):
+            return True
+        position()
+        return False
 
     driver.wait_shell(moved)
 

@@ -40,6 +40,23 @@ wl_surface@30.enter(wl_output@10)
         self.assertEqual(
             wayland_outputs.current(returned), wayland_outputs.current(initial)
         )
+        reopened = (
+            initial
+            + """xdg_toplevel@32.destroy()
+wl_surface@30.destroy()
+xdg_wm_base@5.get_xdg_surface(new id xdg_surface@45, wl_surface@46)
+xdg_surface@45.get_toplevel(new id xdg_toplevel@32)
+xdg_toplevel@32.set_title("anyq")
+wl_surface@46.enter(wl_output@20)
+"""
+        )
+        self.assertEqual(
+            wayland_outputs.current(reopened),
+            {
+                "surface": "46",
+                "outputs": [{"id": "20", "position": [1920, 0], "scale": 2}],
+            },
+        )
 
     def test_popup_rejects_tiny_size_wrong_anchor_and_wrong_dpi(self):
         monitor = {

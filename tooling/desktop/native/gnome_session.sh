@@ -17,6 +17,7 @@ gsettings set org.gnome.desktop.interface toolkit-accessibility true
 gsettings set org.gnome.shell disable-user-extensions false
 gsettings set org.gnome.desktop.wm.keybindings move-to-monitor-right "['<Super><Shift>Right']"
 gsettings set org.gnome.desktop.wm.keybindings move-to-monitor-left "['<Super><Shift>Left']"
+gsettings set org.gnome.desktop.wm.keybindings begin-move "['<Alt>F7']"
 gnome-shell --nested --wayland --wayland-display=anyq-wayland >desktop-shell-results/linux/gnome-shell.log 2>&1 &
 gnome_pid=$!
 trap 'kill "$gnome_pid" 2>/dev/null || true' EXIT

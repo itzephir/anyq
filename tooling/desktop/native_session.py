@@ -163,6 +163,8 @@ class NativeSession:
                 "go": "ctrl+l",
                 "monitor-right": "super+shift+Right",
                 "monitor-left": "super+shift+Left",
+                "move-window": "alt+F7",
+                "right": "Right",
                 "select-all": "ctrl+a",
                 "copy": "ctrl+c",
             }[name]

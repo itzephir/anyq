@@ -6,7 +6,16 @@ import re
 def current(trace):
     outputs, logical, surfaces, toplevels, titles, entered = {}, {}, {}, {}, {}, {}
     for line in trace.splitlines():
-        if match := re.search(
+        if match := re.search(r"xdg_toplevel[@#](\d+)\.destroy\(\)", line):
+            entered.pop(toplevels.pop(match[1], None), None)
+            titles.pop(match[1], None)
+        elif match := re.search(r"wl_surface[@#](\d+)\.destroy\(\)", line):
+            entered.pop(match[1], None)
+            for top, surface in list(toplevels.items()):
+                if surface == match[1]:
+                    toplevels.pop(top)
+                    titles.pop(top, None)
+        elif match := re.search(
             r"get_xdg_surface\(new id xdg_surface[@#](\d+), wl_surface[@#](\d+)\)", line
         ):
             surfaces[match[1]] = match[2]

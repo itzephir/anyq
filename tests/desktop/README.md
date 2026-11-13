@@ -54,8 +54,11 @@ and its scale, rather than accepting an intermediate monitor change.
 The Wayland profile observes the mapped main surface's actual output-enter/leave
 protocol events and logical output positions from `WAYLAND_DEBUG=client`, alongside
 the window's resulting DPI. It requires exactly the destination output, so a
-surface straddling both outputs cannot pass. GTK's monitor-at-window result is
-retained only as diagnostics: it can lag behind the actual compositor transition.
+surface straddling both outputs cannot pass. Native keyboard movement places
+the window inside the destination output after the scale transition. Destroyed
+and recreated surfaces are tracked across close/reopen; reused object IDs cannot
+select the old hidden surface. GTK's monitor-at-window result is retained only
+as diagnostics because an overlapping surface can belong to multiple outputs.
 The observer follows the upstream [Wayland surface/output protocol](https://wayland.freedesktop.org/docs/html/apa.html#protocol-spec-wl_surface).
 Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
