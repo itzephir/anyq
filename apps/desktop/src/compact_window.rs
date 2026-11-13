@@ -42,7 +42,18 @@ fn place(
         scale,
     );
     window.set_position(layout.position)?;
-    window.set_size(layout.size)
+    window.set_size(layout.size)?;
+    #[cfg(windows)]
+    {
+        let outer = window.outer_position()?;
+        let inner = window.inner_position()?;
+        window.set_position(tauri::PhysicalPosition::new(
+            layout.position.x - (inner.x - outer.x),
+            layout.position.y - (inner.y - outer.y),
+        ))?;
+    }
+
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]

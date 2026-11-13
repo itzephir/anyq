@@ -88,10 +88,14 @@ protocols. It never invokes accessibility actions: pointer/keyboard events still
 travel through the real desktop input system.
 Popup scenarios move the actual system tray between primary displays in the
 disposable macOS/Windows session, then require an icon on the selected output
-and open it through native input. They check both 1x/2x on macOS and 100%/150%
-on Windows, including the popup's actual DPI, 380×355 logical size (clamped on
+and open it through native input. They restore the original primary output
+before independent file-picker/lifecycle cases. They check both 1x/2x on macOS and 100%/150%
+on Windows, including the popup's actual DPI, 380×355 logical client size (clamped on
 small work areas), scaled eight-unit margins and centered/clamped icon anchoring.
-The geometry oracle allows at most two native coordinate units of rounding;
+Windows placement accounts for the invisible shadow frame separately from the
+client rectangle. Document copying retries selection after a renderer update
+clears it, waits for actual clipboard contents and clears the fixture clipboard
+after reading. The geometry oracle allows at most two native coordinate units of rounding;
 a popup merely somewhere inside the work area is insufficient. Contract tests
 reject 1×1, misplaced, wrong-DPI, blank-document and stale-document regressions.
 These checks supplement the existing tracked PNG verification; visual fixtures

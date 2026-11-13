@@ -183,7 +183,13 @@ class NativeSession:
         self.wait("clipboard-clear")
         self.key("select-all")
         self.key("copy")
-        return self.wait("clipboard-text")
+        deadline = time.monotonic() + 1
+        while not (text := self.call("clipboard-text")):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.02)
+        self.wait("clipboard-clear")
+        return text
 
     def select_menu(self, pid, label, *, right=True):
         self.click_tray(pid, right=right)

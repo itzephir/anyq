@@ -16,6 +16,8 @@ pub fn snapshot(app: &tauri::AppHandle) -> tauri::Result<Value> {
                     "focused": window.is_focused()?,
                     "position": window.outer_position().ok(),
                     "size": window.outer_size()?,
+                    "client_position": window.inner_position().ok(),
+                    "client_size": window.inner_size()?,
                     "scale": window.scale_factor()?,
                     "monitor": window.current_monitor()?.map(|monitor| json!({"position":monitor.position(), "size":monitor.size(), "scale":monitor.scale_factor()}))
                 }),

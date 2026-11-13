@@ -20,15 +20,16 @@ class NativeAcceptanceContractTests(unittest.TestCase):
         }
         icon = {"x": 1800, "y": 1040, "width": 24, "height": 40}
         valid = {
-            "position": {"x": 1532, "y": 677},
-            "size": {"width": 380, "height": 355},
+            "client_position": {"x": 1532, "y": 677},
+            "client_size": {"width": 380, "height": 355},
             "scale": 1,
         }
         popup_geometry.verify(valid, icon, [monitor], logical_coordinates=False)
 
         for mutation in (
-            {"size": {"width": 1, "height": 1}},
-            {"position": {"x": 8, "y": 8}},
+            {"client_size": {"width": 1, "height": 1}},
+            {"client_position": {"x": 8, "y": 8}},
+            {"client_position": {"x": 1540, "y": 678}},
             {"scale": 1.5},
         ):
             with self.subTest(mutation=mutation):
@@ -48,8 +49,8 @@ class NativeAcceptanceContractTests(unittest.TestCase):
         }
         icon = {"x": -1040, "y": -120, "width": 40, "height": 40}
         window = {
-            "position": {"x": -1305, "y": -68},
-            "size": {"width": 570, "height": 533},
+            "client_position": {"x": -1305, "y": -68},
+            "client_size": {"width": 570, "height": 533},
             "scale": 1.5,
         }
         popup_geometry.verify(window, icon, [physical], logical_coordinates=False)
@@ -64,8 +65,8 @@ class NativeAcceptanceContractTests(unittest.TestCase):
         }
         icon = {"x": 1100, "y": 0, "width": 34, "height": 24}
         window = {
-            "position": {"x": 1784, "y": 64},
-            "size": {"width": 760, "height": 710},
+            "client_position": {"x": 1784, "y": 64},
+            "client_size": {"width": 760, "height": 710},
             "scale": 2,
         }
         popup_geometry.verify(window, icon, [retina], logical_coordinates=True)

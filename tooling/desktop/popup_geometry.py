@@ -16,10 +16,10 @@ def verify(window, icon, monitors, *, logical_coordinates):
     assert window["scale"] == area["scale"], ("Popup DPI", window, area)
     divisor = window["scale"] if logical_coordinates else 1
     actual = {
-        "x": window["position"]["x"] / divisor,
-        "y": window["position"]["y"] / divisor,
-        "width": window["size"]["width"] / divisor,
-        "height": window["size"]["height"] / divisor,
+        "x": window["client_position"]["x"] / divisor,
+        "y": window["client_position"]["y"] / divisor,
+        "width": window["client_size"]["width"] / divisor,
+        "height": window["client_size"]["height"] / divisor,
     }
     unit = 1 if logical_coordinates else area["scale"]
     margin = 8 * unit

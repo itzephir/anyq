@@ -134,6 +134,7 @@ def popups(driver, native, monitors):
                 "result": "passed",
             }
         )
+        print(json.dumps(results[-1]), flush=True)
         native.key("escape")
         driver.wait_shell(lambda state: not state["windows"]["compact"]["visible"])
         native.click_tray(driver.process.pid, monitor=target)
@@ -148,4 +149,23 @@ def popups(driver, native, monitors):
         "Opened popup scales",
         scales,
     )
+    original_primary = next(item for item in monitors if item["primary"])
+    native.call("tray-monitor", monitor=original_primary[identifier])
+    restored = native.wait(
+        "monitors",
+        predicate=lambda items: any(
+            item[identifier] == original_primary[identifier] and item["primary"]
+            for item in items
+        ),
+    )
+    move(
+        driver,
+        "main",
+        next(
+            item
+            for item in restored
+            if item[identifier] == original_primary[identifier]
+        ),
+    )
+    native.wait("focus", pid=driver.process.pid)
     return results
