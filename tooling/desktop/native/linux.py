@@ -5,9 +5,9 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import gi
+from accessibility import Accessibility
 
 
 def desktop_types():
@@ -55,62 +55,19 @@ def windows(pid):
     return result
 
 
-def applications(pid=None):
-    root = Atspi.get_desktop(0)
-    if root is None:
-        return []
-    root.set_cache_mask(Atspi.Cache.NONE)
-    result = []
-    for index in range(root.get_child_count()):
-        app = root.get_child_at_index(index)
-        if app is None:
-            continue
-        process = app.get_process_id()
-        name = Path(f"/proc/{process}/comm")
-        if (
-            process == pid
-            or name.exists()
-            and name.read_text().strip()
-            in (
-                "xfce4-panel",
-                "wrapper-2.0",
-                "gnome-shell",
-                "plasmashell",
-            )
-        ):
-            app.set_cache_mask(Atspi.Cache.NONE)
-            result.append(app)
-    return result
-
-
-def descendants(roots):
-    pending = list(roots)
-    visited = set()
-    while pending:
-        item = pending.pop()
-        if item in visited:
-            continue
-        visited.add(item)
-        yield item
-        pending.extend(
-            child
-            for index in range(item.get_child_count())
-            if (child := item.get_child_at_index(index)) is not None
-        )
-
-
 def tray():
-    for item in descendants(applications()):
-        name = (item.get_name() or "").lower()
-        if "anyq" in name and item.get_role() != Atspi.Role.APPLICATION:
-            component = item.get_component_iface()
-            if component:
-                bounds = component.get_extents(Atspi.CoordType.SCREEN)
-                if 0 < bounds.width < 100 and 0 < bounds.height < 100:
-                    return {
-                        key: getattr(bounds, key)
-                        for key in ["x", "y", "width", "height"]
-                    }
+    with Accessibility() as accessibility:
+        for item in accessibility.descendants(accessibility.applications()):
+            if (
+                "anyq" in accessibility.name(item).lower()
+                and accessibility.call(item, "GetRole") != Atspi.Role.APPLICATION
+            ):
+                if "org.a11y.atspi.Component" in accessibility.call(
+                    item, "GetInterfaces"
+                ):
+                    bounds = accessibility.bounds(item)
+                    if 0 < bounds["width"] < 100 and 0 < bounds["height"] < 100:
+                        return bounds
     panels = subprocess.run(
         ["xdotool", "search", "--onlyvisible", "--class", "xfce4-panel"],
         capture_output=True,
@@ -133,35 +90,20 @@ def tray():
 
 def menu_item(pid, label):
     candidates = []
-    for item in descendants(applications(pid)):
-        if item.get_role() in (Atspi.Role.MENU_ITEM, Atspi.Role.CHECK_MENU_ITEM):
-            candidates.append(
-                {
-                    "name": item.get_name(),
-                    "showing": item.get_state_set().contains(Atspi.StateType.SHOWING),
-                }
-            )
-        if (
-            item.get_role() in (Atspi.Role.MENU_ITEM, Atspi.Role.CHECK_MENU_ITEM)
-            and accessible_label(item).replace("_", "") == label
-            and item.get_state_set().contains(Atspi.StateType.SHOWING)
-        ):
-            bounds = item.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
-            return {key: getattr(bounds, key) for key in ["x", "y", "width", "height"]}
+    with Accessibility() as accessibility:
+        for item in accessibility.descendants(accessibility.applications(pid)):
+            if accessibility.call(item, "GetRole") not in (
+                Atspi.Role.MENU_ITEM,
+                Atspi.Role.CHECK_MENU_ITEM,
+            ):
+                continue
+            showing = accessibility.showing(item, Atspi.StateType.SHOWING)
+            name = accessibility.label(item).replace("_", "")
+            candidates.append({"name": name, "showing": showing})
+            if showing and name == label:
+                return accessibility.bounds(item)
     print(f"Native menu items: {candidates}", file=sys.stderr, flush=True)
     return None
-
-
-def accessible_label(item):
-    if name := item.get_name():
-        return name
-    for child in descendants([item]):
-        if name := child.get_name():
-            return name
-        if text := child.get_text_iface():
-            if value := text.get_text(0, -1):
-                return value
-    return ""
 
 
 def perform(command):
