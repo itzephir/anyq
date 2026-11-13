@@ -302,8 +302,23 @@ are unavailable; no-host sessions retain an ordinary window.
 [Desktop documentation](../../../docs/DESKTOP.md) records package/runtime
 requirements, supported package targets, design export and native behavior.
 [Acceptance evidence](../../../docs/DESKTOP-VERIFICATION.md) distinguishes
-verified logic from pending real Windows/Linux desktop runs. The editable
-OpenDesign source is shared with the application. Implementation is stacked
+verified native environments from unqualified desktop/version combinations.
+The editable OpenDesign source is shared with the application. Implementation is stacked
 on observation PR #16 after the daemon and plugin sequence #14 → #17 → #18 →
 #19 → #20; #14 supplies implemented private IPC, ownership, cancellation and
 recovery rather than planning alone.
+
+### Native acceptance follow-up
+
+[PR #21](https://github.com/itzephir/anyq/pull/21) completes the native shell,
+multiple-monitor and installed-package acceptance after the implementation
+stack. Required CI drives actual operating-system input, desktop hosts,
+compositor outputs and installed production packages; it also verifies the
+existing tracked screenshot baselines on all three operating systems.
+
+The original plan required adapter capability evidence before feature work.
+That sequencing requirement was missed: feature implementation preceded the
+complete native capability checks. This follow-up supplies the missing evidence
+and fixes the discovered adapter/package defects; it does not claim that the
+original prerequisite was satisfied earlier. Task 1.2 records the completed
+capability verification with this explicit sequencing deviation.

@@ -2,6 +2,39 @@
   "version": 1,
   "clock_ms": 1735732800000,
   "timezone": "UTC",
+  "package_observation": {
+    "fixture": "installed",
+    "required": [
+      "package-cpu",
+      "package-empty",
+      "package-active",
+      "package-stopped",
+      "Running",
+      "Queued",
+      "0/3"
+    ],
+    "stages": [
+      {
+        "commands": [],
+        "required": ["1/4"],
+        "absent": ["package-update-1", "package-update-2"]
+      },
+      {
+        "commands": [
+          ["task", "create", "package-update-1", "-t", "package-cpu"]
+        ],
+        "required": ["package-update-1", "2/4"],
+        "absent": ["1/4", "package-update-2"]
+      },
+      {
+        "commands": [
+          ["task", "create", "package-update-2", "-t", "package-cpu"]
+        ],
+        "required": ["package-update-1", "package-update-2", "3/4"],
+        "absent": ["2/4"]
+      }
+    ]
+  },
   "plugin_recovery": {
     "fixture": "plugin_recovery",
     "initial_clock_ms": 1000,
@@ -21,6 +54,54 @@
     ["config", "topic.autocreate", "true"]
   ],
   "fixtures": {
+    "installed": {
+      "file": "queue.db",
+      "kind": "queue",
+      "commands": [
+        ["topic", "create", "package-cpu", "-c", "4"],
+        ["topic", "create", "package-empty", "-c", "3"],
+        ["task", "create", "package-active", "-t", "package-cpu"],
+        ["task", "create", "package-stopped", "-t", "package-cpu", "--stop"]
+      ],
+      "expected_snapshot": {
+        "topics": [
+          {
+            "name": "package-cpu",
+            "capacity": 4,
+            "autostart": null,
+            "running": 1,
+            "queued": 1
+          },
+          {
+            "name": "package-empty",
+            "capacity": 3,
+            "autostart": null,
+            "running": 0,
+            "queued": 0
+          }
+        ],
+        "tasks": [
+          {
+            "sequence": 1,
+            "name": "package-active",
+            "state": "running",
+            "topics": ["package-cpu"],
+            "autostart_default": true,
+            "stopped": false
+          },
+          {
+            "sequence": 2,
+            "name": "package-stopped",
+            "state": "queued",
+            "topics": ["package-cpu"],
+            "autostart_default": true,
+            "stopped": true
+          }
+        ],
+        "running": 1,
+        "queued": 1
+      }
+    },
     "primary": {
       "file": "queue.db",
       "kind": "queue",

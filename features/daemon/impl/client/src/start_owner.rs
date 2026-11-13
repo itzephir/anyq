@@ -1,6 +1,7 @@
 use anyq_daemon_transport::{Endpoint, Stream};
 use std::{
     io,
+    path::Path,
     sync::atomic::{AtomicBool, Ordering},
     thread,
     time::{Duration, Instant},
@@ -15,13 +16,22 @@ use windows_spawn::{Command, CreationFlags, SpawnOptions, Stdio};
 pub(crate) fn start_owner(
     endpoint: &Endpoint,
     cancelled: &AtomicBool,
+    executable: Option<&Path>,
 ) -> io::Result<(Endpoint, Stream)> {
     let mut endpoint = Endpoint::resolve(&endpoint.database)?;
     if let Ok(stream) = endpoint.connect() {
         return Ok((endpoint, stream));
     }
 
-    let mut command = Command::new(std::env::current_exe()?);
+    let default_executable;
+    let executable = match executable {
+        Some(executable) => executable,
+        None => {
+            default_executable = std::env::current_exe()?;
+            &default_executable
+        }
+    };
+    let mut command = Command::new(executable);
     command
         .args(["daemon", "run", "--db"])
         .arg(&endpoint.database)

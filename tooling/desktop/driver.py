@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from fixtures import environment
+from renderer_lifetime import wait_for_renderers
 
 
 class Driver:
@@ -55,7 +56,15 @@ class Driver:
         temporary.replace(self.directory / f"command-{self.sequence}.json")
         response = self.directory / f"response-{self.sequence}.json"
         deadline = time.monotonic() + 25
-        while not response.exists():
+        while True:
+            try:
+                result = json.loads(response.read_text(encoding="utf-8"))
+                break
+            except FileNotFoundError:
+                pass
+            except PermissionError:
+                if sys.platform != "win32":
+                    raise
             if self.process.poll() is not None:
                 raise AssertionError(
                     f"Panel exited: {(self.home / 'panel.log').read_text(errors='replace')}"
@@ -63,7 +72,6 @@ class Driver:
             if time.monotonic() >= deadline:
                 raise AssertionError(f"Native UI command timed out: {command}")
             time.sleep(0.02)
-        result = json.loads(response.read_text(encoding="utf-8"))
         if not result["payload"]["ok"]:
             raise AssertionError(result["payload"])
         return result
@@ -111,6 +119,18 @@ class Driver:
             "return await window.__TAURI__.core.invoke('get_panel_state');"
         )["payload"]["value"]
 
+    def shell_state(self):
+        return self.call(native="shell-state")["payload"]["value"]
+
+    def wait_shell(self, condition, timeout=20):
+        deadline = time.monotonic() + timeout
+        while True:
+            state = self.shell_state()
+            if condition(state):
+                return state
+            assert time.monotonic() < deadline, state
+            time.sleep(0.05)
+
     def click(self, selector, window="main"):
         return self.call(
             f"document.querySelector({json.dumps(selector)}).click();", window
@@ -132,5 +152,6 @@ class Driver:
         if self.process and self.process.poll() is None:
             self.call(native="quit")
             self.process.wait(timeout=10)
+        wait_for_renderers(self.home)
         if self.log:
             self.log.close()

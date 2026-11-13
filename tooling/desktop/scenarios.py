@@ -14,6 +14,9 @@ from fixtures import (
     same_source_path,
     unavailable_observation,
 )
+from fixtures import (
+    queue_fingerprint as fingerprint,
+)
 from screenshots import platform_name
 
 
@@ -32,15 +35,6 @@ def run(cli, panel, home, output, configuration):
 
     def call(*arguments, db=database):
         return fixtures.call(list(arguments), db)
-
-    def fingerprint(db):
-        with closing(sqlite3.connect(db)) as connection:
-            return {
-                table: connection.execute(
-                    f"SELECT * FROM {table} ORDER BY 1"
-                ).fetchall()
-                for table in ("topics", "tasks", "task_topics")
-            }
 
     hostile = configuration["fixtures"]["primary"]["commands"][5][2][1:-1]
     (home / ".anyq/panel.toml").write_text(
