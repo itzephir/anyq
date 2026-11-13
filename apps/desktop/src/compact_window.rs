@@ -14,20 +14,31 @@ pub fn toggle(app: &tauri::AppHandle, position: tauri::PhysicalPosition<f64>, re
         return;
     }
 
-    if place(&window, position, rect).is_err() {
+    if show(&window, position, &rect).is_err() {
+        let _ = window.hide();
         let _ = crate::commands::show_main(app.clone(), None, false);
         return;
     }
-    let _ = window.show();
-    let _ = window.set_focus();
     app.state::<Arc<Controller>>().refresh();
+}
+
+fn show(
+    window: &tauri::WebviewWindow,
+    position: tauri::PhysicalPosition<f64>,
+    rect: &tauri::Rect,
+) -> tauri::Result<()> {
+    place(window, position, rect)?;
+    window.show()?;
+    #[cfg(windows)]
+    place(window, position, rect)?;
+    window.set_focus()
 }
 
 #[cfg(not(target_os = "macos"))]
 fn place(
     window: &tauri::WebviewWindow,
     position: tauri::PhysicalPosition<f64>,
-    rect: tauri::Rect,
+    rect: &tauri::Rect,
 ) -> tauri::Result<()> {
     let monitor = window
         .monitor_from_point(position.x, position.y)?
@@ -45,11 +56,16 @@ fn place(
     window.set_size(layout.size)?;
     #[cfg(windows)]
     {
-        let outer = window.outer_position()?;
-        let inner = window.inner_position()?;
+        let outer = window.outer_size()?;
+        let inner = window.inner_size()?;
+        let side = outer.width.saturating_sub(inner.width) / 2;
+        let top = outer
+            .height
+            .saturating_sub(inner.height)
+            .saturating_sub(side);
         window.set_position(tauri::PhysicalPosition::new(
-            layout.position.x - (inner.x - outer.x),
-            layout.position.y - (inner.y - outer.y),
+            layout.position.x - side as i32,
+            layout.position.y - top as i32,
         ))?;
     }
 
@@ -60,7 +76,7 @@ fn place(
 fn place(
     window: &tauri::WebviewWindow,
     _position: tauri::PhysicalPosition<f64>,
-    rect: tauri::Rect,
+    rect: &tauri::Rect,
 ) -> tauri::Result<()> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSEvent, NSScreen};

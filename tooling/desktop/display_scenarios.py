@@ -2,6 +2,7 @@
 
 import json
 import sys
+import time
 
 import popup_geometry
 import wayland_outputs
@@ -39,9 +40,6 @@ def run(driver, native, monitors, profile):
 
             driver.wait_shell(entered_target)
             native.key("move-window")
-            for _ in range(8):
-                native.key("right")
-            native.key("enter")
 
             def arrived(state):
                 observed = actual()["outputs"]
@@ -54,8 +52,20 @@ def run(driver, native, monitors, profile):
                 )
 
             try:
+                stable = 0
+                deadline = time.monotonic() + 20
+                while stable < 3:
+                    native.key("right")
+                    state = driver.shell_state()
+                    stable = stable + 1 if arrived(state) else 0
+                    assert time.monotonic() < deadline, {
+                        "wayland": actual(),
+                        "target": target,
+                    }
+                native.key("enter")
                 after = driver.wait_shell(arrived)
             except AssertionError as error:
+                native.key("enter")
                 raise AssertionError(
                     {"wayland": actual(), "target": target, "gtk": driver.shell_state()}
                 ) from error
