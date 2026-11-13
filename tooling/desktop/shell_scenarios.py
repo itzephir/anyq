@@ -20,15 +20,19 @@ from status_host import StatusHost
 def run(cli, panel, home, output, configuration, profile):
     home = Path(home)
     fixtures = Fixtures(cli, home, configuration)
-    if sys.platform.startswith("linux"):
-        fixtures.environment["GTK_MODULES"] = "atk-bridge"
-        fixtures.environment["NO_AT_BRIDGE"] = "0"
+    native_environment = (
+        {"GTK_MODULES": "atk-bridge", "NO_AT_BRIDGE": "0"}
+        if sys.platform.startswith("linux")
+        else {}
+    )
+    fixtures.environment.update(native_environment)
     database = fixtures.create("primary")
     alternate = fixtures.create("alternate")
     (home / ".anyq/panel.toml").write_text(
         'theme = "dark"\nlanguage = "en"\n', encoding="utf-8"
     )
     driver = Driver(panel, home, database, configuration["clock_ms"])
+    driver.environment.update(native_environment)
     native = NativeSession(home, fixtures.environment)
     host = StatusHost(home, fixtures.environment) if profile["host"] == "xfce" else None
     if profile["host"] == "gnome":

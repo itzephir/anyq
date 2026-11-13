@@ -151,13 +151,24 @@ Explorer restart restores a reachable main window; the icon/menu recover and
 native Quit preserves the same daemon PID and exact queue ownership. This shell
 profile pass does not waive the run's remaining package/Linux/core failures.
 
+Production package acceptance passed on `73a18bf` in
+[CI run 43395626654](https://github.com/itzephir/anyq/actions/runs/43395626654)
+for macOS ARM64/Intel app bundles, the Windows x64 NSIS installer and the Ubuntu
+24.04 Debian package. Each `desktop-package-evidence-*` artifact records two
+actual installation, native-window launch, removal and reinstallation cycles.
+The same daemon PID, exact task/topic/slot rows and hashes of shared configuration
+and panel preferences survive both cycles. Windows additionally verifies that
+the live owner executable is the immutable, digest-matched copy outside the
+installation directory; macOS verifies the installed bundle's resource seal.
+The ordinary CLI is built independently. This run also passed all three native
+CLI/interruption and screenshot matrices, plus macOS and Windows shell profiles;
+the two Linux host profiles still failed and keep overall CI red.
+
 Pending native configurations remain explicit:
 
-- Windows: installed production package launch/removal/reinstall with the same
-  owner process surviving removal.
 - Linux: a real compatible StatusNotifier host, GNOME with AppIndicator
-  integration, host disappearance, no-host window fallback, supported X11 and
-  Wayland sessions, package launch/removal and owner survival after client exit.
+  integration, host disappearance and supported X11/Wayland multi-monitor
+  sessions. The no-host profile and installed-package lifecycle already pass.
 
 These rows require actual desktop sessions. A build, mock or headless controller
 test is not a substitute. Corresponding OpenSpec tasks remain unchecked until

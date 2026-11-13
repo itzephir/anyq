@@ -52,11 +52,14 @@ removing profile files. Test transport retries transient Windows sharing denials
 within the existing response deadline; it never replays a request or accepts
 an incomplete response. Linux D-Bus activation receives the private display,
 configuration and Xauthority settings before starting desktop services.
-AT-SPI queries dispatch accessibility events within a bounded interval, inspect
-only the application and status-host processes without recursively invalidating
-the desktop cache, and read descendant label text when a native menu container
-has no own name. Windows enumerates visible Explorer windows, including the
-separate overflow popup, before querying their accessibility trees.
+AT-SPI queries request fresh properties from the application and status-host
+processes without recursively invalidating the desktop cache or dispatching an
+unrelated GTK event loop. They read descendant label text when a native menu
+container has no own name. The fixture explicitly enables the accessibility
+bridge in the panel as well as its host. Windows enumerates visible Explorer
+windows, including the separate overflow popup, before querying their
+accessibility trees. A hung Linux query records its Python stack before the
+native-operation deadline.
 Host-loss scenarios close the restored last window while the host is still
 absent, verify client exit with unchanged owner/slots, then reconnect through
 a restarted client and host.

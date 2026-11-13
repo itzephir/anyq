@@ -39,7 +39,7 @@
 
 ## 6. Optional packaging and integration acceptance
 
-- [ ] 6.1 Add optional native desktop packaging and installation/removal guidance without changing ordinary CLI installation; verify each supported native package launches and connects to a compatible existing queue and removal preserves queue data and shared configuration.
+- [x] 6.1 Add optional native desktop packaging and installation/removal guidance without changing ordinary CLI installation; verify each supported native package launches and connects to a compatible existing queue and removal preserves queue data and shared configuration.
 - [ ] 6.2 Run real-daemon desktop integration scenarios for concurrent CLI changes, source switching, owner restart, oversized responses, and client exit; retain native window/tray smoke evidence on macOS, Windows, and the documented Linux configurations without substituting mocks for OS behavior.
 - [x] 6.3 Run the mandatory repository formatting, Clippy, architecture, Ruff, workspace, native interruption, strict OpenSpec, and diff checks from AGENTS.md; retain results and leave failed or unverified implementation tasks unchecked.
 - [x] 6.4 Open the implementation PR and verify current GitHub Actions CI passed, including native Linux/macOS/Windows process and Ctrl+C suites and applicable desktop packaging checks; preserve reviewable evidence for GUI checks that require a desktop session.

@@ -1,10 +1,10 @@
 """Inspect a real GTK session and operate its native windows and status host."""
 
+import faulthandler
 import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import gi
@@ -13,12 +13,12 @@ import gi
 def desktop_types():
     gi.require_version("Gdk", "3.0")
     gi.require_version("Atspi", "2.0")
-    from gi.repository import Atspi, Gdk, GLib
+    from gi.repository import Atspi, Gdk
 
-    return Atspi, Gdk, GLib
+    return Atspi, Gdk
 
 
-Atspi, Gdk, GLib = desktop_types()
+Atspi, Gdk = desktop_types()
 
 
 def run(*arguments):
@@ -165,10 +165,6 @@ def accessible_label(item):
 
 
 def perform(command):
-    context = GLib.MainContext.default()
-    deadline = time.monotonic() + 0.1
-    while context.pending() and time.monotonic() < deadline:
-        context.iteration(False)
     action = command["action"]
     if action == "monitors":
         display = Gdk.Display.get_default()
@@ -220,8 +216,11 @@ def perform(command):
 
 
 for line in sys.stdin:
+    faulthandler.dump_traceback_later(15)
     try:
         reply = {"ok": True, "value": perform(json.loads(line))}
     except Exception as error:
         reply = {"ok": False, "error": str(error)}
+    finally:
+        faulthandler.cancel_dump_traceback_later()
     print(json.dumps(reply), flush=True)
