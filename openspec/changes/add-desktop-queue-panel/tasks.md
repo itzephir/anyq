@@ -3,7 +3,7 @@
 ## 1. Prerequisite and desktop boundaries
 
 - [x] 1.1 Verify that introduce-queue-daemon supplies the owner, private discovery, typed transport, cancellation, and recovery required by this change; record its implementation/CI evidence and keep dependent work blocked if only its planning exists.
-- [ ] 1.2 Select the renderer and native shell adapters within the design's fixed Rust-controller architecture; document dependency versions, supported OS/desktop environments, runtime and packaging requirements, and verify native window/popover/tray capability with adapter-level evidence before building features.
+- [x] 1.2 Select the renderer and native shell adapters within the design's fixed Rust-controller architecture; document dependency versions, supported OS/desktop environments, runtime and packaging requirements, and verify native window/popover/tray capability with adapter-level evidence. The original before-feature sequencing was missed; PR #21 completes that verification late, as documented in design.md.
 - [x] 1.3 Add optional desktop api/impl modules and an explicit application composition root; update architecture documentation and negative fixtures, and verify inner crates cannot import GUI/IO adapters and the ordinary CLI builds without desktop dependencies.
 
 ## 2. Owner-served queue observation
@@ -34,13 +34,13 @@
 
 - [x] 5.1 Implement macOS menu-bar popover, window activation, dismissal, and Quit behavior; retain native smoke evidence that closing/reopening the window preserves the client and quitting it preserves the daemon and running slots, and document macOS usage.
 - [x] 5.2 Implement Windows notification-area icon, nearby flyout, context menu, focus, and Quit behavior; verify native placement at representative scale/monitor configurations and unchanged daemon ownership after exit, and document Windows usage.
-- [ ] 5.3 Implement Linux StatusNotifierItem/AppIndicator status menu and activation with ordinary-window fallback; verify a compatible host, GNOME with its required integration where available, and a session with no host, including supported Wayland/X11 cases, and document prerequisites and behavior differences.
-- [ ] 5.4 Handle runtime tray-host loss and last-window closure; verify no inaccessible background client remains without a usable host and owner/task state is preserved during every desktop lifecycle transition.
+- [x] 5.3 Implement Linux StatusNotifierItem/AppIndicator status menu and activation with ordinary-window fallback; verify a compatible host, GNOME with its required integration where available, and a session with no host, including supported Wayland/X11 cases, and document prerequisites and behavior differences.
+- [x] 5.4 Handle runtime tray-host loss and last-window closure; verify no inaccessible background client remains without a usable host and owner/task state is preserved during every desktop lifecycle transition.
 
 ## 6. Optional packaging and integration acceptance
 
 - [x] 6.1 Add optional native desktop packaging and installation/removal guidance without changing ordinary CLI installation; verify each supported native package launches and connects to a compatible existing queue and removal preserves queue data and shared configuration.
-- [ ] 6.2 Run real-daemon desktop integration scenarios for concurrent CLI changes, source switching, owner restart, oversized responses, and client exit; retain native window/tray smoke evidence on macOS, Windows, and the documented Linux configurations without substituting mocks for OS behavior.
+- [x] 6.2 Run real-daemon desktop integration scenarios for concurrent CLI changes, source switching, owner restart, oversized responses, and client exit; retain native window/tray smoke evidence on macOS, Windows, and the documented Linux configurations without substituting mocks for OS behavior.
 - [x] 6.3 Run the mandatory repository formatting, Clippy, architecture, Ruff, workspace, native interruption, strict OpenSpec, and diff checks from AGENTS.md; retain results and leave failed or unverified implementation tasks unchecked.
 - [x] 6.4 Open the implementation PR and verify current GitHub Actions CI passed, including native Linux/macOS/Windows process and Ctrl+C suites and applicable desktop packaging checks; preserve reviewable evidence for GUI checks that require a desktop session.
 
@@ -55,6 +55,6 @@
 
 ## Workflow follow-up
 
-- The implementation is tracked in PR #15. A task is checked only after its stated implementation and verification exist; pending native desktop sessions remain explicit in docs/DESKTOP-VERIFICATION.md, and this change stays active until that acceptance exists.
+- The implementation stack through PR #15 is merged. PR #21 completes the native shell, multiple-monitor and installed-package follow-up; docs/DESKTOP-VERIFICATION.md records its real desktop evidence and the late adapter-verification sequencing deviation. A task is checked only after its implementation and verification exist. Review, merge, baseline synchronization and archival remain separate.
 - Delivery follows the unified sequential stack; the panel's observation contract remains read-only when plugins are configured.
 - Do not merge without the user's instruction. Sync only verified behavior to baseline specifications and archive after implementation merge and the project's verification/review requirements are satisfied.
