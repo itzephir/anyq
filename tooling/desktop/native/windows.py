@@ -145,7 +145,16 @@ function Is-NotificationArea($element) {
 }
 function Find-TrayButton {
     foreach ($candidate in (Get-TrayButtons)) {
-        if ($candidate.Current.Name -match '(?i)anyq' -and !$candidate.Current.IsOffscreen -and (Is-NotificationArea $candidate)) { return $candidate }
+        if ($candidate.Current.Name -notmatch '(?i)anyq' -or $candidate.Current.IsOffscreen -or !(Is-NotificationArea $candidate)) { continue }
+        $rect = $candidate.Current.BoundingRectangle
+        $point = [System.Windows.Point]::new($rect.X + $rect.Width / 2, $rect.Y + $rect.Height / 2)
+        $hit = [System.Windows.Automation.AutomationElement]::FromPoint($point)
+        $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+        for ($depth = 0; $hit -and $depth -lt 10; $depth++) {
+            if ([System.Windows.Automation.Automation]::Compare($hit, $candidate)) { return $candidate }
+            $hit = $walker.GetParent($hit)
+        }
+        [Console]::Error.WriteLine('Tray button is occluded: ' + $candidate.Current.Name)
     }
     return $null
 }

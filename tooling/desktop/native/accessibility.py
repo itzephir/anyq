@@ -76,6 +76,7 @@ class Accessibility:
             if process == pid or process_name in (
                 "xfce4-panel",
                 "wrapper-2.0",
+                "panel-1-systray",
                 "gnome-shell",
                 "plasmashell",
             ):

@@ -36,7 +36,7 @@ def run(cli, panel, home, output, configuration, profile):
     native = NativeSession(home, fixtures.environment)
     host = StatusHost(home, fixtures.environment) if profile["host"] == "xfce" else None
     if profile["host"] == "gnome":
-        host = GnomeStatusHost(home, fixtures.environment)
+        host = GnomeStatusHost(native)
     report = []
 
     def menu_open():

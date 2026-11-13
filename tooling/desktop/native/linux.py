@@ -8,6 +8,7 @@ import sys
 
 import gi
 from accessibility import Accessibility
+from gi.repository import Gio, GLib
 
 
 def desktop_types():
@@ -109,6 +110,29 @@ def menu_item(pid, label):
 
 def perform(command):
     action = command["action"]
+    if action in ("extension", "extension-state"):
+        method = (
+            "GetExtensionInfo"
+            if action == "extension-state"
+            else "EnableExtension"
+            if command["enabled"]
+            else "DisableExtension"
+        )
+        return (
+            Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            .call_sync(
+                "org.gnome.Shell",
+                "/org/gnome/Shell",
+                "org.gnome.Shell.Extensions",
+                method,
+                GLib.Variant("(s)", (command["uuid"],)),
+                None,
+                Gio.DBusCallFlags.NONE,
+                1000,
+                None,
+            )
+            .unpack()[0]
+        )
     if action == "monitors":
         display = Gdk.Display.get_default()
         result = []

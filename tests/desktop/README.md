@@ -36,7 +36,10 @@ The Linux profiles use two real Xorg dummy outputs with the Xfce StatusNotifier
 host, a no-host X11 session, and a nested GNOME Wayland compositor with two
 virtual outputs and the packaged AppIndicator extension. The Wayland profile
 uses compositor monitor-move shortcuts and toggles the extension to test host
-loss without destroying the compositor connection. Absolute window placement is
+loss without destroying the compositor connection. It calls the running shell's
+[extension interface](https://github.com/GNOME/gnome-shell/blob/46.0/js/ui/shellDBus.js)
+directly and waits for the reported active/inactive state, avoiding a settings-only
+fallback in the extension command-line tool. Absolute window placement is
 not assumed on Wayland. Each move waits for the specific destination monitor
 and its scale, rather than accepting an intermediate monitor change.
 Monitor mode/scale controls follow
@@ -62,6 +65,8 @@ bridge in the panel as well as its host. Windows enumerates visible Explorer
 windows, including the separate overflow popup, before querying their
 accessibility trees. A hung Linux query records its Python stack before the
 native-operation deadline.
+Windows checks the actual element at the button's screen position before
+returning its bounds, so a hidden overflow panel cannot supply stale coordinates.
 The read adapter follows the upstream
 [Accessible](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Accessible.xml),
 [Component](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Component.xml)

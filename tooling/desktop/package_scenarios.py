@@ -126,11 +126,14 @@ def run(cli, bundles, home, output, configuration):
                     stdout=log,
                     stderr=log,
                 )
-                windows = native.wait("windows", pid=client.pid)
-                assert any(
-                    window["width"] >= 360 and window["height"] >= 500
-                    for window in windows
-                ), windows
+                windows = native.wait(
+                    "windows",
+                    pid=client.pid,
+                    predicate=lambda windows: any(
+                        window["width"] >= 360 and window["height"] >= 500
+                        for window in windows
+                    ),
+                )
                 if sys.platform == "win32":
                     assert not Path(str(package.executable) + ".WebView2").exists(), (
                         "Browser state must live outside the installation"
