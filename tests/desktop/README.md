@@ -52,8 +52,11 @@ removing profile files. Test transport retries transient Windows sharing denials
 within the existing response deadline; it never replays a request or accepts
 an incomplete response. Linux D-Bus activation receives the private display,
 configuration and Xauthority settings before starting desktop services.
-AT-SPI queries dispatch pending accessibility events, disable property caching
-and read descendant label text when a native menu container has no own name.
+AT-SPI queries dispatch accessibility events within a bounded interval, inspect
+only the application and status-host processes without recursively invalidating
+the desktop cache, and read descendant label text when a native menu container
+has no own name. Windows enumerates visible Explorer windows, including the
+separate overflow popup, before querying their accessibility trees.
 Host-loss scenarios close the restored last window while the host is still
 absent, verify client exit with unchanged owner/slots, then reconnect through
 a restarted client and host.

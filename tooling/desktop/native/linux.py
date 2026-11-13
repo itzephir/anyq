@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import gi
@@ -54,23 +55,52 @@ def windows(pid):
     return result
 
 
-def tray():
+def applications(pid=None):
     root = Atspi.get_desktop(0)
-    pending = []
+    if root is None:
+        return []
+    root.set_cache_mask(Atspi.Cache.NONE)
+    result = []
     for index in range(root.get_child_count()):
         app = root.get_child_at_index(index)
         if app is None:
             continue
-        name = Path(f"/proc/{app.get_process_id()}/comm")
-        if name.exists() and name.read_text().strip() in (
-            "xfce4-panel",
-            "wrapper-2.0",
-            "gnome-shell",
-            "plasmashell",
+        process = app.get_process_id()
+        name = Path(f"/proc/{process}/comm")
+        if (
+            process == pid
+            or name.exists()
+            and name.read_text().strip()
+            in (
+                "xfce4-panel",
+                "wrapper-2.0",
+                "gnome-shell",
+                "plasmashell",
+            )
         ):
-            pending.append(app)
+            app.set_cache_mask(Atspi.Cache.NONE)
+            result.append(app)
+    return result
+
+
+def descendants(roots):
+    pending = list(roots)
+    visited = set()
     while pending:
         item = pending.pop()
+        if item in visited:
+            continue
+        visited.add(item)
+        yield item
+        pending.extend(
+            child
+            for index in range(item.get_child_count())
+            if (child := item.get_child_at_index(index)) is not None
+        )
+
+
+def tray():
+    for item in descendants(applications()):
         name = (item.get_name() or "").lower()
         if "anyq" in name and item.get_role() != Atspi.Role.APPLICATION:
             component = item.get_component_iface()
@@ -81,11 +111,6 @@ def tray():
                         key: getattr(bounds, key)
                         for key in ["x", "y", "width", "height"]
                     }
-        pending.extend(
-            child
-            for index in range(item.get_child_count())
-            if (child := item.get_child_at_index(index)) is not None
-        )
     panels = subprocess.run(
         ["xdotool", "search", "--onlyvisible", "--class", "xfce4-panel"],
         capture_output=True,
@@ -106,11 +131,9 @@ def tray():
     return None
 
 
-def menu_item(label):
-    pending = [Atspi.get_desktop(0)]
+def menu_item(pid, label):
     candidates = []
-    while pending:
-        item = pending.pop()
+    for item in descendants(applications(pid)):
         if item.get_role() in (Atspi.Role.MENU_ITEM, Atspi.Role.CHECK_MENU_ITEM):
             candidates.append(
                 {
@@ -125,11 +148,6 @@ def menu_item(label):
         ):
             bounds = item.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
             return {key: getattr(bounds, key) for key in ["x", "y", "width", "height"]}
-        pending.extend(
-            child
-            for index in range(item.get_child_count())
-            if (child := item.get_child_at_index(index)) is not None
-        )
     print(f"Native menu items: {candidates}", file=sys.stderr, flush=True)
     return None
 
@@ -137,33 +155,21 @@ def menu_item(label):
 def accessible_label(item):
     if name := item.get_name():
         return name
-    pending = [item]
-    while pending:
-        child = pending.pop()
+    for child in descendants([item]):
         if name := child.get_name():
             return name
         if text := child.get_text_iface():
             if value := text.get_text(0, -1):
                 return value
-        pending.extend(
-            nested
-            for index in range(child.get_child_count())
-            if (nested := child.get_child_at_index(index)) is not None
-        )
     return ""
 
 
 def perform(command):
     context = GLib.MainContext.default()
-    while context.pending():
+    deadline = time.monotonic() + 0.1
+    while context.pending() and time.monotonic() < deadline:
         context.iteration(False)
     action = command["action"]
-    if action in ("tray", "menu-open", "menu-item"):
-        desktop = Atspi.get_desktop(0)
-        if desktop is None:
-            return None
-        desktop.set_cache_mask(Atspi.Cache.NONE)
-        desktop.clear_cache()
     if action == "monitors":
         display = Gdk.Display.get_default()
         result = []
@@ -187,9 +193,9 @@ def perform(command):
     if action == "tray":
         return tray()
     if action == "menu-open":
-        return bool(menu_item("Open window"))
+        return bool(menu_item(command["pid"], "Open window"))
     if action == "menu-item":
-        return menu_item(command["label"])
+        return menu_item(command["pid"], command["label"])
     if action == "click":
         run(
             "xdotool",

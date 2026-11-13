@@ -224,14 +224,16 @@ def run(cli, panel, home, output, configuration, profile):
                 )
             except OSError as error:
                 print(f"Native failure capture unavailable: {error}", file=sys.stderr)
-        if driver.process and driver.process.poll() is None:
-            driver.process.terminate()
-            driver.process.wait(timeout=10)
-        if driver.log:
-            driver.log.close()
-        if host:
-            host.close()
-        native.stop()
-        fixtures.stop()
-        for log in home.glob("*.log"):
-            shutil.copyfile(log, destination / log.name)
+        try:
+            if driver.process and driver.process.poll() is None:
+                driver.process.terminate()
+                driver.process.wait(timeout=10)
+            if driver.log:
+                driver.log.close()
+            if host:
+                host.close()
+            native.stop()
+            fixtures.stop()
+        finally:
+            for log in home.glob("*.log"):
+                shutil.copyfile(log, destination / log.name)

@@ -161,7 +161,17 @@ class NativeSession:
             self.call("close", pid=pid)
 
     def stop(self):
-        self.process.stdin.close()
-        self.process.wait(timeout=10)
-        assert self.process.returncode == 0
-        self.log.close()
+        failing = sys.exc_info()[0] is not None
+        try:
+            self.process.stdin.close()
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=5)
+                if not failing:
+                    raise
+            if not failing:
+                assert self.process.returncode == 0
+        finally:
+            self.log.close()

@@ -189,14 +189,16 @@ def run(cli, bundles, home, output, configuration):
             encoding="utf-8",
         )
     finally:
-        if client and client.poll() is None:
-            client.terminate()
-            client.wait(timeout=10)
-        fixtures.stop()
-        if package.executable.exists():
-            package.remove()
-        native.stop()
         destination = Path(output) / platform_name()
         destination.mkdir(parents=True, exist_ok=True)
-        for log in home.glob("*.log"):
-            shutil.copyfile(log, destination / log.name)
+        try:
+            if client and client.poll() is None:
+                client.terminate()
+                client.wait(timeout=10)
+            fixtures.stop()
+            if package.executable.exists():
+                package.remove()
+            native.stop()
+        finally:
+            for log in home.glob("*.log"):
+                shutil.copyfile(log, destination / log.name)

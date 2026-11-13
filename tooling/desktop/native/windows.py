@@ -95,13 +95,28 @@ public static class ShellWindows {
     public static extern bool EnumWindows(Visitor callback, IntPtr data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetClassName(IntPtr handle, StringBuilder name, int length);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr handle, StringBuilder name, int length);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr FindWindow(string type, string name);
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr handle, out uint process);
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr handle);
     public static IntPtr[] GetWindows() {
         var handles = new List<IntPtr>();
+        uint shellProcess;
+        GetWindowThreadProcessId(FindWindow("Shell_TrayWnd", null), out shellProcess);
         EnumWindows((handle, data) => {
+            if (!IsWindowVisible(handle)) return true;
+            uint process;
+            GetWindowThreadProcessId(handle, out process);
             var name = new StringBuilder(256);
             GetClassName(handle, name, name.Capacity);
             var type = name.ToString();
-            if (type == "Shell_TrayWnd" || type == "Shell_SecondaryTrayWnd" || type == "NotifyIconOverflowWindow" || type == "TopLevelWindow" || type == "Xaml_WindowedPopupClass") handles.Add(handle);
+            var title = new StringBuilder(256);
+            GetWindowText(handle, title, title.Capacity);
+            if (process == shellProcess || type == "NotifyIconOverflowWindow" || title.ToString().IndexOf("System tray overflow", StringComparison.OrdinalIgnoreCase) >= 0) handles.Add(handle);
             return true;
         }, IntPtr.Zero);
         return handles.ToArray();
@@ -123,7 +138,7 @@ function Is-NotificationArea($element) {
     for ($depth = 0; $element -and $depth -lt 10; $depth++) {
         $class = $element.Current.ClassName
         if ($class -match 'TaskList') { return $false }
-        if ($class -match 'SystemTray|TrayNotifyWnd|NotifyIconOverflowWindow' -or $element.Current.Name -match 'Notification Area') { return $true }
+        if ($class -match 'SystemTray|TrayNotifyWnd|NotifyIconOverflowWindow' -or $element.Current.Name -match 'Notification Area|System tray overflow') { return $true }
         $element = $walker.GetParent($element)
     }
     return $false
