@@ -104,7 +104,7 @@ native CLI/plugin and Ctrl+C matrices, all four GUI package builds and CLI
 distribution checks. Current-head CI remains mandatory for later commits.
 This verifies the existing-only bootstrap requirement synchronized into the
 plugin-runtime baseline. The native host, monitor and installed-package
-acceptance is recorded below; change archival remains separate.
+acceptance is recorded below.
 
 Windows fixtures compare actual file identity, including canonical paths with an
 extended-length prefix. The disappearance scenario removes the target after
@@ -237,8 +237,17 @@ That run also passed all three native UI/screenshot matrices and their existing
 confirmed before the Open panel was ready. The follow-up observes the actual
 panel/sheet window identifiers, waits for sheet dismissal and confirms until
 the specific panel closes, then requires the selected file's exact identity.
-The [current PR checks](https://github.com/itzephir/anyq/pull/21/checks) must pass
-on the final head; the component evidence above does not waive that gate.
+The final head `0b97704` passed [CI run 43456360159](https://github.com/itzephir/anyq/actions/runs/43456360159),
+including the aggregate `CI passed` gate, all five native shell profiles,
+all four production-package profiles and native UI/screenshot verification
+on Linux, macOS and Windows. [PR #21](https://github.com/itzephir/anyq/pull/21)
+merged as `737c8a6` after that current-head pass and review.
+
+The completed [panel change](../openspec/changes/archive/2026-11-15-add-desktop-queue-panel/)
+is archived with all 33 tasks checked. Its verified requirements are recorded
+in the [desktop panel](../openspec/specs/desktop-queue-panel/spec.md) and
+[queue observation](../openspec/specs/queue-observation/spec.md) baseline
+specifications. The platform qualification limits above still apply.
 
 The earlier local macOS menu-bar follow-up could not proceed because the screen was
 locked. The main window was accessible before the lock; no additional tray or

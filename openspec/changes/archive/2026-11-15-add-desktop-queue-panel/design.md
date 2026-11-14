@@ -4,7 +4,7 @@
 
 See [proposal.md](proposal.md) for motivation and delivery scope. This change
 depends on the verified implementation of
-[`introduce-queue-daemon`](../introduce-queue-daemon/design.md); its planning
+[`introduce-queue-daemon`](../../introduce-queue-daemon/design.md); its planning
 artifacts alone do not satisfy that prerequisite.
 
 Today, ListTopics returns topics, and GetTopicQueue reads queued/running tasks for
@@ -299,9 +299,9 @@ use cases; the external worker owns clocks, cancellation and native publication.
 Linux uses its native status menu because portable tray click-coordinate events
 are unavailable; no-host sessions retain an ordinary window.
 
-[Desktop documentation](../../../docs/DESKTOP.md) records package/runtime
+[Desktop documentation](../../../../docs/DESKTOP.md) records package/runtime
 requirements, supported package targets, design export and native behavior.
-[Acceptance evidence](../../../docs/DESKTOP-VERIFICATION.md) distinguishes
+[Acceptance evidence](../../../../docs/DESKTOP-VERIFICATION.md) distinguishes
 verified native environments from unqualified desktop/version combinations.
 The editable OpenDesign source is shared with the application. Implementation is stacked
 on observation PR #16 after the daemon and plugin sequence #14 → #17 → #18 →
