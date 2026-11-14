@@ -4,14 +4,22 @@
 )]
 
 mod commands;
+mod compact_layout;
+mod compact_window;
 mod controller;
 mod panel_session;
 mod preference_input;
 mod presentation;
 mod shell;
 
+#[cfg(any(windows, test))]
+mod owner_executable;
+
 #[cfg(feature = "integration-test-hooks")]
 mod test_driver;
+
+#[cfg(feature = "integration-test-hooks")]
+mod test_shell_state;
 
 use anyq_desktop_api::PanelPreferences;
 use anyq_queue_api::{Error, ObserveQueueRequest};
@@ -59,9 +67,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let context = tauri::generate_context!();
     #[cfg(feature = "integration-test-hooks")]
     let context = test_driver::isolate_renderer(context);
+    #[cfg(windows)]
+    let (context, windows) = {
+        let mut context = context;
+        let windows = context.config().app.windows.clone();
+        for window in &mut context.config_mut().app.windows {
+            window.create = false;
+        }
+        (context, windows)
+    };
 
     let config_path = anyq_config_impl::paths::home()?.join(".anyq/config.toml");
     let preference_path = anyq_config_impl::paths::home()?.join(".anyq/panel.toml");
+    #[cfg(windows)]
+    let webview_home = anyq_config_impl::paths::home()?.join(".anyq/panel-webview");
     let preferences = anyq_desktop_impl::get_preferences(&preference_path).get();
     let resolve = Arc::new(move |preferences: &PanelPreferences| {
         let config = anyq_config_impl::open(&config_path, Arc::new(AtomicBool::new(false)))
@@ -79,8 +98,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         Ok(selection)
     });
-    let observe = Arc::new(|path: &Path, cancelled: Arc<AtomicBool>| {
-        anyq_daemon_impl::observe(path, cancelled)?.observe(ObserveQueueRequest::default())
+    #[cfg(windows)]
+    let owner_executable = owner_executable::retain(&anyq_config_impl::paths::home()?)?;
+    let observe = Arc::new(move |path: &Path, cancelled: Arc<AtomicBool>| {
+        #[cfg(windows)]
+        let mut observer =
+            anyq_daemon_impl::observe_with_owner(path, cancelled, &owner_executable)?;
+        #[cfg(not(windows))]
+        let mut observer = anyq_daemon_impl::observe(path, cancelled)?;
+        observer.observe(ObserveQueueRequest::default())
     });
     let clock: Arc<DisplayClock> = Arc::new(|| {
         std::time::SystemTime::now()
@@ -116,7 +142,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(feature = "integration-test-hooks")]
             test_driver::test_report
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            #[cfg(windows)]
+            for window in &windows {
+                tauri::WebviewWindowBuilder::from_config(app, window)?
+                    .data_directory(webview_home.join(&window.label))
+                    .build()?;
+            }
             let handle = app.handle().clone();
             #[cfg(feature = "integration-test-hooks")]
             test_driver::install(&handle)?;

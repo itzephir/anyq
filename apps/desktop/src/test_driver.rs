@@ -38,7 +38,7 @@ pub fn test_report(
     id: u64,
     payload: Value,
 ) -> Result<(), String> {
-    let position = window.inner_position().map_err(|error| error.to_string())?;
+    let position = window.inner_position().ok();
     let size = window.inner_size().map_err(|error| error.to_string())?;
     let scale = window.scale_factor().map_err(|error| error.to_string())?;
     let tray = window
@@ -46,7 +46,7 @@ pub fn test_report(
         .try_state::<crate::shell::Shell>()
         .is_some_and(|shell| shell.usable.load(std::sync::atomic::Ordering::SeqCst));
 
-    let outer_position = window.outer_position().map_err(|error| error.to_string())?;
+    let outer_position = window.outer_position().ok();
     let outer_size = window.outer_size().map_err(|error| error.to_string())?;
     let work_area = window
         .current_monitor()
@@ -62,7 +62,7 @@ pub fn test_report(
     write_response(
         &driver,
         id,
-        json!({ "payload": payload, "rect": {"x":position.x,"y":position.y,"width":size.width,"height":size.height,"scale":scale}, "tray":tray, "native_handle":native_handle, "work_area":work_area, "outer": {"x":outer_position.x,"y":outer_position.y,"width":outer_size.width,"height":outer_size.height} }),
+        json!({ "payload": payload, "rect": {"x":position.map(|point|point.x),"y":position.map(|point|point.y),"width":size.width,"height":size.height,"scale":scale}, "tray":tray, "native_handle":native_handle, "work_area":work_area, "outer": {"x":outer_position.map(|point|point.x),"y":outer_position.map(|point|point.y),"width":outer_size.width,"height":outer_size.height} }),
     )
 }
 
@@ -89,6 +89,14 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                 if let Some(id) = command["id"].as_u64().filter(|id| *id > seen) {
                     seen = id;
                     let label = command["window"].as_str().unwrap_or("main");
+                    if command["native"] == "shell-state" {
+                        let payload = match crate::test_shell_state::snapshot(&app) {
+                            Ok(value) => json!({"ok":true,"value":value}),
+                            Err(error) => json!({"ok":false,"error":error.to_string()}),
+                        };
+                        let _ = write_response(&driver, id, json!({"payload":payload}));
+                        continue;
+                    }
                     if let Some(window) = app.get_webview_window(label) {
                         let result = match command["native"].as_str() {
                             Some("publish-state") => app
@@ -99,6 +107,16 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                                 .show()
                                 .and_then(|()| window.set_focus())
                                 .map_err(|error| error.to_string()),
+                            Some("position") => {
+                                let x = command["x"].as_f64().unwrap_or(0.0);
+                                let y = command["y"].as_f64().unwrap_or(0.0);
+                                let result = if cfg!(target_os = "macos") {
+                                    window.set_position(tauri::LogicalPosition::new(x, y))
+                                } else {
+                                    window.set_position(tauri::PhysicalPosition::new(x, y))
+                                };
+                                result.map_err(|error| error.to_string())
+                            }
                             Some("cursor") => window
                                 .inner_position()
                                 .and_then(|position| {
@@ -119,14 +137,15 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                                         .map_or(Ok(()), |enabled| window.set_decorations(enabled))
                                 })
                                 .and_then(|()| {
-                                    window
-                                        .set_position(tauri::LogicalPosition::new(10.0, 30.0))
-                                        .and_then(|()| {
-                                            window.set_size(tauri::LogicalSize::new(
-                                                command["width"].as_f64().unwrap_or(1000.0),
-                                                command["height"].as_f64().unwrap_or(700.0),
-                                            ))
-                                        })
+                                    if window.outer_position().is_ok() {
+                                        window.set_position(tauri::LogicalPosition::new(
+                                            10.0, 30.0,
+                                        ))?;
+                                    }
+                                    window.set_size(tauri::LogicalSize::new(
+                                        command["width"].as_f64().unwrap_or(1000.0),
+                                        command["height"].as_f64().unwrap_or(700.0),
+                                    ))
                                 })
                                 .map_err(|error| error.to_string()),
                             Some("quit" | "close-main") => {
@@ -149,6 +168,14 @@ pub fn install(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                                 &driver,
                                 id,
                                 json!({"payload":{"ok":false,"error":error}}),
+                            );
+                            continue;
+                        }
+                        if command["native"] == "position" {
+                            let _ = write_response(
+                                &driver,
+                                id,
+                                json!({"payload":{"ok":true,"value":null}}),
                             );
                             continue;
                         }

@@ -49,6 +49,9 @@
     "targets": "all",
     "category": "DeveloperTool",
     "shortDescription": "Read-only local queue viewer",
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"]
   },
   "mainBinaryName": "anyq-panel"

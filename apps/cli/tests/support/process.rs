@@ -9,6 +9,8 @@ use std::{
 pub struct TestProcess {
     pub child: Option<Child>,
     label: String,
+    #[cfg(target_os = "macos")]
+    database: Option<std::ffi::OsString>,
 }
 
 impl TestProcess {
@@ -22,6 +24,11 @@ impl TestProcess {
         Self {
             child: Some(super::process_spawn::spawn(command).unwrap()),
             label,
+            #[cfg(target_os = "macos")]
+            database: command
+                .get_envs()
+                .find(|(key, _)| *key == "ANYQ_DB")
+                .and_then(|(_, value)| value.map(std::ffi::OsStr::to_os_string)),
         }
     }
 
@@ -50,7 +57,7 @@ impl TestProcess {
         while self.child.as_mut().unwrap().try_wait().unwrap().is_none() {
             #[cfg(target_os = "macos")]
             if Instant::now() >= deadline {
-                report_timeout(self.child.as_ref().unwrap());
+                report_timeout(self.child.as_ref().unwrap(), self.database.as_deref());
             }
 
             assert!(
@@ -74,10 +81,43 @@ impl TestProcess {
 }
 
 #[cfg(target_os = "macos")]
-fn report_timeout(child: &Child) {
+fn report_timeout(child: &Child, database: Option<&std::ffi::OsStr>) {
+    report_sample(child.id());
+
+    let Some(database) = database else {
+        return;
+    };
+    let mut command = Command::new("/bin/ps");
+    command
+        .args(["-axo", "pid=,command="])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let Ok(output) =
+        super::process_spawn::spawn(&mut command).and_then(|child| child.wait_with_output())
+    else {
+        return;
+    };
+    let database = database.to_string_lossy();
+
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        if line.contains(" daemon run --db ") && line.contains(database.as_ref()) {
+            eprintln!("Queue owner at CLI timeout: {line}");
+            if let Some(pid) = line
+                .split_whitespace()
+                .next()
+                .and_then(|pid| pid.parse().ok())
+            {
+                report_sample(pid);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn report_sample(pid: u32) {
     let mut command = Command::new("/usr/bin/sample");
     command
-        .arg(child.id().to_string())
+        .arg(pid.to_string())
         .args(["1", "1"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());

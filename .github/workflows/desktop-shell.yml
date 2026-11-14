@@ -1,0 +1,82 @@
+name: Native desktop shell acceptance
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native shell (${{ matrix.profile }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            profile: macos
+          - os: windows-latest
+            profile: windows
+          - os: ubuntu-24.04
+            profile: linux-x11
+          - os: ubuntu-24.04
+            profile: linux-no-host
+          - os: ubuntu-24.04
+            profile: linux-gnome-wayland
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      DESKTOP_PROFILE: ${{ matrix.profile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-shell-${{ matrix.os }}
+          cache-on-failure: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r tooling/requirements-desktop.txt
+      - name: Linux native host prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev librsvg2-dev patchelf xvfb dbus-x11 openbox xdotool x11-utils x11-xserver-utils xfce4-panel python3-gi gir1.2-atspi-2.0 at-spi2-core xserver-xorg-core xserver-xorg-video-dummy
+      - name: Windows virtual display setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tooling/desktop/native/windows_displays.ps1
+      - name: GNOME Wayland prerequisites
+        if: matrix.profile == 'linux-gnome-wayland'
+        run: sudo apt-get install -y gnome-shell gnome-shell-extension-appindicator gnome-settings-daemon libgl1-mesa-dri mesa-utils
+      - name: Build real client and native test application
+        run: cargo build --locked -p anyq -p anyq-desktop --features anyq-desktop/integration-test-hooks,anyq-desktop/custom-protocol
+      - name: Native X11 host with two outputs
+        if: matrix.profile == 'linux-x11'
+        env:
+          GDK_BACKEND: x11
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+        run: dbus-run-session -- bash tooling/desktop/native/x11_session.sh
+      - name: Linux without a usable status host
+        if: matrix.profile == 'linux-no-host'
+        env:
+          GDK_BACKEND: x11
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+        run: >-
+          dbus-run-session -- xvfb-run -a -s '-screen 0 3840x1440x24 -dpi 96 +extension RANDR'
+          sh -ec 'openbox >/tmp/anyq-shell-openbox.log 2>&1 &
+          python tooling/test_desktop_shell.py --cli target/debug/anyq --panel target/debug/anyq-panel --profile "$DESKTOP_PROFILE"'
+      - name: GNOME AppIndicator on two Wayland displays
+        if: matrix.profile == 'linux-gnome-wayland'
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+        run: dbus-run-session -- xvfb-run -a -s '-screen 0 3840x2160x24 -dpi 96 +extension GLX' bash tooling/desktop/native/gnome_session.sh
+      - name: Real macOS menu bar and display scenarios
+        if: runner.os == 'macOS'
+        run: python tooling/test_desktop_shell.py --cli target/debug/anyq --panel target/debug/anyq-panel --profile macos
+      - name: Real Windows tray and display scenarios
+        if: runner.os == 'Windows'
+        run: python tooling/test_desktop_shell.py --cli target/debug/anyq.exe --panel target/debug/anyq-panel.exe --profile windows
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-shell-${{ matrix.profile }}
+          path: desktop-shell-results/
+          if-no-files-found: error

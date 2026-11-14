@@ -81,7 +81,7 @@ impl Shell {
                     ..
                 } = event
                 {
-                    show_compact(tray.app_handle(), position, rect);
+                    crate::compact_window::toggle(tray.app_handle(), position, rect);
                 }
             })
             .build(app)?;
@@ -149,43 +149,4 @@ impl Shell {
             let _ = commands::show_main(app.clone(), None, false);
         }
     }
-}
-
-fn show_compact(app: &tauri::AppHandle, position: tauri::PhysicalPosition<f64>, rect: tauri::Rect) {
-    if cfg!(target_os = "linux") {
-        return;
-    }
-    let Some(window) = app.get_webview_window("compact") else {
-        return;
-    };
-    if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
-        return;
-    }
-    if let Ok(Some(monitor)) = window.monitor_from_point(position.x, position.y) {
-        let scale = monitor.scale_factor();
-        let bounds = monitor.work_area();
-        let size = tauri::LogicalSize::new(380.0, 355.0).to_physical::<u32>(scale);
-        let origin = rect.position.to_physical::<f64>(scale);
-        let icon_size = rect.size.to_physical::<f64>(scale);
-        let margin = (8.0 * scale) as i32;
-        let x = (origin.x + icon_size.width / 2.0 - f64::from(size.width) / 2.0) as i32;
-        let below = (origin.y + icon_size.height) as i32 + margin;
-        let y = if below + size.height as i32 <= bounds.position.y + bounds.size.height as i32 {
-            below
-        } else {
-            origin.y as i32 - size.height as i32 - margin
-        };
-        let max_x = (bounds.position.x + bounds.size.width as i32 - size.width as i32 - margin)
-            .max(bounds.position.x);
-        let max_y = (bounds.position.y + bounds.size.height as i32 - size.height as i32 - margin)
-            .max(bounds.position.y);
-        let _ = window.set_position(tauri::PhysicalPosition::new(
-            x.clamp(bounds.position.x, max_x),
-            y.clamp(bounds.position.y, max_y),
-        ));
-    }
-    let _ = window.show();
-    let _ = window.set_focus();
-    app.state::<Arc<Controller>>().refresh();
 }

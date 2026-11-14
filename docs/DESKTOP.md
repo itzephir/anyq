@@ -59,8 +59,9 @@ so its compact access is a native menu rather than a macOS-style popup. KDE
 Plasma and desktops with a StatusNotifier host are intended targets. GNOME needs
 its AppIndicator integration/extension. X11/Wayland support depends on that host
 and GTK/WebKit availability. Unsupported sessions retain the normal window.
-Windows monitor/scale combinations and Linux desktop-host combinations still
-need the manual acceptance runs listed in [DESKTOP-VERIFICATION.md](DESKTOP-VERIFICATION.md).
+The verified native configurations are listed below and in
+[DESKTOP-VERIFICATION.md](DESKTOP-VERIFICATION.md). Other desktop/version
+combinations require their own acceptance evidence.
 
 The client and owner have separate lifetimes. Quitting/uninstalling the panel
 does not stop the owner, complete tasks, release slots, or delete queue data.
@@ -79,9 +80,41 @@ runtime dependencies. Build prerequisites follow the official
 [system tray adapter](https://v2.tauri.app/learn/system-tray/) documentation.
 
 The current package matrix builds macOS ARM64/Intel app bundles, a Windows x64
-NSIS installer, and an Ubuntu 24.04 x64 Debian package. Review artifacts are
-unsigned; signing/notarization and public desktop release are separate work.
+NSIS installer, and an Ubuntu 24.04 x64 Debian package. Review artifacts have
+no publisher identity; release signing/notarization and public desktop release
+are separate work.
 The existing CLI installers and static Linux CLI distribution remain independent.
+
+### Verified platform baseline
+
+| Environment | Native shell/display acceptance | Production package |
+| --- | --- | --- |
+| macOS 15 ARM64 | Menu bar, three WindowServer outputs, 1x/2x, negative origins, native file picker, SystemUIServer restart | ARM64 app bundle |
+| macOS 15 Intel | Installed native-window launch; full UI/shell profiles run on ARM64 | Intel app bundle |
+| Windows Server 2025 x64 with Explorer (hosted runner) | Notification area, three outputs, 100%/150%, negative origin, Explorer loss/restart | x64 NSIS installer |
+| Ubuntu 24.04 x64, Xorg + Xfce StatusNotifier host | Two native outputs, menu activation, host loss/restart | x64 Debian package |
+| Ubuntu 24.04 x64, GNOME 46.2 Wayland + AppIndicator extension | Two compositor outputs, 1x/2x, monitor moves, extension loss/restart | Same Debian package |
+| Ubuntu 24.04 x64, X11 without a status host | Ordinary-window fallback and exit on last-window close | Same Debian package |
+
+These are the acceptance baselines, rather than a claim about every version
+supported by the toolkit. Windows 10/11, older macOS versions and KDE Plasma
+have not received separate shell qualification. GNOME's extension and a usable
+StatusNotifier host on other Linux desktops remain runtime prerequisites for
+system-panel access. The normal window remains available without a usable host.
+
+macOS review bundles use an explicit ad-hoc identity to seal the complete bundle;
+package acceptance verifies the seal again after installation. Windows webview
+profiles live in `~/.anyq/panel-webview/main` and `compact`, outside the installation
+directory, so package removal and replacement do not own browser-profile files.
+On Windows, a panel-started owner runs an immutable, hash-verified copy of the
+panel executable at `~/.anyq/owners/<sha256>/anyq-owner.exe`. NSIS may remove or
+replace the GUI executable without killing the queue owner or deleting an
+executable that Windows still has mapped. Different panel builds retain separate
+copies; removing the panel never removes a live owner's copy. Ordinary CLI
+startup continues to launch its own executable.
+The macOS shell uses the lock-file-pinned objc2 0.6.5 and AppKit bindings 0.3.2
+for public screen/pointer coordinates. Private virtual-display interfaces and
+the Windows virtual-display driver are CI tools only.
 
 ```sh
 npm ci --ignore-scripts
@@ -97,8 +130,9 @@ Move `anyq.app` to Applications, run the NSIS installer, or install the generate
 Debian package with the platform package manager. Remove the app/installer
 package through the same platform mechanism. Preferences and databases are
 preserved; remove panel.toml separately only when intentionally resetting panel
-preferences. Package installation/removal on Windows/Linux is not yet manually
-verified. CLI-only builds remain `cargo build --locked -p anyq` and do not
+preferences. CI installs, launches, removes and reinstalls each production
+package twice, preserving the same owner, queue, shared configuration and panel
+preferences. CLI-only builds remain `cargo build --locked -p anyq` and do not
 compile desktop dependencies.
 
 ## Design

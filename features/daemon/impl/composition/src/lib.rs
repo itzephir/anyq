@@ -23,8 +23,24 @@ pub fn observe(
     path: &Path,
     cancelled: Arc<AtomicBool>,
 ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
+    observation(path, cancelled, None)
+}
+
+pub fn observe_with_owner(
+    path: &Path,
+    cancelled: Arc<AtomicBool>,
+    owner_executable: &Path,
+) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
+    observation(path, cancelled, Some(owner_executable))
+}
+
+fn observation(
+    path: &Path,
+    cancelled: Arc<AtomicBool>,
+    owner_executable: Option<&Path>,
+) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
     let endpoint = endpoint(path)?;
-    let channel = Channel::open_observer(&endpoint, cancelled)?;
+    let channel = Channel::open_observer(&endpoint, cancelled, owner_executable)?;
 
     Ok(Box::new(RemoteObserveQueue::new(
         channel,

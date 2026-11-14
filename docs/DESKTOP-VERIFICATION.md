@@ -8,7 +8,8 @@ The delivery sequence is [daemon #14](https://github.com/itzephir/anyq/pull/14)
 → [observation #16](https://github.com/itzephir/anyq/pull/16)
 → [desktop #15](https://github.com/itzephir/anyq/pull/15). Each PR follows its
 predecessor into main after current-head CI. Combined observation and panel use
-protocol 7. Unfinished manual desktop acceptance remains explicit below.
+protocol 7. [PR #21](https://github.com/itzephir/anyq/pull/21) supplies the
+remaining native shell, monitor and installed-package acceptance below.
 
 Daemon prerequisite: commit `2ab8cb6` passed [CI run 42910987965](https://github.com/itzephir/anyq/actions/runs/42910987965), including native process and interruption matrices. The observation and desktop branches merge this daemon head, including request-timeout and Windows pipe-ownership corrections.
 
@@ -102,8 +103,8 @@ canonical alias retargeting and panel-first plugin recovery, then verified all
 native CLI/plugin and Ctrl+C matrices, all four GUI package builds and CLI
 distribution checks. Current-head CI remains mandatory for later commits.
 This verifies the existing-only bootstrap requirement synchronized into the
-plugin-runtime baseline; the desktop change remains active for the manual host,
-monitor and installed-package acceptance below.
+plugin-runtime baseline. The native host, monitor and installed-package
+acceptance is recorded below; change archival remains separate.
 
 Windows fixtures compare actual file identity, including canonical paths with an
 extended-length prefix. The disappearance scenario removes the target after
@@ -115,7 +116,7 @@ restores it to verify recovery. It preserves task data and source identity
 without renaming a file held open by the runtime. All scenarios remain mandatory
 on every OS, with the same reviewed stale-state PNG.
 
-## Manual native acceptance
+## Native shell and installed-package acceptance
 
 The local macOS application bundle was launched on an isolated queue with two
 running tasks, two queued tasks and three topics. Native accessibility inspection
@@ -133,28 +134,117 @@ DOM nodes and keyboard focus. [Dark native window](images/desktop-macos-dark.jpg
 and [Russian missing-source state](images/desktop-macos-missing-ru.jpg) retain
 reviewable screenshot evidence using synthetic queue data.
 
-The menu-bar icon click, compact panel dismissal/placement, and native file
-picker still require their own direct native smoke evidence. They are not
-inferred from the successful window or OpenDesign preview.
+The macOS shell profile passed on `67c01d7` in
+[CI run 43236739454](https://github.com/itzephir/anyq/actions/runs/43236739454).
+The `desktop-shell-macos` artifact records actual menu-bar input, main-window
+close/reopen, compact placement after moves across three WindowServer displays
+(1x/2x scales and negative coordinates), Escape and focus-loss dismissal, the
+native file picker, SystemUIServer restart and native-menu Quit. The same daemon
+PID and exact task/topic/slot rows survive these transitions. These are direct
+native checks, independent of the successful window and OpenDesign preview.
 
-Pending native configurations remain explicit:
+The Windows shell profile passed on `f4ef115` in
+[CI run 43356127012](https://github.com/itzephir/anyq/actions/runs/43356127012).
+The `desktop-shell-windows` artifact records actual notification-icon/menu input,
+flyout placement and focus/dismissal after moves across three native outputs:
+1024×768 at 100%, plus two 1920×1080 outputs at 150%, including a negative origin.
+Explorer restart restores a reachable main window; the icon/menu recover and
+native Quit preserves the same daemon PID and exact queue ownership. This shell
+profile pass does not waive the run's remaining package/Linux/core failures.
 
-- Windows: real notification-area activation, right-click menu, flyout focus,
-  work-area placement at different scale factors and monitor/taskbar positions,
-  Explorer restart, last-window closure, installer launch/removal and owner
-  survival after client exit.
-- Linux: a real compatible StatusNotifier host, GNOME with AppIndicator
-  integration, host disappearance, no-host window fallback, supported X11 and
-  Wayland sessions, package launch/removal and owner survival after client exit.
+Production package acceptance passed on `73a18bf` in
+[CI run 43395626654](https://github.com/itzephir/anyq/actions/runs/43395626654)
+for macOS ARM64/Intel app bundles, the Windows x64 NSIS installer and the Ubuntu
+24.04 Debian package. Each `desktop-package-evidence-*` artifact records two
+actual installation, native-window launch, removal and reinstallation cycles.
+The same daemon PID, exact task/topic/slot rows and hashes of shared configuration
+and panel preferences survive both cycles. Windows additionally verifies that
+the live owner executable is the immutable, digest-matched copy outside the
+installation directory; macOS verifies the installed bundle's resource seal.
+The ordinary CLI is built independently. This run also passed all three native
+CLI/interruption and screenshot matrices, plus macOS and Windows shell profiles;
+the two Linux host profiles still failed, so that run's overall CI was red.
 
-These rows require actual desktop sessions. A build, mock or headless controller
-test is not a substitute. Corresponding OpenSpec tasks remain unchecked until
-that evidence exists; the desktop change stays active after implementation merge.
+### Completed native acceptance
 
-The local macOS menu-bar follow-up could not proceed because the screen was
+All five native shell profiles passed on `f728ca5` in
+[CI run 43425023028](https://github.com/itzephir/anyq/actions/runs/43425023028):
+macOS menu bar, Windows notification area, Xfce StatusNotifier on X11, GNOME
+AppIndicator on Wayland, and X11 without a status host. Each
+`desktop-shell-*` artifact contains the actual native-operation log and
+`shell-integration.json`; only a completed scenario writes a passed report.
+The X11 and GNOME reports verify both monitor roundtrips, menu Open window and
+Quit, host loss, closing the restored last window while the host is absent,
+and recovery through a restarted host/client. Windows exercises the equivalent
+Explorer loss/restart. Every profile preserves the same daemon PID and exact
+queue ownership. macOS exercises its automatically restarted SystemUIServer
+and retains its separate native file-picker check.
+
+The verified platform/package baseline is listed in
+[DESKTOP.md](DESKTOP.md#verified-platform-baseline). X11 runs two real Xorg
+outputs with the Xfce StatusNotifier host. GNOME 46.2 runs a real nested Wayland
+compositor with 1x/2x outputs and its packaged AppIndicator extension; moves
+wait for the specific target monitor and scale. Windows configures three
+native outputs at 100%/150% through a signed, digest-pinned virtual display
+driver. macOS uses three WindowServer outputs at 1x/2x. These are operating-system
+outputs and actual input, rather than injected application geometry.
+
+Native acceptance found and fixed macOS global/logical coordinate conversion,
+compact-window sizing/clamping, the installed macOS bundle seal, and Windows
+browser profiles and a live owner executable held inside the installation
+directory. Windows now runs a digest-verified owner copy outside that directory,
+so NSIS removal/reinstallation preserves the live owner. The native runners
+also own their desktop configuration and accessibility bridge, wait for actual
+cursor/window/menu/compositor state, and retain failure logs and screenshots.
+The existing 45 reviewed screenshot goldens remain unchanged.
+
+The same run passed the aggregate `CI passed` gate: all five shell profiles,
+all four production-package install/removal profiles, native UI/daemon integration
+and verification of the 45 tracked PNGs from two independent clean fixtures,
+plus the Linux/macOS/Windows CLI/plugin and native Ctrl+C suites. Each package
+report confirms two installation/removal cycles with one unchanged owner PID,
+queue fingerprint and preference/configuration hashes. Later commits still
+require their own current-head CI pass.
+
+The original adapter capability check was planned before feature work. It was
+completed late in PR #21 after features already existed. This is an explicit
+sequencing deviation, not evidence that the original prerequisite happened
+on time. The remaining capability, Linux-host, lifecycle and integrated native
+acceptance tasks are closed against the actual results above. Other OS versions
+and desktop hosts, including KDE Plasma, are not inferred to be verified.
+
+### PR #21 review follow-up
+
+The stricter tray oracle checks the real client rectangle, DPI, icon anchoring
+and work-area margins. On `06a2815`, [run 43453103726](https://github.com/itzephir/anyq/actions/runs/43453103726)
+recorded all three macOS popup cases at 1x/2x and passed the complete Windows
+shell profile at 100%/150%. It also passed both GNOME Wayland monitor roundtrips
+with actual surface/output enter and leave events, including recreated surfaces,
+host loss and recovery. Windows now measures invisible frame insets independently
+of screen-origin changes and reapplies placement after showing a hidden popup.
+The geometry contracts reject tiny, misplaced and incorrectly scaled popups.
+
+The same run passed production package acceptance for macOS ARM64/Intel,
+Windows and Linux. Each installed application's real document is copied through
+native keyboard input and the system clipboard, with no shipping test transport.
+Both installation cycles verify configured topics, running/stopped tasks and
+slot usage before and after distinct CLI additions: 1/4 → 2/4 → 3/4 occupied
+slots. Blank, stale and incorrect-slot documents fail; the owner PID and
+preferences/shared configuration remain unchanged.
+
+That run also passed all three native UI/screenshot matrices and their existing
+45 PNGs, but its aggregate gate remained red because macOS file selection was
+confirmed before the Open panel was ready. The follow-up observes the actual
+panel/sheet window identifiers, waits for sheet dismissal and confirms until
+the specific panel closes, then requires the selected file's exact identity.
+The [current PR checks](https://github.com/itzephir/anyq/pull/21/checks) must pass
+on the final head; the component evidence above does not waive that gate.
+
+The earlier local macOS menu-bar follow-up could not proceed because the screen was
 locked. The main window was accessible before the lock; no additional tray or
 file-picker acceptance is inferred from that partial session. Its isolated panel
-and owner processes were stopped afterward.
+and owner processes were stopped afterward. The hosted native shell evidence
+above supersedes that local input limitation.
 
 The initial desktop implementation passed [CI run 42829086558](https://github.com/itzephir/anyq/actions/runs/42829086558)
 on `563a74a`: native GUI packages for macOS ARM64/Intel, Windows and Linux;

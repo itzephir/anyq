@@ -42,8 +42,11 @@ panel use the combined protocol version 7. Each PR is updated onto the merged
 predecessor and passes current-head CI before it merges. Plugin recovery and
 observation compatibility are implemented in #16; native panel/plugin integration
 and tracked screenshot verification are implemented in #15. No separate
-integration PR is needed. Unfinished manual desktop acceptance remains explicit
-and is not synced to baseline specifications.
+integration PR was needed for plugin compatibility. Native shell, monitor and
+installed-package acceptance follows separately in PR #21; its verified
+configurations and sequencing deviation are recorded in design.md and
+docs/DESKTOP-VERIFICATION.md. Baseline synchronization and archival remain
+separate from this implementation follow-up.
 
 ## Capabilities
 

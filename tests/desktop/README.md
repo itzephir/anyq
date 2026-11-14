@@ -4,6 +4,131 @@ Every UI behavior change requires real native integration and screenshot checks
 on Linux, macOS and Windows. The required CI matrix is in
 `.github/workflows/desktop.yml`, included in the stable `CI passed` gate.
 
+`tooling/test_desktop_package.py` installs the actual production app bundle,
+NSIS installer or Debian package, launches the installed executable, quits the
+client, removes the package and repeats installation/removal. It checks a real
+visible native window, the same live daemon, unchanged queue ownership and
+byte-identical preferences/shared configuration. Windows/Linux installation
+requires a disposable GitHub Actions machine; macOS uses an isolated per-user
+Applications directory. Shipping packages do not contain the UI test transport.
+The package fixture owns a three-stage queue in `config.json`. In each cycle,
+real native focus/click and Select All/Copy commands read the installed WebView's
+document through the OS clipboard. Required topic/task names, states and slot
+usage must appear before and after a configured CLI task creation; the second
+cycle must show the previous update before accepting the next one. Blank,
+stale or wrong-slot documents fail even when the daemon and native frame are
+alive. Clipboard use is restricted to disposable CI sessions. Queue fingerprints
+are compared after each authorized CLI update and after removal; the GUI itself
+must not mutate the queue. Native logs and package JSON retain the copied states.
+
+`tooling/test_desktop_shell.py` uses `native.json` to configure real desktop-host
+and display scenarios. Operating-system helpers inspect native windows and
+post real input independently of the private application driver. Native shell
+state is read without evaluating a hidden webview. Platform helpers are test
+tools only and are never included in app packages. macOS display setup uses
+the private CoreGraphics interfaces also exercised by
+[Chromium's display tests](https://chromium.googlesource.com/chromium/src/+/HEAD/ui/display/mac/test/virtual_display_util_mac.mm);
+the production app uses public AppKit screen APIs. Native input and capture
+permissions are environmental requirements, and a denied operation fails the
+scenario rather than simulating a click or accepting incomplete evidence.
+
+Windows display CI installs only the checksum-pinned driver-only archive from
+[Virtual Display Driver 25.7.23](https://github.com/VirtualDrivers/Virtual-Display-Driver/releases/tag/25.7.23)
+on its disposable runner, verifies the signed catalog, and registers the UMDF
+device through native SetupAPI. It never disables driver-signature enforcement
+or enables test signing. Display setup logs and signer/digest information are
+retained. Per-display DPI is configured through native DisplayConfig packets,
+following the interfaces exercised by [SetDPI](https://github.com/imniko/SetDPI).
+No driver, native input helper or test transport is shipped with the panel.
+
+The Linux profiles use two real Xorg dummy outputs with the Xfce StatusNotifier
+host, a no-host X11 session, and a nested GNOME Wayland compositor with two
+virtual outputs and the packaged AppIndicator extension. The Wayland profile
+uses compositor monitor-move shortcuts and toggles the extension to test host
+loss without destroying the compositor connection. It calls the running shell's
+[extension interface](https://github.com/GNOME/gnome-shell/blob/46.0/js/ui/shellDBus.js)
+directly and waits for the reported active/inactive state, avoiding a settings-only
+fallback in the extension command-line tool. Absolute window placement is
+not assumed on Wayland. Each move waits for the specific destination monitor
+and its scale, rather than accepting an intermediate monitor change.
+The Wayland profile observes the mapped main surface's actual output-enter/leave
+protocol events and logical output positions from `WAYLAND_DEBUG=client`, alongside
+the window's resulting DPI. It requires exactly the destination output, so a
+surface straddling both outputs cannot pass. Native keyboard movement places
+the window inside the destination output after the scale transition. Destroyed
+and recreated surfaces are tracked across close/reopen; reused object IDs cannot
+select the old hidden surface. GTK's monitor-at-window result is retained only
+as diagnostics because an overlapping surface can belong to multiple outputs.
+The observer follows the upstream [Wayland surface/output protocol](https://wayland.freedesktop.org/docs/html/apa.html#protocol-spec-wl_surface).
+Monitor mode/scale controls follow
+[Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
+Native menu input waits for an actual visible menu and its dismissal after selection.
+Windows reads the real
+Win32 popup handle, item labels and screen rectangles, following
+[pywinauto's popup adapter](https://github.com/pywinauto/pywinauto/blob/master/pywinauto/controls/win32_controls.py).
+GNOME reads native AT-SPI menu item bounds. Windows and GNOME use real pointer input;
+macOS and Xfce use Home/End and Enter after observing the native popup.
+X11 checks the visible popup's actual window type and application/host PID;
+detached GTK menus need not appear in the AT-SPI application tree.
+Xfce uses the primary button; GNOME uses its
+AppIndicator extension's secondary-button context menu. Notification-icon lookup excludes ordinary application/taskbar buttons
+and restricts Windows accessibility searches to actual shell windows.
+
+Windows fixture teardown waits for its own WebView2 processes to exit before
+removing profile files. Test transport retries transient Windows sharing denials
+within the existing response deadline; it never replays a request or accepts
+an incomplete response. Linux D-Bus activation receives the private display,
+configuration and Xauthority settings before starting desktop services.
+AT-SPI queries read the real accessibility D-Bus service directly with bounded
+calls, scoped to the application and status-host processes. They avoid
+libatspi's process-wide property cache and read descendant label text when a
+native menu container has no own name. The fixture explicitly enables the accessibility
+bridge in the panel as well as its host. Windows enumerates visible Explorer
+windows, including the separate overflow popup, before querying their
+accessibility trees. A hung Linux query records its Python stack before the
+native-operation deadline.
+Windows checks the native window at the button's screen position before
+returning its bounds, so a hidden overflow panel cannot supply stale coordinates.
+The read adapter follows the upstream
+[Accessible](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Accessible.xml),
+[Component](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Component.xml)
+and [Text](https://github.com/GNOME/at-spi2-core/blob/AT_SPI2_CORE_2_52_0/xml/Text.xml)
+protocols. It never invokes accessibility actions: pointer/keyboard events still
+travel through the real desktop input system.
+Popup scenarios move the actual system tray between primary displays in the
+disposable macOS/Windows session, then require an icon on the selected output
+and open it through native input. They restore the original primary output
+before independent file-picker/lifecycle cases. They check both 1x/2x on macOS and 100%/150%
+on Windows, including the popup's actual DPI, 380×355 logical client size (clamped on
+small work areas), scaled eight-unit margins and centered/clamped icon anchoring.
+Windows placement measures invisible frame insets from client/outer sizes,
+independently of changing global screen origins, and reapplies anchoring after
+showing a previously hidden popup. Document copying retries selection after a renderer update
+clears it, waits for actual clipboard contents and clears the fixture clipboard
+after reading. The geometry oracle allows at most two native coordinate units of rounding;
+a popup merely somewhere inside the work area is insufficient. Contract tests
+reject 1×1, misplaced, wrong-DPI, blank-document and stale-document regressions.
+These checks supplement the existing tracked PNG verification; visual fixtures
+that explicitly resize a webview cannot prove native tray placement.
+
+The macOS file-picker scenario observes actual WindowServer window identifiers
+for the Open panel and its Go to Folder sheet. It waits for the sheet to close,
+then confirms the selected file through native input until that specific Open
+panel closes. This handles asynchronous file selection without relying on
+window counts or assuming the Open button is immediately ready. The resulting
+database path must still identify the configured alternate file.
+
+Host-loss scenarios close the restored last window while the host is still
+absent, verify client exit with unchanged owner/slots, then reconnect through
+a restarted client and host.
+
+The NSIS fixture passes its final `/D=` argument without quotes, including for
+the configured installation path with spaces, as required by the
+[NSIS command-line contract](https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage).
+This is a direct CreateProcess call with an explicit executable, without a shell.
+macOS review bundles are ad-hoc sealed as complete bundles and checked again
+after installation; Developer ID signing/notarization remains release work.
+
 The modes are explicit: `verify` compares with committed goldens and fails on a
 regression; `generate` writes new goldens for review. Both modes launch every
 visual case twice from independent clean processes and databases, and reject
