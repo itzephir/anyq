@@ -29,7 +29,7 @@ queue observable while other work continues.
 ### Dependency and delivery boundary
 
 This change depends on
-[`introduce-queue-daemon`](../introduce-queue-daemon/proposal.md). Implementation
+[`introduce-queue-daemon`](../../introduce-queue-daemon/proposal.md). Implementation
 starts after that change supplies a verified local owner, discovery, typed client
 transport, cancellation, and recovery. The panel never falls back to direct
 SQLite access. Its observation contract does not depend on metadata or plugin
