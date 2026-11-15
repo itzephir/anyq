@@ -7,7 +7,7 @@
 
 ## 2. Cross-platform verification
 
-- [ ] 2.1 Verify the current PR head passes the complete required CI, including GNOME/Wayland, macOS ARM64/Intel production packages, Linux/macOS/Windows integrations and all reviewed screenshot baselines.
+- [x] 2.1 Verify the current PR head passes the complete required CI, including GNOME/Wayland, macOS ARM64/Intel production packages, Linux/macOS/Windows integrations and all reviewed screenshot baselines.
 
 ## Workflow follow-up
 
