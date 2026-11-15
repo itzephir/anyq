@@ -52,29 +52,10 @@ impl RecoveredCompletion {
 
     pub fn accept(
         &self,
-        operation: &str,
+        id: &str,
         result: CapabilityResult,
         output: &mut impl Write,
     ) -> Result<bool> {
-        match result {
-            CapabilityResult::Task { task } if task.state == "completed" => Ok(true),
-            CapabilityResult::Error { category, .. }
-                if operation == "recovered" && category == "conflict" =>
-            {
-                // A different caller may have completed without this receipt.
-                stdio::send(
-                    output,
-                    PluginFrame::Request {
-                        id: format!("recovered-read:{}", self.action),
-                        request: CapabilityRequest::ReadTask {
-                            name: format_name(&self.task),
-                        },
-                    },
-                )?;
-
-                Ok(false)
-            }
-            _ => Ok(false),
-        }
+        crate::completion_result::accept(id, &self.task, result, output)
     }
 }

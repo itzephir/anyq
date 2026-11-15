@@ -1,4 +1,5 @@
 mod checkpoint;
+mod completion_result;
 mod details;
 mod execution;
 mod handle_event;
@@ -125,9 +126,9 @@ pub fn run(
                 HostFrame::Result { id, result }
                     if id.starts_with("recovered:") || id.starts_with("recovered-read:") =>
                 {
-                    if let Some((operation, action)) = id.split_once(':') {
+                    if let Some((_, action)) = id.split_once(':') {
                         let finished = match recovered.get(action) {
-                            Some(completion) => completion.accept(operation, result, output)?,
+                            Some(completion) => completion.accept(&id, result, output)?,
                             None => false,
                         };
                         if finished {
@@ -159,6 +160,9 @@ pub fn run(
                 && execution.last_report.elapsed() > Duration::from_millis(500)
             {
                 execution.complete(output)?;
+            }
+            if execution.phase == Phase::Finished {
+                checkpoint::checkpoint("shell.execution-finished")?;
             }
         }
         executions.retain(|_, execution| {

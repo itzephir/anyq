@@ -18,6 +18,7 @@ Goals are recovery of pending autocomplete and preservation of executable invoca
 
 - Recovered completion may remain blocked indefinitely by uncertain external work. Retry remains bounded in frequency and never bypasses the managed-work barrier.
 - A competing caller may complete first. Check terminal task state rather than retrying a permanent conflict forever.
+- Live and recovered completion share one protocol result handler: a completion conflict requests the task through the public read capability; only a confirmed completed task retires the pending execution. Other responses retain the existing stable-receipt retry behavior. A real live-plugin fixture pauses after confirmed exit, completes through a separate CLI, and observes execution retirement before map cleanup. Its test-only checkpoints select both boundaries explicitly, without an elapsed-time assertion or plugin restart.
 - Environment fixtures use Unix interpreter links and Windows' native virtual environment launcher. Both explicit and PATH selection run on every supported platform without installing packages or depending on an activated ambient environment.
 - Existing wrongly canonicalized registrations cannot change command in place. Document registering the intended interpreter under a new plugin name.
 

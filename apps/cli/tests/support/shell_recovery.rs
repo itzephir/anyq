@@ -243,3 +243,89 @@ fn recovered_autocomplete_retries_after_another_managed_worker_confirms_stopped(
     ).unwrap();
     assert_eq!(completions, 1);
 }
+
+#[test]
+fn live_autocomplete_retires_after_manual_completion_wins() {
+    let queue = Queue::new();
+    let gate = queue.dir.path().join("live-completion-gate");
+    let output = TestProcess::spawn(
+        queue
+            .cmd(&["daemon", "start"])
+            .env(
+                "ANYQ_SHELL_TEST_CHECKPOINT",
+                "shell.before-complete,shell.execution-finished",
+            )
+            .env("ANYQ_SHELL_TEST_DIRECTORY", &gate)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .output();
+    assert!(output.status.success());
+    let owner = queue.call(&["daemon", "status"]);
+    queue.topic("cpu");
+    queue.call(&[
+        "plugin",
+        "enable",
+        "shell",
+        env!("CARGO_BIN_EXE_anyq"),
+        "plugin-runtime",
+        "shell",
+    ]);
+    wait(|| status(&queue, "shell")["running"] == true);
+    let command = if cfg!(windows) {
+        "echo launch>>launches.txt"
+    } else {
+        "printf 'launch\\n' >> launches.txt"
+    };
+    let metadata = queue.dir.path().join("live-metadata.json");
+    fs::write(
+        &metadata,
+        serde_json::to_vec(&json!({
+            "shell": {"sh":[command],"cwd":queue.dir.path(),"autocomplete":true}
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    queue.call(&[
+        "task",
+        "create",
+        "owner",
+        "-t",
+        "cpu",
+        "--metafile",
+        metadata.to_str().unwrap(),
+    ]);
+    queue.task("next", &["cpu"]);
+    wait_for_file(&gate.join("ready"), Some("shell.before-complete"));
+
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.state("next"), "queued");
+    queue.call(&["task", "owner", "complete"]);
+
+    assert_eq!(queue.state("owner"), "completed");
+    assert_eq!(queue.state("next"), "running");
+    fs::write(gate.join("release"), b"manual completion won").unwrap();
+    wait_for_file(&gate.join("ready"), Some("shell.execution-finished"));
+
+    assert_eq!(queue.call(&["daemon", "status"]), owner);
+    assert_eq!(queue.usage("cpu"), 1);
+    assert_eq!(queue.state("owner"), "completed");
+    assert_eq!(queue.state("next"), "running");
+    assert_eq!(
+        fs::read_to_string(queue.dir.path().join("launches.txt"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+    let plugin = status(&queue, "shell");
+    assert_eq!(plugin["running"], true);
+    assert_eq!(plugin["failures"], 0);
+    assert_eq!(plugin["unresolved_actions"], 0);
+    let connection = Connection::open(&queue.db).unwrap();
+    let completions: i64 = connection.query_row(
+        "SELECT count(*) FROM queue_events WHERE json_extract(payload,'$.kind')='task.completed' AND json_extract(payload,'$.task.name')='owner'",
+        [], |row| row.get(0),
+    ).unwrap();
+    assert_eq!(completions, 1);
+}

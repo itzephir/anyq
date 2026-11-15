@@ -66,7 +66,9 @@ Recovery retries autocomplete for durably stopped work with the original complet
 receipt. If another managed worker still blocks completion, all slots remain held
 until it confirms stopped. Recovery then completes and admits successors without
 launching the shell command again. A task completed by another caller is recognized
-as terminal.
+as terminal by both live execution and recovery: a completion conflict is reconciled
+through the public task-read capability, and a confirmed completed task retires the
+pending execution instead of repeating completion indefinitely.
 
 ## Native containment and recovery
 

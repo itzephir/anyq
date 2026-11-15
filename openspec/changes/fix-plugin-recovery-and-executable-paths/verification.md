@@ -4,8 +4,9 @@
 
 - The real CLI/daemon/shell recovery scenario failed before the fix: the owner stayed running after the other managed worker stopped. It passes after the fix, admits the successor, records one completion and launches the original command once.
 - The shell executable protocol scenario confirms a stable receipt on retry and reconciliation when a manual caller completes first.
+- The real live-shell race regression fails before the follow-up fix: after a separate CLI completes the task, the plugin never reaches execution retirement and the fixture fails in 15.71 seconds. With shared completion-result reconciliation, that case and both recovery regressions pass together in 1.80 seconds. The live scenario observes the finished execution before map cleanup, one command launch and one completion event, the same daemon, a healthy live plugin, and the successor retaining its slot. It uses explicit before-completion and finished-execution checkpoints instead of waiting an arbitrary retry interval or restarting the plugin.
 - Both explicit relative and PATH-selected Python environment scenarios failed before the resolver fix and pass afterward, including daemon restart and re-enabling the same command. The dependency module exists only inside the fixture environment.
-- Required local checks pass: workspace tests, all 115 CLI/plugin workflows, all 35 native interruption scenarios, Clippy with all targets/features, both architecture checks, Rustfmt, Ruff, strict OpenSpec validation and whitespace checks.
+- Required local checks pass: workspace tests, all 116 CLI/plugin workflows, all 35 native interruption scenarios, Clippy with all targets/features, both architecture checks, Rustfmt, Ruff, strict OpenSpec validation and whitespace checks.
 - Required Linux/macOS/Windows integration jobs run the shell regressions through the workflow suite and the isolated Python scenarios through a dedicated step.
 
 ## Independent main CI failures

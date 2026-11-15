@@ -5,7 +5,9 @@ pub(crate) fn checkpoint(_name: &str) -> Result<()> {
     {
         use anyq_queue_api::Error;
         use std::{env, fs, path::PathBuf, thread, time::Duration};
-        if env::var("ANYQ_SHELL_TEST_CHECKPOINT").ok().as_deref() == Some(_name) {
+        if env::var("ANYQ_SHELL_TEST_CHECKPOINT")
+            .is_ok_and(|names| names.split(',').any(|name| name == _name))
+        {
             let directory = PathBuf::from(
                 env::var_os("ANYQ_SHELL_TEST_DIRECTORY")
                     .ok_or_else(|| Error::Invalid("shell fixture directory is missing".into()))?,

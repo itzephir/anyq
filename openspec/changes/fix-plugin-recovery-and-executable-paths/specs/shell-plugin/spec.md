@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Automatic completion policy
-With autocomplete true, final confirmed exit, including a nonzero exit or launch failure with no remaining process, SHALL request ordinary task completion exactly once logically. With autocomplete false, final exit SHALL leave the task running until another completion request. Cancellation SHALL use the common completion barrier. Recovery SHALL retry pending completion with the original action identity without relaunching work.
+With autocomplete true, final confirmed exit, including a nonzero exit or launch failure with no remaining process, SHALL request ordinary task completion exactly once logically. With autocomplete false, final exit SHALL leave the task running until another completion request. Cancellation SHALL use the common completion barrier. Recovery SHALL retry pending completion with the original action identity without relaunching work. Live execution and recovery SHALL retire pending completion after confirming that another caller already completed the task.
 
 #### Scenario: Failed work with autocomplete
 - **WHEN** a command exits nonzero with autocomplete true
@@ -14,3 +14,7 @@ With autocomplete true, final confirmed exit, including a nonzero exit or launch
 #### Scenario: Recovered work was already completed
 - **WHEN** a recovered autocomplete action refers to a task that another caller already completed
 - **THEN** recovery recognizes the terminal state without relaunching work or creating another logical completion
+
+#### Scenario: Manual completion wins a live autocomplete race
+- **WHEN** a live shell plugin confirms command exit and another caller completes its task before autocomplete succeeds
+- **THEN** the live plugin confirms the terminal task state and retires that execution without restarting the plugin, repeating completion indefinitely, relaunching work or creating another completion event

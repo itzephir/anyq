@@ -77,12 +77,13 @@ pub(crate) fn handle_result(
                 execution.phase = Phase::Executing;
             }
         }
-        ("complete", CapabilityResult::Task { task }) if task.state == "completed" => {
-            execution.phase = Phase::Finished
-        }
-        ("complete", _) => {
-            // Retry with the same receipt ID. A manual completion may have won.
-            execution.phase = Phase::Completing;
+        ("complete" | "complete-read", result) => {
+            execution.phase =
+                if crate::completion_result::accept(id, &execution.task, result, output)? {
+                    Phase::Finished
+                } else {
+                    Phase::Completing
+                };
         }
         (_, CapabilityResult::Error { .. }) => {
             let _ = execution.cancel();
