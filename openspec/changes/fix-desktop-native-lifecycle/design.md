@@ -10,7 +10,7 @@ Preserve the independent owner and resource lifetime, require an observable nati
 
 ## Decisions
 
-- Require the main window to be visible and focused before native close input. This matches the real keyboard operation and does not call the product's close command or synthesize success.
+- Require the Wayland main window to be visible and focused before native keyboard close input. This matches Alt+F4 and does not call the product's close command or synthesize success. Windows keeps its existing handle-targeted native window message, which does not require foreground focus.
 - Reuse the existing hash-verified immutable owner cache on macOS and Windows. macOS copies receive private executable permissions before publication and use an extensionless name. Retaining the standalone early daemon mode avoids dependence on bundle removal or replacement. A source-injection helper permits isolated executable-copy tests without changing the running test binary.
 - Inspect the running macOS owner through libproc and Windows through the existing native API. Production package tests assert that the owner path is the retained build, check its identity separately after client quit and removal, and perform a real queue query while the package is absent. Existing two-cycle install/remove/reinstall and queue/preference fingerprints remain required.
 - Verify existing reviewed screenshots on Linux/macOS/Windows because presentation is unchanged. Use required native GNOME/Wayland and both macOS package jobs to confirm the lifecycle fixes.

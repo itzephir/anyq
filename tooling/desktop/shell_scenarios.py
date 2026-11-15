@@ -51,12 +51,13 @@ def run(cli, panel, home, output, configuration, profile):
         )
 
     def exit_without_host():
-        # Keyboard close targets the focused window; mapping/focus are asynchronous.
-        driver.wait_shell(
-            lambda state: not state["tray"]["usable"]
-            and state["windows"]["main"]["visible"]
-            and state["windows"]["main"]["focused"]
-        )
+        if profile.get("backend") == "wayland":
+            # Alt+F4 targets the focused window; mapping/focus are asynchronous.
+            driver.wait_shell(
+                lambda state: not state["tray"]["usable"]
+                and state["windows"]["main"]["visible"]
+                and state["windows"]["main"]["focused"]
+            )
         native.close_window(driver.process.pid)
         assert driver.process.wait(timeout=15) == 0
         driver.stop()
