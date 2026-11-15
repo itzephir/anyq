@@ -1,4 +1,4 @@
-use crate::stdio;
+use crate::outbox::Outbox;
 use anyq_plugin_wire::{CapabilityRequest, CapabilityResult, PluginFrame};
 use anyq_queue_api::{Result, format_name};
 use std::io::Write;
@@ -7,7 +7,7 @@ pub(crate) fn accept(
     id: &str,
     task: &str,
     result: CapabilityResult,
-    output: &mut impl Write,
+    output: &mut Outbox<impl Write>,
 ) -> Result<bool> {
     match result {
         CapabilityResult::Task { task } if task.state == "completed" => Ok(true),
@@ -20,15 +20,12 @@ pub(crate) fn accept(
             };
 
             // Another caller may have completed without this action's receipt.
-            stdio::send(
-                output,
-                PluginFrame::Request {
-                    id: format!("{operation}-read:{action}"),
-                    request: CapabilityRequest::ReadTask {
-                        name: format_name(task),
-                    },
+            output.send(PluginFrame::Request {
+                id: format!("{operation}-read:{action}"),
+                request: CapabilityRequest::ReadTask {
+                    name: format_name(task),
                 },
-            )?;
+            })?;
 
             Ok(false)
         }

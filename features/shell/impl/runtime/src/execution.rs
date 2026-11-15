@@ -1,4 +1,4 @@
-use crate::{ManagedProcess, SpawnProcess, details, phase::Phase, stdio};
+use crate::{ManagedProcess, SpawnProcess, details, outbox::Outbox, phase::Phase};
 use anyq_plugin_wire::{CapabilityRequest, PluginFrame};
 use anyq_queue_api::{Metadata, MetadataValue, Result, format_name};
 use anyq_shell_api::{EntryOutcome, EntryOutput, PreparedPlan};
@@ -19,38 +19,32 @@ pub(crate) struct Execution {
 }
 
 impl Execution {
-    pub fn report(&mut self, output: &mut impl Write, state: &str) -> Result<()> {
-        stdio::send(
-            output,
-            PluginFrame::Request {
-                id: format!("report:{}", self.action),
-                request: CapabilityRequest::ManagedReport {
-                    action_id: self.action.clone(),
-                    state: state.into(),
-                    details: Some(self.details.clone().into()),
-                },
+    pub fn report(&mut self, output: &mut Outbox<impl Write>, state: &str) -> Result<()> {
+        output.send(PluginFrame::Request {
+            id: format!("report:{}", self.action),
+            request: CapabilityRequest::ManagedReport {
+                action_id: self.action.clone(),
+                state: state.into(),
+                details: Some(self.details.clone().into()),
             },
-        )?;
+        })?;
         self.phase = Phase::Reporting;
         self.last_report = Instant::now();
 
         Ok(())
     }
 
-    pub fn complete(&mut self, output: &mut impl Write) -> Result<()> {
+    pub fn complete(&mut self, output: &mut Outbox<impl Write>) -> Result<()> {
         crate::checkpoint::checkpoint("shell.before-complete")?;
 
-        stdio::send(
-            output,
-            PluginFrame::Request {
-                id: format!("complete:{}", self.action),
-                request: CapabilityRequest::Complete {
-                    action_id: format!("complete:{}", self.action),
-                    task: format_name(&self.task),
-                    force: false,
-                },
+        output.send(PluginFrame::Request {
+            id: format!("complete:{}", self.action),
+            request: CapabilityRequest::Complete {
+                action_id: format!("complete:{}", self.action),
+                task: format_name(&self.task),
+                force: false,
             },
-        )?;
+        })?;
         self.phase = Phase::Completing;
         self.last_report = Instant::now();
 
@@ -69,7 +63,7 @@ impl Execution {
     pub fn launch(
         &mut self,
         factory: &mut impl SpawnProcess,
-        output: &mut impl Write,
+        output: &mut Outbox<impl Write>,
     ) -> Result<()> {
         if self.cancelled {
             self.terminal = true;
@@ -112,7 +106,7 @@ impl Execution {
         }
     }
 
-    pub fn poll(&mut self, output: &mut impl Write) -> Result<()> {
+    pub fn poll(&mut self, output: &mut Outbox<impl Write>) -> Result<()> {
         if self.phase != Phase::Executing {
             return Ok(());
         }

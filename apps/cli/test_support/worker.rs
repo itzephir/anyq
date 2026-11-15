@@ -1,5 +1,11 @@
 use std::{
-    fs, io::Write, net::TcpListener, path::PathBuf, process::Command, thread, time::Duration,
+    fs::{self, OpenOptions},
+    io::Write,
+    net::TcpListener,
+    path::PathBuf,
+    process::Command,
+    thread,
+    time::Duration,
 };
 
 pub fn run() -> bool {
@@ -18,7 +24,10 @@ pub fn run() -> bool {
         .expect("worker configuration");
     let value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     let marker = PathBuf::from(value["marker"].as_str().unwrap());
-    let release = marker.with_extension("release");
+    let release = value["release"]
+        .as_str()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| marker.with_extension("release"));
     if child {
         let remaining = arguments
             .get(3)
@@ -52,6 +61,15 @@ pub fn run() -> bool {
         return true;
     }
     fs::write(&marker, b"started").unwrap();
+    if let Some(path) = value["launch_log"].as_str() {
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .unwrap()
+            .write_all(b"launch\n")
+            .unwrap();
+    }
     fs::write(
         marker.with_extension("cwd"),
         std::env::current_dir()

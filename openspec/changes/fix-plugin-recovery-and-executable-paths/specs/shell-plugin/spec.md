@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Automatic completion policy
-With autocomplete true, final confirmed exit, including a nonzero exit or launch failure with no remaining process, SHALL request ordinary task completion exactly once logically. With autocomplete false, final exit SHALL leave the task running until another completion request. Cancellation SHALL use the common completion barrier. Recovery SHALL retry pending completion with the original action identity without relaunching work. Live execution and recovery SHALL retire pending completion after confirming that another caller already completed the task.
+With autocomplete true, final confirmed exit, including a nonzero exit or launch failure with no remaining process, SHALL request ordinary task completion exactly once logically. With autocomplete false, final exit SHALL leave the task running until another completion request. Cancellation SHALL use the common completion barrier. Recovery SHALL retry pending completion with the original action identity without relaunching work. Live execution and recovery SHALL retire pending completion after confirming that another caller already completed the task. Outgoing capability requests SHALL use bounded fair flow control without overflowing or relaxing host protocol limits.
 
 #### Scenario: Failed work with autocomplete
 - **WHEN** a command exits nonzero with autocomplete true
@@ -18,3 +18,7 @@ With autocomplete true, final confirmed exit, including a nonzero exit or launch
 #### Scenario: Manual completion wins a live autocomplete race
 - **WHEN** a live shell plugin confirms command exit and another caller completes its task before autocomplete succeeds
 - **THEN** the live plugin confirms the terminal task state and retires that execution without restarting the plugin, repeating completion indefinitely, relaunching work or creating another completion event
+
+#### Scenario: Sixteen commands finish together
+- **WHEN** 16 admitted shell tasks exit after a shared release signal with autocomplete enabled
+- **THEN** bounded fair protocol output completes each task once, preserves the plugin process without protocol failure or uncertain work, and makes all released slots reusable

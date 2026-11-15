@@ -70,6 +70,12 @@ as terminal by both live execution and recovery: a completion conflict is reconc
 through the public task-read capability, and a confirmed completed task retires the
 pending execution instead of repeating completion indefinitely.
 
+The shell runtime keeps one capability request outstanding and a bounded FIFO
+outbox. Native execution polling rotates across tasks and alternates with pending
+recovery, so simultaneous exits cannot flood the host's incoming channel or starve
+another execution. Cancellation reaches native processes independently of output
+credit. Host protocol, frame, diagnostic and flood limits remain unchanged.
+
 ## Native containment and recovery
 
 Before spawn, the plugin durably registers managed work and records the prepared

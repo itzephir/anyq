@@ -8,6 +8,7 @@ Recovered shell autocomplete requests are lost when another managed action tempo
 
 - Retry recovered shell completion requests with their original receipt identity until completion is confirmed, without relaunching work.
 - Retire live shell execution after a manual caller wins completion, sharing terminal-state reconciliation with recovered completion.
+- Bound shell protocol output with a single outstanding capability request, a finite local queue, and fair polling across executions and recovery, so simultaneous exits do not overflow host admission.
 - Preserve the selected executable's absolute invocation path, including its final symbolic link, for explicit and PATH-based plugin registration.
 - Cover both failures through real CLI, daemon and executable-plugin integration scenarios.
 

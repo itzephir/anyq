@@ -25,3 +25,7 @@ Goals are recovery of pending autocomplete and preservation of executable invoca
 ## Migration Plan
 
 No storage or wire migration is required. Install the corrected binary after stopping the old daemon. Persisted stopped shell actions are recovered with their existing receipt IDs.
+
+## Parallel completion flow control
+
+The native host deliberately bounds incoming messages and rejects flooding. Keep that protection unchanged. The first-party shell runtime must honor a single outstanding capability request across registration, reports, completion, reconciliation and recovery paging. A bounded FIFO outbox admits response-driven follow-ups, deduplicates outstanding request IDs and reserves queue space for control responses. Periodic polling admits at most one execution/recovery action per iteration while queue capacity exists; round-robin execution selection and alternating recovery preference avoid starvation. Cancellation still reaches every native execution independently of protocol credit. A real native-worker fixture releases 16 held commands together and verifies successful completion, one launch/event per task, a healthy plugin and reusable slots.

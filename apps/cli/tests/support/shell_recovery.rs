@@ -329,3 +329,109 @@ fn live_autocomplete_retires_after_manual_completion_wins() {
     ).unwrap();
     assert_eq!(completions, 1);
 }
+
+#[test]
+fn sixteen_shell_tasks_finish_together_without_protocol_failure_or_lost_slots() {
+    struct ReleaseOnDrop(std::path::PathBuf);
+
+    impl Drop for ReleaseOnDrop {
+        fn drop(&mut self) {
+            let _ = fs::write(&self.0, b"cleanup");
+        }
+    }
+
+    let queue = Queue::new();
+    let release = ReleaseOnDrop(queue.dir.path().join("release-all"));
+    queue.call(&["topic", "create", "cpu", "-c", "16"]);
+    let owner = queue.call(&["daemon", "status"]);
+    queue.call(&[
+        "plugin",
+        "enable",
+        "shell",
+        env!("CARGO_BIN_EXE_anyq"),
+        "plugin-runtime",
+        "shell",
+    ]);
+    wait(|| status(&queue, "shell")["running"] == true);
+
+    for index in 0..16 {
+        let config = queue.dir.path().join(format!("worker-{index}.json"));
+        let metadata = queue.dir.path().join(format!("task-{index}.json"));
+        fs::write(
+            &config,
+            serde_json::to_vec(&json!({
+                "marker": queue.log(&format!("worker-{index}")),
+                "hold": true,
+                "release": release.0,
+                "launch_log": queue.dir.path().join(format!("launch-{index}.txt")),
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            &metadata,
+            serde_json::to_vec(&json!({
+                "shell": {
+                    "src": [env!("CARGO_BIN_EXE_anyq-plugin-fixture")],
+                    "env": {"WORKER_CONFIG": config},
+                    "cwd": queue.dir.path(),
+                    "autocomplete": true,
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        queue.call(&[
+            "task",
+            "create",
+            &format!("worker-{index}"),
+            "-t",
+            "cpu",
+            "--metafile",
+            metadata.to_str().unwrap(),
+        ]);
+    }
+    for index in 0..16 {
+        queue.wait_for_log(&format!("worker-{index}"), "started");
+    }
+    queue.task("next", &["cpu"]);
+
+    assert_eq!(queue.usage("cpu"), 16);
+    assert_eq!(queue.state("next"), "queued");
+    fs::write(&release.0, b"finish together").unwrap();
+    wait(|| {
+        let plugin = status(&queue, "shell");
+        assert_eq!(plugin["failures"], 0, "{plugin}");
+        (0..16).all(|index| queue.state(&format!("worker-{index}")) == "completed")
+    });
+
+    let plugin = status(&queue, "shell");
+    assert_eq!(plugin["running"], true);
+    assert_eq!(plugin["failures"], 0);
+    assert_eq!(plugin["unresolved_actions"], 0);
+    assert_eq!(queue.call(&["daemon", "status"]), owner);
+    assert_eq!(queue.state("next"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
+    let work: Vec<Value> =
+        serde_json::from_str(&queue.call(&["plugin", "inspect", "shell"])).unwrap();
+    assert_eq!(work.len(), 16);
+    assert!(work.iter().all(|work| work["state"] == "stopped"));
+    for index in 0..16 {
+        assert_eq!(
+            fs::read_to_string(queue.dir.path().join(format!("launch-{index}.txt")))
+                .unwrap()
+                .lines()
+                .count(),
+            1
+        );
+    }
+    let connection = Connection::open(&queue.db).unwrap();
+    let completions: i64 = connection.query_row(
+        "SELECT count(*) FROM queue_events WHERE json_extract(payload,'$.kind')='task.completed' AND json_extract(payload,'$.task.name') LIKE 'worker-%'",
+        [], |row| row.get(0),
+    ).unwrap();
+    assert_eq!(completions, 16);
+
+    queue.call(&["task", "next", "complete"]);
+    assert_eq!(queue.usage("cpu"), 0);
+}

@@ -16,6 +16,10 @@
 
 - [x] 4.1 Share terminal-state reconciliation for live and recovered completion, add a real CLI/daemon/live-shell regression that fails before the fix and passes afterward, document the behavior, run required local checks, and wire the scenario into the existing Linux/macOS/Windows workflow suite.
 
+## 5. Parallel shell completion follow-up
+
+- [x] 5.1 Bound first-party shell protocol output and poll it fairly without relaxing host flood protection; add a real native integration regression for 16 simultaneous exits, prove failure before and success after, document behavior, run required local checks, and include the case in the existing Linux/macOS/Windows workflow suite.
+
 ## Workflow follow-up
 
 - Open the requested PR and inspect its Linux/macOS/Windows integration results.

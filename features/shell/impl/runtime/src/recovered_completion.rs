@@ -1,4 +1,4 @@
-use crate::stdio;
+use crate::outbox::Outbox;
 use anyq_plugin_wire::{CapabilityRequest, CapabilityResult, ManagedWorkDto, PluginFrame};
 use anyq_queue_api::{Metadata, MetadataValue, Result, format_name};
 use std::{
@@ -29,22 +29,19 @@ impl RecoveredCompletion {
         }))
     }
 
-    pub fn retry(&mut self, output: &mut impl Write) -> Result<()> {
+    pub fn retry(&mut self, output: &mut Outbox<impl Write>) -> Result<()> {
         if Instant::now() < self.next_request {
             return Ok(());
         }
 
-        stdio::send(
-            output,
-            PluginFrame::Request {
-                id: format!("recovered:{}", self.action),
-                request: CapabilityRequest::Complete {
-                    action_id: format!("complete:{}", self.action),
-                    task: format_name(&self.task),
-                    force: false,
-                },
+        output.send(PluginFrame::Request {
+            id: format!("recovered:{}", self.action),
+            request: CapabilityRequest::Complete {
+                action_id: format!("complete:{}", self.action),
+                task: format_name(&self.task),
+                force: false,
             },
-        )?;
+        })?;
         self.next_request = Instant::now() + Duration::from_millis(500);
 
         Ok(())
@@ -54,7 +51,7 @@ impl RecoveredCompletion {
         &self,
         id: &str,
         result: CapabilityResult,
-        output: &mut impl Write,
+        output: &mut Outbox<impl Write>,
     ) -> Result<bool> {
         crate::completion_result::accept(id, &self.task, result, output)
     }
