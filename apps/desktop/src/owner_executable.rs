@@ -6,16 +6,32 @@ use std::{
 };
 
 pub fn retain(home: &Path) -> io::Result<PathBuf> {
-    let mut source = File::open(std::env::current_exe()?)?;
+    retain_source(&std::env::current_exe()?, home)
+}
+
+fn retain_source(executable: &Path, home: &Path) -> io::Result<PathBuf> {
+    let mut source = File::open(executable)?;
     let digest = hash(&mut source)?;
     let directory = home.join(".anyq/owners").join(format!("{digest:x}"));
     fs::create_dir_all(&directory)?;
-    let target = directory.join("anyq-owner.exe");
+    let target = directory.join(if cfg!(windows) {
+        "anyq-owner.exe"
+    } else {
+        "anyq-owner"
+    });
 
     if !target.exists() {
         source.rewind()?;
         let mut temporary = tempfile::NamedTempFile::new_in(&directory)?;
         io::copy(&mut source, temporary.as_file_mut())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            temporary
+                .as_file()
+                .set_permissions(fs::Permissions::from_mode(0o700))?;
+        }
         temporary.as_file().sync_all()?;
         match temporary.persist_noclobber(&target) {
             Ok(_) => {}
@@ -78,5 +94,38 @@ mod tests {
 
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert_eq!(fs::read(path).unwrap(), b"invalid cached executable");
+    }
+
+    #[test]
+    fn retained_executable_runs_after_its_source_installation_is_removed() {
+        let home = tempfile::tempdir().unwrap();
+        let installation = home.path().join("Installed panel");
+        fs::create_dir_all(&installation).unwrap();
+        let source = installation.join("panel");
+        fs::copy(std::env::current_exe().unwrap(), &source).unwrap();
+        let retained = retain_source(&source, home.path()).unwrap();
+
+        fs::remove_dir_all(installation).unwrap();
+        let result = std::process::Command::new(&retained)
+            .arg("--list")
+            .output()
+            .unwrap();
+
+        assert!(result.status.success());
+        assert!(
+            String::from_utf8(result.stdout)
+                .unwrap()
+                .contains("retained_executable_runs_after_its_source_installation_is_removed")
+        );
+        assert!(retained.is_file());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            assert_eq!(
+                fs::metadata(retained).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
     }
 }

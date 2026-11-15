@@ -11,6 +11,11 @@ visible native window, the same live daemon, unchanged queue ownership and
 byte-identical preferences/shared configuration. Windows/Linux installation
 requires a disposable GitHub Actions machine; macOS uses an isolated per-user
 Applications directory. Shipping packages do not contain the UI test transport.
+macOS and Windows inspect the owner's actual executable path and verify its
+content-addressed retained build outside the installation. Owner identity is
+checked independently after client quit and package removal, with observed
+status included in failures. A real task-list request must still succeed with
+the package absent before the next installation cycle.
 The package fixture owns a three-stage queue in `config.json`. In each cycle,
 real native focus/click and Select All/Copy commands read the installed WebView's
 document through the OS clipboard. Required topic/task names, states and slot
@@ -120,7 +125,9 @@ database path must still identify the configured alternate file.
 
 Host-loss scenarios close the restored last window while the host is still
 absent, verify client exit with unchanged owner/slots, then reconnect through
-a restarted client and host.
+a restarted client and host. Keyboard closure waits for the restored window to
+be both visible and focused; mapping alone does not establish a keyboard target
+on Wayland.
 
 The NSIS fixture passes its final `/D=` argument without quotes, including for
 the configured installation path with spaces, as required by the

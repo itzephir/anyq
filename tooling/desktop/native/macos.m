@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
+#import <libproc.h>
 
 @interface CGVirtualDisplayDescriptor : NSObject
 @property unsigned int vendorID, productID, serialNum, serialNumber, maxPixelsWide, maxPixelsHigh;
@@ -50,6 +51,12 @@ static id perform(NSDictionary *command) {
     NSString *action = command[@"action"];
     if ([action isEqual:@"capabilities"]) return @{ @"input":@(CGPreflightPostEventAccess()), @"capture":@(CGPreflightScreenCaptureAccess()), @"screens":@(NSScreen.screens.count) };
     if ([action isEqual:@"windows"]) return windows([command[@"pid"] intValue]);
+    if ([action isEqual:@"process-path"]) {
+        char path[PROC_PIDPATHINFO_MAXSIZE];
+        int length = proc_pidpath([command[@"pid"] intValue], path, sizeof(path));
+        NSCAssert(length > 0, @"Cannot inspect owner executable path");
+        return [NSString stringWithUTF8String:path];
+    }
     if ([action isEqual:@"focus"]) {
         NSRunningApplication *application = [NSRunningApplication runningApplicationWithProcessIdentifier:[command[@"pid"] intValue]];
         if (application.active) return @YES;

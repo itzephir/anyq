@@ -12,7 +12,7 @@ mod preference_input;
 mod presentation;
 mod shell;
 
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 mod owner_executable;
 
 #[cfg(feature = "integration-test-hooks")]
@@ -98,13 +98,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         Ok(selection)
     });
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let owner_executable = owner_executable::retain(&anyq_config_impl::paths::home()?)?;
     let observe = Arc::new(move |path: &Path, cancelled: Arc<AtomicBool>| {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let mut observer =
             anyq_daemon_impl::observe_with_owner(path, cancelled, &owner_executable)?;
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let mut observer = anyq_daemon_impl::observe(path, cancelled)?;
         observer.observe(ObserveQueueRequest::default())
     });

@@ -170,14 +170,19 @@ def run(cli, bundles, home, output, configuration):
                     native, client.pid, expected(cycle + 1)
                 )
                 assert queue_fingerprint(database) == before
-                if sys.platform == "win32":
+                retained = None
+                if sys.platform in ("darwin", "win32"):
                     match = re.fullmatch(r"daemon is running \(pid (\d+)\)", owner)
                     assert match, owner
                     executable = Path(native.call("process-path", pid=int(match[1])))
                     digest = hashlib.sha256(package.executable.read_bytes()).hexdigest()
-                    assert executable.name == "anyq-owner.exe", executable
+                    name = "anyq-owner.exe" if sys.platform == "win32" else "anyq-owner"
+                    retained = home / ".anyq" / "owners" / digest / name
+                    assert executable.samefile(retained), (executable, retained)
+                    assert executable.name == name, executable
                     assert executable.parent.name == digest, executable
                     assert hashlib.sha256(executable.read_bytes()).hexdigest() == digest
+                task_names = fixtures.call(["task", "--list"], database)
                 if sys.platform in ("darwin", "win32"):
                     native.select_menu(client.pid, "Quit anyq")
                 else:
@@ -185,10 +190,21 @@ def run(cli, bundles, home, output, configuration):
                 assert client.wait(timeout=20) == 0
                 client = None
                 wait_for_renderers(home)
+                after_quit = fixtures.call(["daemon", "status"], database)
+                assert after_quit == owner, ("after client quit", owner, after_quit)
             finally:
                 log.close()
             package.remove()
-            assert fixtures.call(["daemon", "status"], database) == owner
+            after_removal = fixtures.call(["daemon", "status"], database)
+            assert after_removal == owner, (
+                "after package removal",
+                owner,
+                after_removal,
+            )
+            assert fixtures.call(["task", "--list"], database) == task_names
+            if retained:
+                assert retained.is_file(), retained
+                assert hashlib.sha256(retained.read_bytes()).hexdigest() == digest
             assert queue_fingerprint(database) == before
             assert {
                 path: hashlib.sha256(path.read_bytes()).hexdigest() for path in saved
@@ -198,6 +214,7 @@ def run(cli, bundles, home, output, configuration):
                     "cycle": cycle + 1,
                     "installed_window": windows,
                     "owner": owner,
+                    "retained_executable": str(retained) if retained else None,
                     "removal": "passed",
                     "queue_and_preferences": "unchanged",
                     "ui_observation": {

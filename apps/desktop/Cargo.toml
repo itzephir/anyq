@@ -37,7 +37,7 @@ zbus = { version = "5", features = ["blocking-api"], optional = true }
 objc2 = { version = "0.6", optional = true }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSEvent", "NSScreen"], optional = true }
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 sha2 = { version = "0.10", optional = true }
 tempfile = { version = "3", optional = true }
 
