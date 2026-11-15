@@ -84,6 +84,8 @@ jobs:
       - name: Native Ctrl+C integration tests
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
+      - name: Plugin virtual environment integration tests
+        run: python tooling/test_plugin_environment.py --cli target/debug/anyq${{ runner.os == 'Windows' && '.exe' || '' }}
       - run: python examples/demo.py
       - run: python examples/metadata.py
       - run: python examples/plugins.py

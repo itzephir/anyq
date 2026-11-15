@@ -9,7 +9,7 @@ Workflow [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on PRs and
 | --- | --- | --- |
 | Lint | Linux only | Rustfmt, Clippy --all-features with warnings denied, Rust AST linter, Cargo/API boundary checker, Ruff, OpenSpec |
 | Build & unit tests | Linux, macOS, Windows | Workspace build; unit tests excluding SQLite/file adapters and CLI integration suites |
-| Integration tests | Linux, macOS, Windows | SQLite/file adapter suites; CLI aliases/names/config/autocreate, concurrency, demo; separate required Native Ctrl+C integration tests step |
+| Integration tests | Linux, macOS, Windows | SQLite/file adapter suites; CLI aliases/names/config/autocreate, concurrency, shell recovery, isolated Python plugin environment before/after restart, demo; separate required Native Ctrl+C integration tests step |
 | Native distribution | macOS ARM64/Intel, Linux ARM64/x64, Windows x64 | Release build, archive, latest/pinned installation, and download/checksum failure rejection |
 | Desktop packages and native UI | Linux, macOS ARM64/Intel, Windows | Production-package install/launch/remove/reinstall and same-owner/data preservation; controller tests; native UI/daemon integration, platform PNG comparison, real status-host/menu/input and multiple-display scenarios; retained evidence and actual/diff artifacts |
 | Website | Linux | EN/RU selection and interaction tests; static container, HTTP, installers, preserving the working version when an update fails |

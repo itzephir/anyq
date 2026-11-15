@@ -919,5 +919,9 @@ mod timeout;
 mod shell;
 
 #[cfg(feature = "integration-test-hooks")]
+#[path = "support/shell_recovery.rs"]
+mod shell_recovery;
+
+#[cfg(feature = "integration-test-hooks")]
 #[path = "support/runtime_bootstrap.rs"]
 mod runtime_bootstrap;

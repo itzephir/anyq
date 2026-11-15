@@ -62,6 +62,11 @@ With true, final confirmed exit, including nonzero exit or launch failure with n
 process, requests ordinary idempotent completion. Completed means resource ownership
 was released; the separate execution outcome still records failure. A completion
 race or lost response cannot create another logical completion or rerun work.
+Recovery retries autocomplete for durably stopped work with the original completion
+receipt. If another managed worker still blocks completion, all slots remain held
+until it confirms stopped. Recovery then completes and admits successors without
+launching the shell command again. A task completed by another caller is recognized
+as terminal.
 
 ## Native containment and recovery
 

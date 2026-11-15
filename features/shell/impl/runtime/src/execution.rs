@@ -38,6 +38,8 @@ impl Execution {
     }
 
     pub fn complete(&mut self, output: &mut impl Write) -> Result<()> {
+        crate::checkpoint::checkpoint("shell.before-complete")?;
+
         stdio::send(
             output,
             PluginFrame::Request {

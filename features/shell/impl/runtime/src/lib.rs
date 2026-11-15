@@ -7,6 +7,7 @@ mod launch_error;
 mod managed_process;
 mod phase;
 mod prepare_plan;
+mod recovered_completion;
 mod spawn_process;
 mod stdio;
 
@@ -18,8 +19,9 @@ pub use spawn_process::SpawnProcess;
 use anyq_plugin_wire::{
     CapabilityRequest, CapabilityResult, HostFrame, PROTOCOL_VERSION, PluginFrame,
 };
-use anyq_queue_api::{Error, Metadata, MetadataValue, Result, format_name};
+use anyq_queue_api::{Error, Result};
 use phase::Phase;
+use recovered_completion::RecoveredCompletion;
 use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
@@ -52,6 +54,7 @@ pub fn run(
         }
     });
     let mut executions = BTreeMap::new();
+    let mut recovered: BTreeMap<String, RecoveredCompletion> = BTreeMap::new();
     let mut stopping: Option<Instant> = None;
     let mut handshaken = false;
     loop {
@@ -105,22 +108,8 @@ pub fn run(
                     result: CapabilityResult::ManagedList { work, next },
                 } if id == "recovery" => {
                     for work in work {
-                        let details: Metadata = work.details.try_into()?;
-                        if work.state == "stopped"
-                            && details.get(Some("autocomplete")) == Ok(&MetadataValue::Bool(true))
-                            && matches!(details.get(Some("status")), Ok(MetadataValue::String(status)) if status == "exited" || status == "launch-failed")
-                        {
-                            stdio::send(
-                                output,
-                                PluginFrame::Request {
-                                    id: format!("recovered:{}", work.action_id),
-                                    request: CapabilityRequest::Complete {
-                                        action_id: format!("complete:{}", work.action_id),
-                                        task: format_name(&work.task),
-                                        force: false,
-                                    },
-                                },
-                            )?;
+                        if let Some(completion) = RecoveredCompletion::from_work(work)? {
+                            recovered.insert(completion.action.clone(), completion);
                         }
                     }
                     if let Some(after) = next {
@@ -131,6 +120,19 @@ pub fn run(
                                 request: CapabilityRequest::ManagedList { after: Some(after) },
                             },
                         )?;
+                    }
+                }
+                HostFrame::Result { id, result }
+                    if id.starts_with("recovered:") || id.starts_with("recovered-read:") =>
+                {
+                    if let Some((operation, action)) = id.split_once(':') {
+                        let finished = match recovered.get(action) {
+                            Some(completion) => completion.accept(operation, result, output)?,
+                            None => false,
+                        };
+                        if finished {
+                            recovered.remove(action);
+                        }
                     }
                 }
                 HostFrame::Result { id, result } => {
@@ -162,6 +164,15 @@ pub fn run(
         executions.retain(|_, execution| {
             execution.phase != Phase::Finished && execution.phase != Phase::Uncertain
         });
+        // Oldest request first: bound retries without starving a large recovery set.
+        if stopping.is_none() {
+            if let Some(completion) = recovered
+                .values_mut()
+                .min_by_key(|completion| completion.next_request)
+            {
+                completion.retry(output)?;
+            }
+        }
         if stopping
             .is_some_and(|at| executions.is_empty() || at.elapsed() >= Duration::from_secs(2))
         {
