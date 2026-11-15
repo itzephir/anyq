@@ -4,7 +4,6 @@ use serde::de::DeserializeOwned;
 use std::{
     io::{self, Read},
     sync::atomic::{AtomicBool, Ordering},
-    thread,
     time::Duration,
 };
 
@@ -44,9 +43,7 @@ fn fill(
                 deadline.progress();
                 *read += count;
             }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(2));
-            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),
         }

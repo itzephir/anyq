@@ -3,6 +3,7 @@
 ## 1. Native lifecycle fixes and regression acceptance
 
 - [x] 1.1 Require focused native closure after host loss, retain verified executable owners on macOS with executable permissions, strengthen package identity/removal regression checks and documentation, and verify required local checks.
+- [x] 1.2 Replace timer-only daemon stream polling with readiness wakeups, add real macOS background transfer regression acceptance, and verify required local checks.
 
 ## 2. Cross-platform verification
 

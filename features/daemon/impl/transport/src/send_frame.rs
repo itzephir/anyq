@@ -4,7 +4,6 @@ use serde::Serialize;
 use std::{
     io::{self, Write},
     sync::atomic::{AtomicBool, Ordering},
-    thread,
     time::{Duration, Instant},
 };
 
@@ -107,8 +106,6 @@ fn write_piece(
                         "daemon send timed out",
                     ));
                 }
-
-                thread::sleep(Duration::from_millis(2));
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),

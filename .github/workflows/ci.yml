@@ -81,6 +81,9 @@ jobs:
       - name: Configuration file integration tests
         run: cargo test --locked -p anyq-config-file --lib
       - run: cargo test --locked -p anyq --test workflow --features integration-test-hooks
+      - name: macOS background transfer regressions
+        if: runner.os == 'macOS'
+        run: taskpolicy -b cargo test --locked -p anyq --test workflow --features integration-test-hooks output_regressions
       - name: Native Ctrl+C integration tests
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
