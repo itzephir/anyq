@@ -68,6 +68,10 @@ The observer follows the upstream [Wayland surface/output protocol](https://wayl
 Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
 Native menu input waits for an actual visible menu and its dismissal after selection.
+On Windows, a missed menu-opening click reacquires the current visible notification
+button within the existing deadline. This handles Explorer overflow-popup movement
+or dismissal during activation after host restart; only an actual popup owned by
+the panel process permits item selection.
 Windows reads the real
 Win32 popup handle, item labels and screen rectangles, following
 [pywinauto's popup adapter](https://github.com/pywinauto/pywinauto/blob/master/pywinauto/controls/win32_controls.py).
