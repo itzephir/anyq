@@ -20,7 +20,7 @@
 
 - [x] 4.1 Introduce default-versus-existing-only connection selection using canonical identity and the current default precedence; verify real default auto-start, equivalent paths, stopped custom requests, explicit start/restart and preserved ownership after crashes.
 - [x] 4.2 Apply the same policy to desktop observation and default application startup without creating or migrating selected custom storage; verify real GUI switching/disconnection/reconnection and existing-only legacy/corrupt/missing database scenarios.
-- [ ] 4.3 Update shared CLI/desktop fixtures and lifecycle documentation for intentional default and custom startup; verify native interruption, contention and package-lifetime suites still exercise their intended boundaries.
+- [x] 4.3 Update shared CLI/desktop fixtures and lifecycle documentation for intentional default and custom startup; verify native interruption, contention and package-lifetime suites still exercise their intended boundaries.
 
 ## 5. System autolaunch
 
@@ -31,7 +31,7 @@
 ## 6. Desktop system control
 
 - [x] 6.1 Add accessible EN/RU desktop autolaunch status/control as an immediate OS action separate from preference drafts; verify real native CLI-to-GUI state updates, success/error handling and unchanged queue/config state on all three operating systems.
-- [ ] 6.2 Add deterministic autolaunch settings screenshot scenarios, explicitly generate and review affected/new platform PNG goldens, and verify independent clean renders and read-only screenshot comparison on Linux, macOS and Windows.
+- [x] 6.2 Add deterministic autolaunch settings screenshot scenarios, explicitly generate and review affected/new platform PNG goldens, and verify independent clean renders and read-only screenshot comparison on Linux, macOS and Windows.
 
 ## 7. Integrated verification
 

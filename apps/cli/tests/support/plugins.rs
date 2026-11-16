@@ -288,6 +288,7 @@ fn global_reenable_waits_for_the_previous_instance_to_finish_managed_cancellatio
     enable(&queue, "worker", "managed-controlled", &log);
     queue.task("owner", &["cpu"]);
     wait_for_file(&log.with_extension("marker"), Some("started"));
+    wait(|| status(&queue, "worker")["lag"] == 0);
 
     queue.call(&["plugin", "disable", "worker"]);
     wait_for_file(&log.with_extension("cancelled"), Some("cancelled"));

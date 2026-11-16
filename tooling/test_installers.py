@@ -213,6 +213,20 @@ def main():
                 assert preserved.read_bytes() == b"user-managed-plugin"
                 assert destination.read_bytes() == original
 
+                database = root / "smoke queue.db"
+                committed = database.read_bytes()
+                destination.unlink()
+                shutil.rmtree(bin_dir / "plugins")
+                install(VERSION)
+
+                assert destination.read_bytes() == original
+                assert preserved.read_bytes() == b"user-managed-plugin"
+                assert database.read_bytes() == committed
+                for name in ("shell", "timeout"):
+                    assert (
+                        bin_dir / "plugins" / (name + (".exe" if windows else ""))
+                    ).is_file()
+
                 for invalid in (f"{'0' * 64}  {asset}\n", "", valid_checksum * 2):
                     checksum_file.write_text(invalid)
                     install(success=False)
