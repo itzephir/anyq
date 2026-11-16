@@ -18,6 +18,14 @@ as separate arguments; use absolute paths for script arguments. An enabled
 program has the invoking user's permissions. The host supplies neither database
 handles nor database paths through its protocol. It is not a security sandbox.
 
+Executable resolution preserves the selected invocation path, including interpreter
+symbolic links. For a Python plugin, select the virtual environment interpreter
+explicitly (for example `.venv/bin/python` on Unix or `.venv/Scripts/python.exe` on
+Windows), or put that environment first in PATH before enabling. Its dependencies
+remain available after daemon restart. Existing registrations retain their stored
+command; a registration created by an older binary with the wrong interpreter must
+use a new plugin name to select the intended command.
+
 First enable captures the current event watermark: existing running tasks do not
 produce synthetic starts. Disable pauses events and timers, preserving state,
 receipts, cursor and deadlines. Re-enable the same name and command to resume.

@@ -34,7 +34,10 @@ fn uncertain_launch_cannot_report_stopped_or_request_autocomplete() {
         let mut output = Vec::new();
 
         execution
-            .launch(&mut LaunchFailure { uncertain }, &mut output)
+            .launch(
+                &mut LaunchFailure { uncertain },
+                &mut crate::outbox::Outbox::new(&mut output),
+            )
             .unwrap();
 
         let frame: PluginFrame = decode(&output).unwrap();

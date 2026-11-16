@@ -97,7 +97,10 @@ fn main() {
                         },
                     });
                     pending = Some((delivery_id, event));
-                } else if mode == "managed" || mode == "managed-slow" || mode == "uncertain" {
+                } else if matches!(
+                    mode.as_str(),
+                    "managed" | "managed-slow" | "managed-controlled" | "uncertain"
+                ) {
                     send(PluginFrame::Request {
                         id: "register".into(),
                         request: CapabilityRequest::ManagedRegister {
@@ -170,6 +173,12 @@ fn main() {
                 }
             }
             HostFrame::Cancel { work } => {
+                if mode == "managed-controlled" {
+                    fs::write(marker.with_extension("cancelled"), b"cancelled").unwrap();
+                    while !marker.with_extension("release").exists() {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                }
                 if mode == "managed-slow" {
                     let marker = marker.clone();
                     std::thread::spawn(move || {

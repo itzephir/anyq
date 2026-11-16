@@ -1,4 +1,4 @@
-use crate::{PreparePlan, details, execution::Execution, phase::Phase, stdio};
+use crate::{PreparePlan, details, execution::Execution, outbox::Outbox, phase::Phase};
 use anyq_plugin_wire::{CapabilityRequest, PluginFrame};
 use anyq_queue_api::{Metadata, MetadataValue, QueueEvent, QueueEventKind, Result, format_name};
 use anyq_shell_api::Plan;
@@ -9,7 +9,7 @@ pub(crate) fn handle_event(
     delivery_id: String,
     executions: &mut BTreeMap<String, Execution>,
     factory: &mut impl PreparePlan,
-    output: &mut impl Write,
+    output: &mut Outbox<impl Write>,
 ) -> Result<()> {
     let prepared: Result<_> = (|| {
         if event.snapshot.kind != QueueEventKind::TaskRunning {
@@ -30,27 +30,21 @@ pub(crate) fn handle_event(
         Ok(Some((task, plan, details))) => {
             let action = format!("shell:{}", event.id());
             if executions.contains_key(&action) {
-                return stdio::send(
-                    output,
-                    PluginFrame::Ack {
-                        delivery_id,
-                        state: None,
-                        timers: vec![],
-                    },
-                );
+                return output.send(PluginFrame::Ack {
+                    delivery_id,
+                    state: None,
+                    timers: vec![],
+                });
             }
             crate::checkpoint::checkpoint("shell.before-register")?;
-            stdio::send(
-                output,
-                PluginFrame::Request {
-                    id: format!("register:{action}"),
-                    request: CapabilityRequest::ManagedRegister {
-                        action_id: action.clone(),
-                        task: format_name(&task),
-                        details: details.clone().into(),
-                    },
+            output.send(PluginFrame::Request {
+                id: format!("register:{action}"),
+                request: CapabilityRequest::ManagedRegister {
+                    action_id: action.clone(),
+                    task: format_name(&task),
+                    details: details.clone().into(),
                 },
-            )?;
+            })?;
             executions.insert(
                 action.clone(),
                 Execution {
@@ -69,26 +63,20 @@ pub(crate) fn handle_event(
             );
             Ok(())
         }
-        Ok(None) => stdio::send(
-            output,
-            PluginFrame::Ack {
-                delivery_id,
-                state: None,
-                timers: vec![],
-            },
-        ),
+        Ok(None) => output.send(PluginFrame::Ack {
+            delivery_id,
+            state: None,
+            timers: vec![],
+        }),
         Err(error) => {
             let mut state = Metadata::default();
             state.set("last_error", MetadataValue::String(error.to_string()))?;
             state.set("error_event", MetadataValue::String(event.id()))?;
-            stdio::send(
-                output,
-                PluginFrame::Ack {
-                    delivery_id,
-                    state: Some(state.into()),
-                    timers: vec![],
-                },
-            )
+            output.send(PluginFrame::Ack {
+                delivery_id,
+                state: Some(state.into()),
+                timers: vec![],
+            })
         }
     }
 }

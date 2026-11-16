@@ -1,0 +1,20 @@
+# Verification
+
+## Local regression evidence
+
+- The real CLI/daemon/shell recovery scenario failed before the fix: the owner stayed running after the other managed worker stopped. It passes after the fix, admits the successor, records one completion and launches the original command once.
+- The shell executable protocol scenario confirms a stable receipt on retry and reconciliation when a manual caller completes first.
+- The real live-shell race regression fails before the follow-up fix: after a separate CLI completes the task, the plugin never reaches execution retirement and the fixture fails in 15.71 seconds. With shared completion-result reconciliation, that case and both recovery regressions pass together in 1.80 seconds. The live scenario observes the finished execution before map cleanup, one command launch and one completion event, the same daemon, a healthy live plugin, and the successor retaining its slot. It uses explicit before-completion and finished-execution checkpoints instead of waiting an arbitrary retry interval or restarting the plugin.
+- The 16-task native integration regression fails before output flow control in 1.14 seconds with a protocol failure and 15 uncertain actions. With the bounded outbox and fair polling, all four shell follow-up regressions pass together in 1.78 seconds. Sixteen real native worker processes wait on a shared release signal; acceptance checks one launch and completion event per task, 16 stopped managed records, no plugin failures or unresolved actions, the same daemon, admission of a successor and final reuse of all slots. A release guard also unblocks fixture workers on test failure. Host process channels, flood rejection and response deadlines are unchanged.
+- Both explicit relative and PATH-selected Python environment scenarios failed before the resolver fix and pass afterward, including daemon restart and re-enabling the same command. The dependency module exists only inside the fixture environment.
+- Required local checks pass: workspace tests, all 117 CLI/plugin workflows, all 35 native interruption scenarios, Clippy with all targets/features, both architecture checks, Rustfmt, Ruff, strict OpenSpec validation and whitespace checks. The incompatible/hanging/flooding-plugin regression still passes with host limits unchanged.
+- Required Linux/macOS/Windows integration jobs run the shell regressions through the workflow suite and the isolated Python scenarios through a dedicated step.
+
+## Independent main CI failures
+
+Main commit `88b8a91` failed [CI run 43653517674](https://github.com/itzephir/anyq/actions/runs/43653517674). Its ordinary build, lint and integration categories passed.
+
+- [GNOME/Wayland job](https://github.com/itzephir/anyq/actions/runs/43653517674/job/132626959270): `exit_without_host` timed out waiting 15 seconds for the panel after disabling the AppIndicator extension. The preceding main commit failed at the same step in [run 43651532574](https://github.com/itzephir/anyq/actions/runs/43651532574/job/132620860235). Native evidence shows the extension was disabled and the final Alt+F4 was sent, but the Wayland client log has no corresponding final close event. The Wayland adapter sends Alt+F4 without activating a target window, and the scenario waits for visibility without waiting for focus; this supports a focus/input race in the fixture. A corrected native run is needed to confirm the underlying cause.
+- [macOS Intel package job](https://github.com/itzephir/anyq/actions/runs/43653517674/job/132626959175): the same-owner assertion failed after quitting the panel and removing its installed package. The saved application log is empty and the assertion did not record the observed owner status, so these artifacts do not establish whether the owner exited, changed or temporarily failed status discovery. This failure was absent from the preceding main run.
+
+These desktop acceptance failures are independent of the two plugin regressions. The follow-up `fix-desktop-native-lifecycle` change fixes them and records native acceptance evidence in its verification report. The required CI gate remains unchanged.

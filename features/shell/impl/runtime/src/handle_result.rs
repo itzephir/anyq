@@ -1,4 +1,4 @@
-use crate::{SpawnProcess, execution::Execution, phase::Phase, stdio};
+use crate::{SpawnProcess, execution::Execution, outbox::Outbox, phase::Phase};
 use anyq_plugin_wire::{CapabilityResult, PluginFrame};
 use anyq_queue_api::Result;
 use std::{collections::BTreeMap, io::Write};
@@ -8,7 +8,7 @@ pub(crate) fn handle_result(
     result: CapabilityResult,
     executions: &mut BTreeMap<String, Execution>,
     factory: &mut impl SpawnProcess,
-    output: &mut impl Write,
+    output: &mut Outbox<impl Write>,
 ) -> Result<()> {
     let Some((operation, action)) = id.split_once(':') else {
         return Ok(());
@@ -25,14 +25,11 @@ pub(crate) fn handle_result(
             },
         ) => {
             if let Some(delivery_id) = execution.delivery.take() {
-                stdio::send(
-                    output,
-                    PluginFrame::Ack {
-                        delivery_id,
-                        state: None,
-                        timers: Vec::new(),
-                    },
-                )?;
+                output.send(PluginFrame::Ack {
+                    delivery_id,
+                    state: None,
+                    timers: Vec::new(),
+                })?;
             }
             if launch_allowed {
                 if work.cancellation_requested {
@@ -48,14 +45,11 @@ pub(crate) fn handle_result(
             // Domain rejection means completion won launch serialization. Do
             // not poison delivery of future tasks with a stale running event.
             if let Some(delivery_id) = execution.delivery.take() {
-                stdio::send(
-                    output,
-                    PluginFrame::Ack {
-                        delivery_id,
-                        state: None,
-                        timers: Vec::new(),
-                    },
-                )?;
+                output.send(PluginFrame::Ack {
+                    delivery_id,
+                    state: None,
+                    timers: Vec::new(),
+                })?;
             }
             execution.phase = Phase::Finished;
         }
@@ -77,12 +71,13 @@ pub(crate) fn handle_result(
                 execution.phase = Phase::Executing;
             }
         }
-        ("complete", CapabilityResult::Task { task }) if task.state == "completed" => {
-            execution.phase = Phase::Finished
-        }
-        ("complete", _) => {
-            // Retry with the same receipt ID. A manual completion may have won.
-            execution.phase = Phase::Completing;
+        ("complete" | "complete-read", result) => {
+            execution.phase =
+                if crate::completion_result::accept(id, &execution.task, result, output)? {
+                    Phase::Finished
+                } else {
+                    Phase::Completing
+                };
         }
         (_, CapabilityResult::Error { .. }) => {
             let _ = execution.cancel();

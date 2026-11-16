@@ -194,8 +194,18 @@ class NativeSession:
         return text
 
     def select_menu(self, pid, label, *, right=True):
-        self.click_tray(pid, right=right)
-        self.wait("menu-open", pid=pid)
+        if sys.platform == "win32":
+            deadline = time.monotonic() + 20
+            target = None
+            while not self.call("menu-open", pid=pid):
+                assert time.monotonic() < deadline, ("menu-open", pid, target)
+                # Explorer can dismiss/reposition its overflow popup during activation.
+                # Reacquire the visible button after a missed click, then verify the menu.
+                target = self.click_tray(pid, right=right)
+                time.sleep(0.05)
+        else:
+            self.click_tray(pid, right=right)
+            self.wait("menu-open", pid=pid)
         if sys.platform == "darwin" or (
             sys.platform.startswith("linux") and os.environ.get("GDK_BACKEND") == "x11"
         ):

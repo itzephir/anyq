@@ -11,6 +11,11 @@ visible native window, the same live daemon, unchanged queue ownership and
 byte-identical preferences/shared configuration. Windows/Linux installation
 requires a disposable GitHub Actions machine; macOS uses an isolated per-user
 Applications directory. Shipping packages do not contain the UI test transport.
+macOS and Windows inspect the owner's actual executable path and verify its
+content-addressed retained build outside the installation. Owner identity is
+checked independently after client quit and package removal, with observed
+status included in failures. A real task-list request must still succeed with
+the package absent before the next installation cycle.
 The package fixture owns a three-stage queue in `config.json`. In each cycle,
 real native focus/click and Select All/Copy commands read the installed WebView's
 document through the OS clipboard. Required topic/task names, states and slot
@@ -63,6 +68,10 @@ The observer follows the upstream [Wayland surface/output protocol](https://wayl
 Monitor mode/scale controls follow
 [Mutter's dummy-output implementation](https://github.com/GNOME/mutter/blob/gnome-46/src/backends/meta-monitor-manager-dummy.c).
 Native menu input waits for an actual visible menu and its dismissal after selection.
+On Windows, a missed menu-opening click reacquires the current visible notification
+button within the existing deadline. This handles Explorer overflow-popup movement
+or dismissal during activation after host restart; only an actual popup owned by
+the panel process permits item selection.
 Windows reads the real
 Win32 popup handle, item labels and screen rectangles, following
 [pywinauto's popup adapter](https://github.com/pywinauto/pywinauto/blob/master/pywinauto/controls/win32_controls.py).
@@ -120,7 +129,9 @@ database path must still identify the configured alternate file.
 
 Host-loss scenarios close the restored last window while the host is still
 absent, verify client exit with unchanged owner/slots, then reconnect through
-a restarted client and host.
+a restarted client and host. Keyboard closure waits for the restored window to
+be both visible and focused; mapping alone does not establish a keyboard target
+on Wayland.
 
 The NSIS fixture passes its final `/D=` argument without quotes, including for
 the configured installation path with spaces, as required by the

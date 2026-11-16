@@ -28,7 +28,8 @@ pub fn resolve(value: &str) -> Result<String> {
             .find(|candidate| candidate.is_file())
             .ok_or_else(|| Error::Invalid("plugin executable was not found in PATH".into()))?
     };
-    let candidate = candidate.canonicalize()?;
+    // Interpreter links can select a virtual environment through their invocation path.
+    let candidate = std::path::absolute(candidate)?;
     if !candidate.is_file() {
         return Err(Error::Invalid("plugin executable must be a file".into()));
     }

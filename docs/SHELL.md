@@ -62,6 +62,19 @@ With true, final confirmed exit, including nonzero exit or launch failure with n
 process, requests ordinary idempotent completion. Completed means resource ownership
 was released; the separate execution outcome still records failure. A completion
 race or lost response cannot create another logical completion or rerun work.
+Recovery retries autocomplete for durably stopped work with the original completion
+receipt. If another managed worker still blocks completion, all slots remain held
+until it confirms stopped. Recovery then completes and admits successors without
+launching the shell command again. A task completed by another caller is recognized
+as terminal by both live execution and recovery: a completion conflict is reconciled
+through the public task-read capability, and a confirmed completed task retires the
+pending execution instead of repeating completion indefinitely.
+
+The shell runtime keeps one capability request outstanding and a bounded FIFO
+outbox. Native execution polling rotates across tasks and alternates with pending
+recovery, so simultaneous exits cannot flood the host's incoming channel or starve
+another execution. Cancellation reaches native processes independently of output
+credit. Host protocol, frame, diagnostic and flood limits remain unchanged.
 
 ## Native containment and recovery
 

@@ -19,6 +19,7 @@ mod send_frame;
 pub use send_frame::{send_bounded_frame, send_frame};
 
 mod io_runtime;
+mod io_wake;
 mod stream;
 pub use stream::Stream;
 
