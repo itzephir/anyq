@@ -71,8 +71,10 @@ def run(cli):
                 check=True,
                 timeout=30,
             )
-            wait(lambda: "running" in call("--db", str(changed), "daemon", "status"))
-            assert changed.is_file()
+            wait(
+                lambda: changed.is_file()
+                and "running" in call("--db", str(changed), "daemon", "status")
+            )
             assert not default.exists()
             assert call("--db", str(custom), "daemon", "status") == "daemon is stopped"
             call("topic", "create", "cpu")
