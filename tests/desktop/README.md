@@ -250,3 +250,18 @@ commits files or grants a CI pass for missing/unreviewed goldens.
 The initial hosted-runner images may be collected from CI artifacts, inspected,
 and committed. A missing initial baseline deliberately fails comparison until
 that review exists. Never fabricate one platform's images from another platform.
+
+## Autolaunch settings goldens
+
+The settings scenarios include the initial Russian view and explicit bottom-scroll
+states for Russian/off, English/on and English/registration-error. Every case uses
+the same 1000 x 620 native viewport, including the smaller hosted macOS display.
+
+[Generation run](https://github.com/itzephir/anyq/actions/runs/43894323491) on
+`d71161bc5037f3c33a01da589de8d32349550b1d` completed all 18 states twice from
+independent clean profiles on each of Linux, macOS and Windows. The configured
+comparison reported zero changed pixels between each pair; the settings pairs
+were also byte-for-byte pixel identical. The four settings PNGs per platform
+were visually inspected before committing. Other goldens and comparison thresholds
+were retained. The PR verification run compares against those tracked files
+without rewriting them.

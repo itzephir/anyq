@@ -19,7 +19,7 @@ from screenshots import platform_name
 
 class Package:
     def __init__(self, bundles, home):
-        self.home = Path(home)
+        self.home = Path(home).resolve()
         if sys.platform == "darwin":
             self.source = next(Path(bundles).glob("macos/*.app"))
             self.installed = self.home / "Applications" / self.source.name

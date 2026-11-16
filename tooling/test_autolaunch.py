@@ -3,7 +3,9 @@
 import argparse
 import json
 import os
+import socket
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -77,10 +79,52 @@ def run(cli):
             wait(lambda: json.loads(call("plugin", "status", "timeout"))["running"])
             call("task", "create", "expires", "-t", "cpu", "--meta", "timeout", "1ms")
             wait(lambda: "completed" in call("task", "expires"))
+            call("plugin", "enable", "shell")
+            wait(lambda: json.loads(call("plugin", "status", "shell"))["running"])
+            worker = (
+                "import socket,time; from pathlib import Path; root=Path(__file__).parent; "
+                "listener=socket.socket(); listener.bind(('127.0.0.1',0)); listener.listen(); "
+                "root.joinpath('started').write_text(str(listener.getsockname()[1]))\n"
+                "while not root.joinpath('release').exists(): time.sleep(0.02)\n"
+                "listener.close()\n"
+            )
+            script = home / "worker.py"
+            script.write_text(worker, encoding="utf-8")
+            plan = {
+                "src": [str(script)],
+                "interpreter": [sys.executable],
+                "autocomplete": True,
+            }
+            call(
+                "task",
+                "create",
+                "active-shell",
+                "-t",
+                "cpu",
+                "--meta",
+                "shell",
+                json.dumps(plan),
+            )
+            wait(
+                lambda: (
+                    (home / "started").is_file()
+                    and (home / "started").read_text().isdecimal()
+                )
+                or "status: completed" in call("task", "active-shell")
+            )
+            assert (home / "started").is_file(), call("plugin", "inspect", "shell")
+            port = int((home / "started").read_text())
+            call("task", "create", "next-shell", "-t", "cpu")
             owner = call("daemon", "status")
             assert call("autolaunch", "off") == "off"
             assert entry(home) is None
             assert call("daemon", "status") == owner
+            with socket.create_connection(("127.0.0.1", port), timeout=2):
+                assert "status: running" in call("task", "active-shell")
+                assert "status: queued" in call("task", "next-shell")
+            (home / "release").touch()
+            wait(lambda: "status: completed" in call("task", "active-shell"))
+            assert "status: running" in call("task", "next-shell")
             # System control remains available even when ordinary anyq config is invalid.
             config = home / ".anyq/config.toml"
             config.write_text("broken = [", encoding="utf-8")
@@ -90,6 +134,7 @@ def run(cli):
             assert config.read_text(encoding="utf-8") == "broken = ["
             assert not (home / ".anyq/panel.toml").exists()
         finally:
+            (home / "release").touch()
             call("autolaunch", "off")
             for database in (default, changed, custom):
                 call("--db", str(database), "daemon", "stop")

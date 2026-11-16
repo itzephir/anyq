@@ -24,13 +24,13 @@
 
 ## 5. System autolaunch
 
-- [ ] 5.1 Add separate typed autolaunch contracts, dispatch and native per-user OS registration adapters with retained launcher handling; verify real isolated native registration read/on/off, failed updates and preserved previous registration on Linux, macOS and Windows.
+- [x] 5.1 Add separate typed autolaunch contracts, dispatch and native per-user OS registration adapters with retained launcher handling; verify real isolated native registration read/on/off, failed updates and preserved previous registration on Linux, macOS and Windows.
 - [x] 5.2 Add config-independent `anyq autolaunch [on/off]` and the default-only login launcher path for CLI and desktop executables; verify the registered command launches the current default with enabled plugins, leaves custom queues stopped and disabling leaves active work unchanged, including with malformed anyq config.
 - [x] 5.3 Document native autolaunch scope, platform registration and recovery boundaries; verify command help and examples and assert no autolaunch key is written to shared or panel preferences.
 
 ## 6. Desktop system control
 
-- [ ] 6.1 Add accessible EN/RU desktop autolaunch status/control as an immediate OS action separate from preference drafts; verify real native CLI-to-GUI state updates, success/error handling and unchanged queue/config state on all three operating systems.
+- [x] 6.1 Add accessible EN/RU desktop autolaunch status/control as an immediate OS action separate from preference drafts; verify real native CLI-to-GUI state updates, success/error handling and unchanged queue/config state on all three operating systems.
 - [ ] 6.2 Add deterministic autolaunch settings screenshot scenarios, explicitly generate and review affected/new platform PNG goldens, and verify independent clean renders and read-only screenshot comparison on Linux, macOS and Windows.
 
 ## 7. Integrated verification
