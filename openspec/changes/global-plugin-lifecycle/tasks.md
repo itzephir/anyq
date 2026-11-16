@@ -8,7 +8,7 @@
 ## 2. Independent plugin binaries and installation
 
 - [x] 2.1 Build standalone shell and timeout executables with explicit composition roots and private shell-anchor support; verify real protocol handshakes, shell execution and timeout completion through those binaries.
-- [ ] 2.2 Package and provision first-party binaries into the common user directory for CLI and desktop distributions without implicit enablement or overwriting user binaries; verify portable and installer install/remove/reinstall scenarios on native targets and update installation documentation.
+- [x] 2.2 Package and provision first-party binaries into the common user directory for CLI and desktop distributions without implicit enablement or overwriting user binaries; verify portable and installer install/remove/reinstall scenarios on native targets and update installation documentation.
 
 ## 3. Global policy with isolated runtime progress
 
@@ -36,7 +36,7 @@
 ## 7. Integrated verification
 
 - [x] 7.1 Run all mandatory repository checks: Rustfmt, workspace Clippy with all targets/features and warnings denied, workspace tests, feature-enabled native interruptions, both architecture checks, Ruff lint/format, strict OpenSpec and diff whitespace; retain exact results and resolve failures without weakening checks.
-- [ ] 7.2 Verify current-head native CLI/plugin/desktop/system-registration, screenshot and distribution CI on Linux/macOS/Windows, including macOS Intel and Wayland jobs; only mark complete after required checks pass and report local versus remote coverage accurately.
+- [x] 7.2 Verify current-head native CLI/plugin/desktop/system-registration, screenshot and distribution CI on Linux/macOS/Windows, including macOS Intel and Wayland jobs; only mark complete after required checks pass and report local versus remote coverage accurately.
 
 ## Workflow follow-up
 
