@@ -5,7 +5,6 @@ mod error;
 mod interrupt;
 mod metadata_input;
 mod output;
-mod plugin_executable;
 mod plugin_presenters;
 mod presenters;
 mod start_task;
@@ -36,32 +35,63 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         parse_yaml: anyq_queue_metadata::parse_yaml,
         parse_toml: anyq_queue_metadata::parse_toml,
     };
-    let mut request = Request::parse(cli.command, &metadata_input)?;
-    if let Request::PluginRuntime(mode) = request {
-        match mode {
-            controllers::PluginRuntimeMode::Timeout => {
-                anyq_timeout_impl::run(&mut std::io::stdin().lock(), &mut std::io::stdout().lock())?
-            }
-            controllers::PluginRuntimeMode::ShellAnchor => anyq_shell_process::run_anchor()?,
-            controllers::PluginRuntimeMode::Shell => anyq_shell_runtime::run(
-                std::io::BufReader::new(std::io::stdin()),
-                &mut std::io::stdout().lock(),
-                &mut anyq_shell_process::NativeFactory::new(
-                    std::env::current_exe().map_err(|error| Error::Invalid(error.to_string()))?,
-                ),
-            )?,
-        }
-        return Ok(());
-    }
-    if let Request::Plugin(controllers::PluginCommand::Enable {
-        name, executable, ..
-    }) = &mut request
-    {
-        anyq_plugin_api::validate_plugin_name(name)?;
-        *executable = plugin_executable::resolve(executable)?;
-    }
+    let request = Request::parse(cli.command, &metadata_input)?;
     checkpoint("cli.before-command", &cancelled)?;
-    let config_path = anyq_config_impl::paths::home()?.join(".anyq/config.toml");
+    let home = anyq_config_impl::paths::home()?;
+    if let Request::Autolaunch(enabled) = request {
+        let config_directory = std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from);
+        let executable =
+            std::env::current_exe().map_err(|error| Error::Invalid(error.to_string()))?;
+        let mut services = anyq_autolaunch_impl::open(
+            &home,
+            config_directory.as_deref(),
+            &executable,
+            cancelled.clone(),
+        )?;
+        let enabled = match enabled {
+            Some(enabled) => services
+                .set
+                .set(anyq_autolaunch_api::SetAutolaunchRequest { enabled })?,
+            None => services.get.get()?,
+        };
+        output::emit(if enabled { "on" } else { "off" }, &cancelled)?;
+
+        return checkpoint("cli.after-command", &cancelled);
+    }
+    use controllers::PluginCommand;
+    if matches!(
+        &request,
+        Request::Plugin(
+            PluginCommand::Enable { .. } | PluginCommand::List | PluginCommand::Disable { .. }
+        )
+    ) {
+        provision_plugins(&home, &cancelled)?;
+        let mut catalog =
+            anyq_plugin_impl::catalog(&home.join(".anyq/plugins"), cancelled.clone())?;
+        let result = match request {
+            Request::Plugin(PluginCommand::Enable { name }) => {
+                plugin_presenters::installed(catalog.enable.enable(&name)?)
+            }
+            Request::Plugin(PluginCommand::Disable { name }) => {
+                plugin_presenters::installed(catalog.disable.disable(&name)?)
+            }
+            Request::Plugin(PluginCommand::List) => serde_json::Value::Array(
+                catalog
+                    .list
+                    .list()?
+                    .into_iter()
+                    .map(plugin_presenters::installed)
+                    .collect(),
+            ),
+            _ => unreachable!("catalog command selected"),
+        };
+        let message = serde_json::to_string_pretty(&result)
+            .map_err(|error| Error::Invalid(error.to_string()))?;
+        output::emit(&message, &cancelled)?;
+
+        return checkpoint("cli.after-command", &cancelled);
+    }
+    let config_path = home.join(".anyq/config.toml");
     let mut configuration = anyq_config_impl::open(&config_path, cancelled.clone());
 
     if let Request::Config(command) = request {
@@ -119,6 +149,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     }
 
     let config = configuration.get_config.get()?;
+    provision_plugins(&home, &cancelled)?;
     let path = anyq_config_impl::paths::resolve_database(cli.db.as_deref(), config.db_path())?.path;
 
     let policy = QueuePolicy {
@@ -130,7 +161,13 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     };
     if let Request::Daemon(command) = request {
         let pid = match command {
-            DaemonCommand::Run => return Ok(anyq_daemon_impl::run(&path, cancelled)?),
+            DaemonCommand::Run => {
+                return Ok(anyq_daemon_impl::run(
+                    &path,
+                    &home.join(".anyq/plugins"),
+                    cancelled,
+                )?);
+            }
             DaemonCommand::Start => Some(anyq_daemon_impl::daemon_start(
                 &path,
                 policy,
@@ -147,41 +184,37 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         return Ok(());
     }
 
+    let default_path = anyq_config_impl::paths::resolve_database(None, config.db_path())?.path;
+    // Establish default discovery before comparing aliases of a not-yet-created
+    // database on case-insensitive filesystems. Ping never opens SQLite.
+    let _ = anyq_daemon_impl::ensure_owner(&default_path, cancelled.clone(), None);
+    let startup = match anyq_daemon_impl::same_database(&path, &default_path) {
+        Ok(true) => anyq_daemon_impl::OwnerStartup::Automatic,
+        _ => anyq_daemon_impl::OwnerStartup::ExistingOnly,
+    };
+
     if let Request::Plugin(command) = request {
-        let mut plugins = anyq_daemon_impl::connect_plugins(&path, policy, cancelled.clone())?;
-        use controllers::PluginCommand;
+        let mut plugins =
+            anyq_daemon_impl::connect_plugins(&path, policy, cancelled.clone(), startup)?;
         let message = match command {
-            PluginCommand::Enable {
-                name,
-                executable,
-                arguments,
-            } => serde_json::to_string_pretty(&plugin_presenters::status(plugins.enable.enable(
-                anyq_plugin_api::EnablePluginRequest {
-                    name,
-                    executable,
-                    arguments,
-                },
-            )?)),
-            PluginCommand::List => serde_json::to_string_pretty(
-                &plugins
-                    .list
-                    .list()?
-                    .into_iter()
-                    .map(plugin_presenters::status)
-                    .collect::<Vec<_>>(),
-            ),
+            PluginCommand::Enable { .. } | PluginCommand::List | PluginCommand::Disable { .. } => {
+                unreachable!("catalog commands are handled independently of queues")
+            }
             PluginCommand::Status { name } => serde_json::to_string_pretty(
                 &plugin_presenters::status(plugins.status.status(&name)?),
             ),
             PluginCommand::State { name } => serde_json::to_string_pretty(
                 &anyq_plugin_wire::StateDto::from(plugins.status.status(&name)?.state),
             ),
-            PluginCommand::Disable { name } => serde_json::to_string_pretty(
-                &plugin_presenters::status(plugins.disable.disable(&name)?),
-            ),
-            PluginCommand::Inspect { name } => serde_json::to_string_pretty(
-                &anyq_daemon_impl::inspect_managed(&path, policy, cancelled.clone(), name)?,
-            ),
+            PluginCommand::Inspect { name } => {
+                serde_json::to_string_pretty(&anyq_daemon_impl::inspect_managed(
+                    &path,
+                    policy,
+                    cancelled.clone(),
+                    name,
+                    startup,
+                )?)
+            }
             PluginCommand::Resolve {
                 name,
                 action_id,
@@ -193,6 +226,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
                 name,
                 action_id,
                 confirmed_cleanup,
+                startup,
             )?),
         }
         .map_err(|error| Error::Invalid(error.to_string()))?;
@@ -201,7 +235,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
         return Ok(());
     }
 
-    let mut cases = anyq_daemon_impl::connect(&path, policy, cancelled.clone())?;
+    let mut cases = anyq_daemon_impl::connect(&path, policy, cancelled.clone(), startup)?;
     checkpoint("cli.before-operation", &cancelled)?;
 
     let message = match request {
@@ -235,7 +269,7 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
             cases.replace_topic_metadata.replace(request)?;
             None
         }
-        Request::PluginRuntime(_) => unreachable!("plugin runtime handled before queue operations"),
+        Request::Autolaunch(_) => unreachable!("autolaunch handled before queue operations"),
         Request::Plugin(_) => unreachable!("plugin operations handled before queue operations"),
         Request::Config(_) => unreachable!("configuration handled before opening the queue"),
         Request::Daemon(_) => unreachable!("daemon lifecycle handled before queue operations"),
@@ -430,6 +464,31 @@ fn run(cli: Cli, cancelled: Arc<AtomicBool>) -> Result<()> {
     }
 
     checkpoint("cli.after-command", &cancelled)
+}
+
+fn provision_plugins(home: &std::path::Path, cancelled: &AtomicBool) -> Result<()> {
+    let executable = std::env::current_exe()?;
+    let parent = executable
+        .parent()
+        .ok_or_else(|| Error::Invalid("CLI executable has no parent".into()))?;
+    let directory = home.join(".anyq/plugins");
+    for name in ["shell", "timeout"] {
+        let file_name = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+        let candidates = [
+            parent.join("plugins").join(&file_name),
+            parent.join(format!("anyq-{file_name}")),
+            parent.join("../share/anyq/plugins").join(&file_name),
+        ];
+        if let Some(source) = candidates.into_iter().find(|path| path.is_file()) {
+            anyq_plugin_impl::install_missing_binary(
+                &source,
+                &directory.join(file_name),
+                cancelled,
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 fn main() -> ExitCode {

@@ -1,3 +1,4 @@
+use anyq_daemon_api::OwnerStartup;
 use anyq_daemon_transport::{Endpoint, Stream};
 use std::{
     io,
@@ -17,10 +18,20 @@ pub(crate) fn start_owner(
     endpoint: &Endpoint,
     cancelled: &AtomicBool,
     executable: Option<&Path>,
+    startup: OwnerStartup,
 ) -> io::Result<(Endpoint, Stream)> {
     let mut endpoint = Endpoint::resolve(&endpoint.database)?;
     if let Ok(stream) = endpoint.connect() {
         return Ok((endpoint, stream));
+    }
+    if startup == OwnerStartup::ExistingOnly {
+        return Err(io::Error::new(
+            io::ErrorKind::ConnectionRefused,
+            format!(
+                "queue daemon is stopped; run anyq --db {:?} daemon start",
+                endpoint.database
+            ),
+        ));
     }
 
     let default_executable;

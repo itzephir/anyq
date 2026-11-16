@@ -9,6 +9,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
+    "anyq-autolaunch-api": {"anyq-queue-api"},
+    "anyq-autolaunch-dispatch": {"anyq-autolaunch-api", "anyq-queue-api"},
+    "anyq-autolaunch-system": {
+        "anyq-autolaunch-dispatch",
+        "anyq-queue-api",
+        "tempfile",
+        "sha2",
+        "plist",
+        "serde_json",
+        "winreg",
+    },
+    "anyq-autolaunch-impl": {
+        "anyq-autolaunch-api",
+        "anyq-autolaunch-dispatch",
+        "anyq-autolaunch-system",
+        "anyq-queue-api",
+    },
     "anyq-shell-api": {"anyq-queue-api"},
     "anyq-shell-runtime": {
         "anyq-shell-api",
@@ -46,6 +63,9 @@ ALLOWED = {
         "anyq-desktop-file",
     },
     "anyq-desktop": {
+        "anyq-plugin-impl",
+        "anyq-autolaunch-api",
+        "anyq-autolaunch-impl",
         "anyq-desktop-api",
         "anyq-desktop-impl",
         "anyq-config-api",
@@ -87,6 +107,15 @@ ALLOWED = {
         "serde_json",
         "tempfile",
     },
+    "anyq-plugin-file": {
+        "anyq-plugin-api",
+        "anyq-plugin-dispatch",
+        "anyq-queue-api",
+        "fs2",
+        "tempfile",
+        "serde",
+        "toml",
+    },
     "anyq-plugin-process": {
         "anyq-plugin-api",
         "anyq-plugin-runtime",
@@ -104,6 +133,7 @@ ALLOWED = {
         "anyq-plugin-api",
         "anyq-plugin-dispatch",
         "anyq-plugin-sqlite",
+        "anyq-plugin-file",
         "anyq-plugin-process",
         "anyq-plugin-runtime",
         "anyq-queue-api",
@@ -199,12 +229,15 @@ ALLOWED = {
     },
     "anyq-integration-test-hooks": set(),
     "anyq": {
+        "anyq-autolaunch-api",
+        "anyq-autolaunch-impl",
         "anyq-shell-runtime",
         "anyq-shell-process",
         "anyq-timeout-api",
         "anyq-queue-wire",
         "anyq-timeout-impl",
         "anyq-plugin-api",
+        "anyq-plugin-impl",
         "anyq-plugin-wire",
         "anyq-queue-metadata",
         "anyq-daemon-api",
@@ -223,6 +256,8 @@ ALLOWED = {
     "anyq-architecture-lint": {"syn"},
 }
 INNER = {
+    "anyq-autolaunch-api",
+    "anyq-autolaunch-dispatch",
     "anyq-shell-api",
     "anyq-timeout-api",
     "anyq-plugin-api",
@@ -269,17 +304,23 @@ def check(graph, sources):
             if (
                 name in {"anyq", "anyq-desktop"}
                 and path
-                != (
-                    "apps/cli/src/main.rs"
+                not in (
+                    {
+                        "apps/cli/src/main.rs",
+                        "apps/cli/src/bin/shell.rs",
+                        "apps/cli/src/bin/timeout.rs",
+                    }
                     if name == "anyq"
-                    else "apps/desktop/src/main.rs"
+                    else {"apps/desktop/src/main.rs"}
                 )
                 and re.search(
-                    r"\b(?:anyq_(?:daemon|queue|config|desktop|plugin|timeout|shell)_impl|anyq_queue_metadata|anyq_shell_(?:process|runtime))\b",
+                    r"\b(?:anyq_(?:daemon|queue|config|desktop|plugin|timeout|shell|autolaunch)_impl|anyq_queue_metadata|anyq_shell_(?:process|runtime))\b",
                     source,
                 )
             ):
-                errors.append(f"{path}: factory imports belong only to main.rs")
+                errors.append(
+                    f"{path}: factory imports belong only to named composition roots"
+                )
 
             if name in {"anyq", "anyq-desktop"} and re.search(
                 r"\banyq_queue_impl\b", source

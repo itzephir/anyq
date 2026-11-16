@@ -58,7 +58,19 @@ inaccessible directory: installation fails in that case.
 Unix reports when the directory is absent from PATH. Windows PATH is extended without
 duplicates within the selected scope; restart the terminal after installation.
 -NoPathUpdate disables PATH changes. Queues, settings, and history are retained.
-To uninstall, delete anyq/anyq.exe and optionally remove the added PATH directory.
+Archives contain `anyq[.exe]`, `plugins/shell[.exe]` and `plugins/timeout[.exe]`.
+Keep this layout when unpacking a portable release. Installers place all three
+verified files together and restore previous files if placement fails. On first
+ordinary CLI or plugin-catalog use, missing first-party executables are copied to
+`~/.anyq/plugins/`. Desktop bundles carry the same independent executables and
+provision them on startup. No plugin is enabled implicitly; existing user files
+are never overwritten. Use `anyq plugin enable shell` / `timeout` to opt in.
+
+To uninstall, first use `anyq autolaunch off` if login launch is no longer wanted,
+then delete the installed anyq executable and its adjacent `plugins` payload.
+Optionally remove the added PATH directory. Per-user queues, plugin catalog and
+retained launchers survive removal. To update a user-managed plugin, stop affected
+owners and replace its file explicitly; on Windows an active binary is locked.
 
 ## Releases
 

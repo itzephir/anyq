@@ -5,7 +5,7 @@ alone never enables an executable. CLI help, errors and plugin management output
 are English-only. Timeout and shell are separate implementation stages.
 
 ```sh
-anyq plugin enable observer python3 /absolute/path/to/examples/observer.py
+anyq plugin enable observer
 anyq plugin list
 anyq plugin status observer
 anyq plugin disable observer
@@ -13,24 +13,24 @@ anyq plugin inspect observer
 anyq plugin resolve observer ACTION_ID --confirmed-cleanup
 ```
 
-The CLI resolves the executable locally to an absolute path. Arguments are passed
-as separate arguments; use absolute paths for script arguments. An enabled
-program has the invoking user's permissions. The host supplies neither database
-handles nor database paths through its protocol. It is not a security sandbox.
+Install the independent plugin binary as `~/.anyq/plugins/observer` (with `.exe`
+on Windows) before enabling it. Shell and timeout are provisioned from the native
+distribution into the same directory. Enablement is user-wide; enable, disable
+and list do not open a queue or start a custom owner. Runtime status, state,
+inspect and resolve use the selected queue. See [PLUGIN-CATALOG.md](PLUGIN-CATALOG.md).
 
-Executable resolution preserves the selected invocation path, including interpreter
-symbolic links. For a Python plugin, select the virtual environment interpreter
-explicitly (for example `.venv/bin/python` on Unix or `.venv/Scripts/python.exe` on
-Windows), or put that environment first in PATH before enabling. Its dependencies
-remain available after daemon restart. Existing registrations retain their stored
-command; a registration created by an older binary with the wrong interpreter must
-use a new plugin name to select the intended command.
+The host launches the installed invocation path without framework command
+arguments or a plugin-specific settings schema. It preserves invocation symlinks.
+Each binary interprets arbitrary task/topic metadata itself. An enabled program
+has the invoking user's permissions. The host supplies neither database handles
+nor database paths through its protocol. It is not a security sandbox.
 
-First enable captures the current event watermark: existing running tasks do not
-produce synthetic starts. Disable pauses events and timers, preserving state,
-receipts, cursor and deadlines. Re-enable the same name and command to resume.
-Changing a registered command requires another name. At most 16 plugins may be
-enabled. Each has its own ordered delivery position and supervised process. Plugins run
+First activation in each owner captures that queue's current event watermark:
+existing running tasks do not produce synthetic starts. Wait for selected-queue
+status to report running before admitting plugin work. Disable pauses events and
+timers, preserving state, receipts, cursor and deadlines. Re-enable the same name
+to resume. At most 16 plugins may be enabled globally. Each queue has its own
+ordered delivery position, state, timers, receipts and supervised process. Plugins run
 in a separate process group (and detached console on Windows), so terminal
 Ctrl+C reaches the daemon and cancellation reaches plugins through the protocol.
 
@@ -48,6 +48,15 @@ uses the future-event watermark; startup never synthesizes historical starts.
 Disabled registrations retain their state and deadlines without launching.
 Completion receipts remain reusable, and uncertain managed work keeps its slots
 until explicit confirmed cleanup. Restart does not authorize relaunching it.
+
+Global enablement applies to already active owners through bounded reconciliation
+and to owners started later. It never scans for databases or starts stopped custom
+owners. Old queue-local registrations retain their history, but do not authorize
+user-wide execution until the binary is installed and explicitly enabled in the
+common catalog. Stop old owners before upgrading: daemon protocol 8 rejects old
+owners rather than silently using their queue-local plugin policy. Plugin storage
+version 1 upgrades additively to version 2 during ordinary queue initialization;
+existing-only background probes do not perform that migration.
 
 The existing-only runtime opener distinguishes these storage outcomes:
 

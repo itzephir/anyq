@@ -50,6 +50,7 @@ impl<S: Store> EnablePlugin for EnablePluginInteractor<S> {
                     executable: request.executable,
                     arguments: request.arguments,
                     enabled: false,
+                    catalog_revision: 0,
                     running: false,
                     cursor: records.watermark()?,
                     failures: 0,

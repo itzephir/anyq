@@ -3,6 +3,10 @@ use anyq_queue_api::{Error, Result};
 use rusqlite::Connection;
 
 pub fn validate_existing(connection: &Connection) -> Result<()> {
+    validate_version(connection, 2)
+}
+
+pub(crate) fn validate_version(connection: &Connection, expected: i64) -> Result<()> {
     for (table, query) in [
         (
             "plugin_schema",
@@ -10,7 +14,11 @@ pub fn validate_existing(connection: &Connection) -> Result<()> {
         ),
         (
             "plugins",
-            "SELECT name,executable,arguments,enabled,running,cursor,failures,retry_at,last_failure,subscriptions,capabilities,state FROM plugins LIMIT 0",
+            if expected == 1 {
+                "SELECT name,executable,arguments,enabled,running,cursor,failures,retry_at,last_failure,subscriptions,capabilities,state FROM plugins LIMIT 0"
+            } else {
+                "SELECT name,executable,arguments,enabled,running,cursor,failures,retry_at,last_failure,subscriptions,capabilities,state,catalog_revision FROM plugins LIMIT 0"
+            },
         ),
         (
             "plugin_timers",
@@ -35,7 +43,7 @@ pub fn validate_existing(connection: &Connection) -> Result<()> {
             row.get(0)
         })
         .map_err(storage)?;
-    if version != 1 {
+    if version != expected {
         return Err(Error::Storage("unsupported plugin storage schema".into()));
     }
 

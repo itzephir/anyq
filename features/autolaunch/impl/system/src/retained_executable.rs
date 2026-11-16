@@ -9,7 +9,7 @@ pub fn retain(home: &Path) -> io::Result<PathBuf> {
     retain_source(&std::env::current_exe()?, home)
 }
 
-fn retain_source(executable: &Path, home: &Path) -> io::Result<PathBuf> {
+pub(crate) fn retain_source(executable: &Path, home: &Path) -> io::Result<PathBuf> {
     let mut source = File::open(executable)?;
     let digest = hash(&mut source)?;
     let directory = home.join(".anyq/owners").join(format!("{digest:x}"));

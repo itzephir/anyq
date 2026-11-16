@@ -1,10 +1,11 @@
 CREATE TABLE IF NOT EXISTS plugin_schema (id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL);
-INSERT OR IGNORE INTO plugin_schema VALUES (1,1);
+INSERT OR IGNORE INTO plugin_schema VALUES (1,2);
 CREATE TABLE IF NOT EXISTS plugins (
     name TEXT PRIMARY KEY,
     executable TEXT NOT NULL,
     arguments TEXT NOT NULL CHECK(json_valid(arguments)),
     enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+    catalog_revision INTEGER NOT NULL DEFAULT 0 CHECK(catalog_revision>=0),
     running INTEGER NOT NULL CHECK(running IN (0,1)),
     cursor INTEGER NOT NULL CHECK(cursor>=0),
     failures INTEGER NOT NULL,

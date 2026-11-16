@@ -3,12 +3,17 @@
 Timeout is opt-in. Enable it **before** admitting the tasks it should observe:
 
 ```sh
-anyq plugin enable timeout /absolute/path/to/anyq plugin-runtime timeout
+anyq plugin enable timeout
 anyq topic create cpu --meta timeout 30m
 anyq task create build -t cpu --meta timeout 2h
 anyq plugin status timeout
 anyq plugin state timeout
 ```
+
+Timeout is an independent native binary in `~/.anyq/plugins/` (`timeout.exe` on
+Windows). Its enablement is common to every active owner, while deadlines,
+delivery state and receipts remain isolated in each queue. Wait for selected-queue
+status to report running before admitting tasks it should observe.
 
 The shortest timeout from the committed task and separate topic snapshots wins:
 this example expires after 30 minutes. A duration is a positive integer followed

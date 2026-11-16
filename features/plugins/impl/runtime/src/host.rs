@@ -18,6 +18,7 @@ use std::{
 
 pub struct Host<S> {
     pub store: S,
+    pub catalog: Box<dyn anyq_plugin_api::ListInstalledPlugins>,
     pub events: Box<dyn ReadQueueEvents>,
     pub read: Box<dyn GetTask>,
     pub work: crate::WorkCapabilities,
@@ -130,6 +131,12 @@ impl<S: Store> Host<S> {
     }
 
     pub fn run(&mut self, shutdown: Arc<AtomicBool>) -> Result<()> {
+        let installed = self.catalog.list().ok();
+        anyq_plugin_dispatch::reconcile_catalog(
+            &mut self.store,
+            installed.as_deref(),
+            &Default::default(),
+        )?;
         let registrations = self.store.transaction(|records| records.registrations())?;
         for plugin in registrations {
             self.uncertain(&plugin.name)?;
@@ -144,10 +151,21 @@ impl<S: Store> Host<S> {
         let mut sessions: BTreeMap<String, PluginSession> = BTreeMap::new();
         let mut stopping = None;
         let mut last_prune = Instant::now();
+        let mut last_catalog = Instant::now();
 
         loop {
             if shutdown.load(Ordering::SeqCst) && stopping.is_none() {
                 stopping = Some(Instant::now());
+            }
+            if stopping.is_none() && last_catalog.elapsed() >= Duration::from_millis(100) {
+                let installed = self.catalog.list().ok();
+                let active = sessions.keys().cloned().collect();
+                anyq_plugin_dispatch::reconcile_catalog(
+                    &mut self.store,
+                    installed.as_deref(),
+                    &active,
+                )?;
+                last_catalog = Instant::now();
             }
             let registrations = self.store.transaction(|records| records.registrations())?;
             for mut plugin in registrations {

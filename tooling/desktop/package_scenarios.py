@@ -102,6 +102,15 @@ def run(cli, bundles, home, output, configuration):
     observation = configuration["package_observation"]
     assert len(observation["stages"]) == 3
     database = fixtures.create(observation["fixture"])
+    fixtures.call(["daemon", "stop"], database)
+    # This fixture makes the package's queue the current default. Its retained
+    # GUI owner must be the first owner after installation.
+    fixtures.environment["ANYQ_DB"] = str(database)
+    plugin_directory = home / ".anyq/plugins"
+    for name in ("shell", "timeout"):
+        (
+            plugin_directory / (name + (".exe" if sys.platform == "win32" else ""))
+        ).unlink(missing_ok=True)
     preferences = home / ".anyq/panel.toml"
     preferences.write_text(
         f'database_override = {json.dumps(str(database))}\ntheme = "dark"\nlanguage = "en"\n',
@@ -136,6 +145,22 @@ def run(cli, bundles, home, output, configuration):
                         window["width"] >= 360 and window["height"] >= 500
                         for window in windows
                     ),
+                )
+                provisioned = [
+                    plugin_directory
+                    / (name + (".exe" if sys.platform == "win32" else ""))
+                    for name in ("shell", "timeout")
+                ]
+                deadline = time.monotonic() + 20
+                while not all(path.is_file() for path in provisioned):
+                    assert client.poll() is None and time.monotonic() < deadline, (
+                        "Package did not provision its plugin payload"
+                    )
+                    time.sleep(0.05)
+                for path in provisioned:
+                    assert path.stat().st_size > 0
+                assert not (plugin_directory / ".catalog.toml").exists(), (
+                    "Package implicitly changed plugin enablement"
                 )
                 if sys.platform == "win32":
                     assert not Path(str(package.executable) + ".WebView2").exists(), (

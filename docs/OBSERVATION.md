@@ -1,16 +1,17 @@
 # Queue observation
 
 The optional desktop panel uses the narrow `ObserveQueue` queue contract through
-the local owner. This capability requires daemon protocol version 7. A client
+the local owner. This capability requires daemon protocol version 8. A client
 connected to an incompatible owner reports an error instead of opening SQLite or
 presenting an empty live queue. Existing queue command forms and admission rules
 are unchanged.
 
 ## Contract
 
-`anyq_daemon_impl::observe(path, cancelled)` connects an observation-only session
+`anyq_daemon_impl::observe(path, cancelled, startup)` connects an observation-only session
 and returns only `ObserveQueue`. The selected database must already exist.
-Discovery can start the bundled owner, but the owner opens this session's file
+Default discovery can start the bundled owner; custom discovery requires an
+already running owner, but the owner opens this session's file
 read-only, without SQLite's create flag. A missing file, including one removed between
 discovery and opening, cannot be replaced by an empty database.
 Existing zero-byte files and empty SQLite files without an initialized anyq
@@ -24,8 +25,8 @@ contract independent of growing command-side task and topic records.
 
 The client executable must support the internal `daemon run --db PATH` launch
 form, as the CLI does. The desktop composition root supplies that internal mode
-before starting its graphical event loop. Ordinary CLI startup and creation
-behavior is unchanged.
+before starting its graphical event loop. Only the current default owner starts automatically. Custom initialization or
+migration requires an explicit command after `daemon start`.
 
 A successful snapshot contains all topics, including empty ones, and distinct
 queued/running tasks with complete memberships, registration sequence, saved

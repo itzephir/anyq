@@ -80,42 +80,71 @@ else
     die 'sha256sum or shasum is required'
 fi
 [ "$actual" = "$expected" ] || die 'SHA-256 mismatch; the installed binary was preserved'
-tar -xzf "$tmp_dir/$asset" -C "$tmp_dir" anyq
+tar -xzf "$tmp_dir/$asset" -C "$tmp_dir" anyq plugins/shell plugins/timeout
+for name in anyq plugins/shell plugins/timeout; do
+    [ -f "$tmp_dir/$name" ] && [ ! -L "$tmp_dir/$name" ] || die "Archive has no regular $name executable"
+    chmod 755 "$tmp_dir/$name"
+done
 [ -f "$tmp_dir/anyq" ] && [ ! -L "$tmp_dir/anyq" ] || die 'Archive has no regular anyq binary'
 
 chmod 755 "$tmp_dir/anyq"
 reported=$("$tmp_dir/anyq" --version) || die 'The downloaded binary cannot run on this system'
 [ "$reported" = "anyq ${version#v}" ] || die 'Binary version does not match the release'
-if command -v sha256sum >/dev/null 2>&1; then
-    binary_hash=$(sha256sum "$tmp_dir/anyq" | awk '{print $1}')
-else
-    binary_hash=$(shasum -a 256 "$tmp_dir/anyq" | awk '{print $1}')
-fi
+file_hash() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}';
+    else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+binary_hash=$(file_hash "$tmp_dir/anyq")
+shell_hash=$(file_hash "$tmp_dir/plugins/shell")
+timeout_hash=$(file_hash "$tmp_dir/plugins/timeout")
 
-# This fixed worker never downloads or executes code with additional privileges.
+# This fixed worker verifies every staged file before publishing any of them.
 placement=$(cat <<'PLACEMENT'
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 umask 022
 source=$1
 bin_dir=$2
-expected=$3
 mkdir -p "$bin_dir"
 bin_dir=$(CDPATH= cd "$bin_dir" && pwd)
-[ ! -d "$bin_dir/anyq" ] || { echo 'Destination anyq is a directory' >&2; exit 1; }
-staged=$(mktemp "$bin_dir/.anyq.XXXXXX")
-trap 'rm -f "$staged"' EXIT
+[ ! -L "$bin_dir/plugins" ] || { echo 'Plugin destination is a symlink' >&2; exit 1; }
+mkdir -p "$bin_dir/plugins"
+staged=$(mktemp -d "$bin_dir/.anyq.XXXXXX")
+mkdir -p "$staged/new/plugins" "$staged/old/plugins" "$staged/attempted/plugins"
+completed=0
+cleanup_placement() {
+    result=$?
+    trap - EXIT
+    if [ "$completed" = 0 ]; then
+        for name in anyq plugins/shell plugins/timeout; do
+            if [ -e "$staged/attempted/$name" ]; then
+                rm -f "$bin_dir/$name"
+                if [ -f "$staged/old/$name" ]; then mv "$staged/old/$name" "$bin_dir/$name"; fi
+            fi
+        done
+    fi
+    rm -rf "$staged"
+    exit "$result"
+}
+trap cleanup_placement EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-cp "$source" "$staged"
-chmod 755 "$staged"
-if command -v sha256sum >/dev/null 2>&1; then
-    actual=$(sha256sum "$staged" | awk '{print $1}')
-else
-    actual=$(shasum -a 256 "$staged" | awk '{print $1}')
-fi
-[ "$actual" = "$expected" ] || { echo 'Staged binary changed; installed binary preserved' >&2; exit 1; }
-mv -f "$staged" "$bin_dir/anyq"
+shift 2
+for name in anyq plugins/shell plugins/timeout; do
+    [ ! -d "$bin_dir/$name" ] && [ ! -L "$bin_dir/$name" ] || { echo 'Destination must be a regular file' >&2; exit 1; }
+    cp "$source/$name" "$staged/new/$name"
+    chmod 755 "$staged/new/$name"
+    if command -v sha256sum >/dev/null 2>&1; then actual=$(sha256sum "$staged/new/$name" | awk '{print $1}');
+    else actual=$(shasum -a 256 "$staged/new/$name" | awk '{print $1}'); fi
+    [ "$actual" = "$1" ] || { echo 'Staged executable changed; installed files preserved' >&2; exit 1; }
+    shift
+done
+for name in anyq plugins/shell plugins/timeout; do
+    if [ -f "$bin_dir/$name" ]; then cp -p "$bin_dir/$name" "$staged/old/$name"; fi
+    touch "$staged/attempted/$name"
+    mv -f "$staged/new/$name" "$bin_dir/$name"
+done
+completed=1
 PLACEMENT
 )
 
@@ -123,12 +152,12 @@ probe=$bin_dir
 while [ ! -e "$probe" ]; do probe=$(dirname "$probe"); done
 [ -d "$probe" ] || die 'Installation path has a non-directory parent'
 if [ -w "$probe" ]; then
-    /bin/sh -eu -c "$placement" anyq-install "$tmp_dir/anyq" "$bin_dir" "$binary_hash" || die 'Installation failed; the previous binary was preserved'
+    /bin/sh -eu -c "$placement" anyq-install "$tmp_dir" "$bin_dir" "$binary_hash" "$shell_hash" "$timeout_hash" || die 'Installation failed; the previous binary was preserved'
 else
     [ "$scope" = system ] || die 'User installation directory is not writable'
     command -v sudo >/dev/null 2>&1 || die 'System installation requires sudo or an administrator shell; --user installs without it'
     printf 'Administrator access is required to install in %s\n' "$bin_dir"
-    sudo -- /bin/sh -eu -c "$placement" anyq-install "$tmp_dir/anyq" "$bin_dir" "$binary_hash" || die 'System installation was not approved or failed; the previous binary was preserved'
+    sudo -- /bin/sh -eu -c "$placement" anyq-install "$tmp_dir" "$bin_dir" "$binary_hash" "$shell_hash" "$timeout_hash" || die 'System installation was not approved or failed; the previous binary was preserved'
 fi
 bin_dir=$(CDPATH= cd "$bin_dir" && pwd)
 printf 'Installed %s at %s/anyq\n' "$reported" "$bin_dir"

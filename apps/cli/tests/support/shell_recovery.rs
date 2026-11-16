@@ -46,10 +46,8 @@ fn receive(input: &Receiver<PluginFrame>) -> PluginFrame {
 
 #[test]
 fn recovered_completion_retries_the_same_receipt_and_recognizes_a_manual_winner() {
-    let queue = Queue::new();
     let mut process = TestProcess::spawn(
-        queue
-            .cmd(&["plugin-runtime", "shell"])
+        std::process::Command::new(env!("CARGO_BIN_EXE_anyq-shell"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()),
@@ -174,22 +172,8 @@ fn recovered_autocomplete_retries_after_another_managed_worker_confirms_stopped(
     assert!(output.status.success());
     queue.topic("cpu");
     let blocker = queue.log("blocker");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "blocker",
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        "managed-controlled",
-        blocker.to_str().unwrap(),
-    ]);
-    queue.call(&[
-        "plugin",
-        "enable",
-        "shell",
-        env!("CARGO_BIN_EXE_anyq"),
-        "plugin-runtime",
-        "shell",
-    ]);
+    crate::fixture_plugin::enable(&queue, "blocker", "managed-controlled", &blocker);
+    queue.call(&["plugin", "enable", "shell"]);
     wait(|| status(&queue, "blocker")["running"] == true);
     wait(|| status(&queue, "shell")["running"] == true);
     let counter = queue.dir.path().join("launches.txt");
@@ -263,14 +247,7 @@ fn live_autocomplete_retires_after_manual_completion_wins() {
     assert!(output.status.success());
     let owner = queue.call(&["daemon", "status"]);
     queue.topic("cpu");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "shell",
-        env!("CARGO_BIN_EXE_anyq"),
-        "plugin-runtime",
-        "shell",
-    ]);
+    queue.call(&["plugin", "enable", "shell"]);
     wait(|| status(&queue, "shell")["running"] == true);
     let command = if cfg!(windows) {
         "echo launch>>launches.txt"
@@ -344,14 +321,7 @@ fn sixteen_shell_tasks_finish_together_without_protocol_failure_or_lost_slots() 
     let release = ReleaseOnDrop(queue.dir.path().join("release-all"));
     queue.call(&["topic", "create", "cpu", "-c", "16"]);
     let owner = queue.call(&["daemon", "status"]);
-    queue.call(&[
-        "plugin",
-        "enable",
-        "shell",
-        env!("CARGO_BIN_EXE_anyq"),
-        "plugin-runtime",
-        "shell",
-    ]);
+    queue.call(&["plugin", "enable", "shell"]);
     wait(|| status(&queue, "shell")["running"] == true);
 
     for index in 0..16 {

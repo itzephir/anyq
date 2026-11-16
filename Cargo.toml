@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
 members = [
+  "features/autolaunch/api",
+  "features/autolaunch/impl/dispatch",
+  "features/autolaunch/impl/system",
+  "features/autolaunch/impl/composition",
   "features/shell/api",
   "features/shell/impl/runtime",
   "features/shell/impl/process",
@@ -31,6 +35,7 @@ members = [
   "features/plugins/api/wire",
   "features/plugins/impl/dispatch",
   "features/plugins/impl/sqlite",
+  "features/plugins/impl/file",
   "features/plugins/impl/process",
   "features/plugins/impl/runtime",
   "features/plugins/impl/composition",

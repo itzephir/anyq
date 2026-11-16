@@ -274,6 +274,19 @@ def run(cli, panel, home, output, configuration):
         )
         assert fingerprint(database) == after_completion
         source(alternate)
+        custom_owner = call("daemon", "status", db=alternate)
+        call("daemon", "stop", db=alternate)
+        driver.click("#refresh")
+        driver.wait(
+            "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='stale';"
+        )
+        assert call("daemon", "status", db=alternate) == "daemon is stopped"
+        call("daemon", "start", db=alternate)
+        assert call("daemon", "status", db=alternate) != custom_owner
+        driver.click("#refresh")
+        driver.wait(
+            "return (await window.__TAURI__.core.invoke('get_panel_state')).status==='live';"
+        )
         assert driver.state()["snapshot"]["running"] == 0
         assert driver.state()["snapshot"]["queued"] == 1
         source_path = driver.state()["path"]

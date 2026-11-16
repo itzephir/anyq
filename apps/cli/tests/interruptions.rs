@@ -1159,14 +1159,7 @@ fn native_owner_interrupt_cancels_managed_plugin_without_releasing_task_ownershi
     let owner = queue.spawn_owner();
     queue.topic("cpu");
     let log = queue.log("managed-interrupt");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "worker",
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        "managed",
-        log.to_str().unwrap(),
-    ]);
+    fixture_plugin::enable(&queue, "worker", "managed", &log);
     queue.task("owner", &["cpu"]);
     support::queue::wait_for_file(&log.with_extension("marker"), Some("started"));
     queue.task("next", &["cpu"]);
@@ -1191,14 +1184,7 @@ fn native_owner_crash_preserves_unknown_managed_execution_and_never_authorizes_r
     let owner = queue.spawn_owner();
     queue.topic("cpu");
     let log = queue.log("managed-crash");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "worker",
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        "uncertain",
-        log.to_str().unwrap(),
-    ]);
+    fixture_plugin::enable(&queue, "worker", "uncertain", &log);
     queue.task("owner", &["cpu"]);
     support::queue::wait_for_file(&log.with_extension("marker"), Some("started"));
     queue.task("next", &["cpu"]);
@@ -1231,14 +1217,7 @@ fn native_owner_interrupt_with_unconfirmed_plugin_cleanup_keeps_resources_after_
     let owner = queue.spawn_owner();
     queue.topic("cpu");
     let log = queue.log("uncertain-shutdown");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "worker",
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        "uncertain",
-        log.to_str().unwrap(),
-    ]);
+    fixture_plugin::enable(&queue, "worker", "uncertain", &log);
     queue.task("owner", &["cpu"]);
     support::queue::wait_for_file(&log.with_extension("marker"), Some("started"));
     queue.task("next", &["cpu"]);
@@ -1253,3 +1232,6 @@ fn native_owner_interrupt_with_unconfirmed_plugin_cleanup_keeps_resources_after_
     assert_eq!(work[0]["state"], "uncertain");
     queue.call(&["plugin", "disable", "worker"]);
 }
+
+#[path = "support/fixture_plugin.rs"]
+mod fixture_plugin;

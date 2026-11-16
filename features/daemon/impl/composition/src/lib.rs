@@ -1,6 +1,7 @@
 //! Explicit local client/server composition roots.
 mod sqlite_queue_factory;
 
+pub use anyq_daemon_api::OwnerStartup;
 use anyq_daemon_api::QueueServices;
 use anyq_daemon_client::*;
 use anyq_daemon_transport::Endpoint;
@@ -19,28 +20,35 @@ pub fn canonical_database_path(path: &Path) -> Result<std::path::PathBuf> {
     endpoint(path).map(|endpoint| endpoint.database)
 }
 
+pub fn same_database(first: &Path, second: &Path) -> Result<bool> {
+    Ok(endpoint(first)?.identity == endpoint(second)?.identity)
+}
+
 pub fn observe(
     path: &Path,
     cancelled: Arc<AtomicBool>,
+    startup: OwnerStartup,
 ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
-    observation(path, cancelled, None)
+    observation(path, cancelled, None, startup)
 }
 
 pub fn observe_with_owner(
     path: &Path,
     cancelled: Arc<AtomicBool>,
     owner_executable: &Path,
+    startup: OwnerStartup,
 ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
-    observation(path, cancelled, Some(owner_executable))
+    observation(path, cancelled, Some(owner_executable), startup)
 }
 
 fn observation(
     path: &Path,
     cancelled: Arc<AtomicBool>,
     owner_executable: Option<&Path>,
+    startup: OwnerStartup,
 ) -> Result<Box<dyn anyq_queue_api::ObserveQueue>> {
     let endpoint = endpoint(path)?;
-    let channel = Channel::open_observer(&endpoint, cancelled, owner_executable)?;
+    let channel = Channel::open_observer(&endpoint, cancelled, owner_executable, startup)?;
 
     Ok(Box::new(RemoteObserveQueue::new(
         channel,
@@ -52,8 +60,9 @@ pub fn connect(
     path: &Path,
     policy: QueuePolicy,
     cancelled: Arc<AtomicBool>,
+    startup: OwnerStartup,
 ) -> Result<QueueServices> {
-    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled, startup)?;
 
     Ok(QueueServices {
         get_task_metadata: Box::new(RemoteGetTaskMetadata::new(channel.clone())),
@@ -82,10 +91,12 @@ pub fn connect(
     })
 }
 
-pub fn run(path: &Path, cancelled: Arc<AtomicBool>) -> Result<()> {
+pub fn run(path: &Path, plugin_directory: &Path, cancelled: Arc<AtomicBool>) -> Result<()> {
     anyq_daemon_runtime::serve(
         endpoint(path)?,
-        Arc::new(sqlite_queue_factory::SqliteQueueFactory::default()),
+        Arc::new(sqlite_queue_factory::SqliteQueueFactory::new(
+            plugin_directory,
+        )),
         cancelled,
     )
 }
@@ -99,7 +110,7 @@ pub fn daemon_stop(path: &Path, cancelled: Arc<AtomicBool>) -> Result<()> {
 }
 
 pub fn daemon_start(path: &Path, policy: QueuePolicy, cancelled: Arc<AtomicBool>) -> Result<u32> {
-    let _services = connect(path, policy, cancelled.clone())?;
+    let _services = connect(path, policy, cancelled.clone(), OwnerStartup::Automatic)?;
 
     daemon_status(path, cancelled)?
         .ok_or_else(|| Error::Storage("daemon exited during startup".into()))
@@ -111,8 +122,9 @@ pub fn connect_plugins(
     path: &Path,
     policy: QueuePolicy,
     cancelled: Arc<AtomicBool>,
+    startup: OwnerStartup,
 ) -> Result<anyq_plugin_api::PluginServices> {
-    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled, startup)?;
 
     Ok(anyq_plugin_api::PluginServices {
         enable: Box::new(RemoteEnablePlugin::new(channel.clone())),
@@ -127,8 +139,9 @@ pub fn inspect_managed(
     policy: QueuePolicy,
     cancelled: Arc<AtomicBool>,
     owner: String,
+    startup: OwnerStartup,
 ) -> Result<Vec<anyq_plugin_wire::ManagedWorkDto>> {
-    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled, startup)?;
     match channel.request(anyq_daemon_api::QueueRequest::ManagedInspect { owner })? {
         anyq_daemon_api::QueueResponse::ManagedList(work) => Ok(work),
         _ => Err(Channel::unexpected()),
@@ -142,8 +155,9 @@ pub fn resolve_managed(
     owner: String,
     action_id: String,
     confirmed_cleanup: bool,
+    startup: OwnerStartup,
 ) -> Result<anyq_plugin_wire::ManagedWorkDto> {
-    let channel = Channel::open(&endpoint(path)?, policy, cancelled)?;
+    let channel = Channel::open(&endpoint(path)?, policy, cancelled, startup)?;
     match channel.request(anyq_daemon_api::QueueRequest::ManagedResolve {
         owner,
         action_id,
@@ -152,6 +166,14 @@ pub fn resolve_managed(
         anyq_daemon_api::QueueResponse::ManagedWork(work) => Ok(work),
         _ => Err(Channel::unexpected()),
     }
+}
+
+pub fn ensure_owner(
+    path: &Path,
+    cancelled: Arc<AtomicBool>,
+    executable: Option<&Path>,
+) -> Result<()> {
+    Channel::ensure_owner(&endpoint(path)?, cancelled, executable)
 }
 
 #[cfg(feature = "integration-test-hooks")]

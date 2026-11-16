@@ -26,8 +26,9 @@ def main():
             )
 
         try:
+            run("daemon", "start")
             run("topic", "create", "cpu")
-            run("plugin", "enable", "timeout", str(BINARY), "plugin-runtime", "timeout")
+            run("plugin", "enable", "timeout")
             end = time.monotonic() + 15
             while not json.loads(run("plugin", "status", "timeout"))["running"]:
                 if time.monotonic() > end:

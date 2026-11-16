@@ -34,6 +34,9 @@ let taskFilter = "";
 let settingsOpen = surface === "settings";
 let draft = null;
 let settingsError = "";
+let autolaunch = { enabled: invoke ? null : false, busy: false, error: false };
+let autolaunchReading = false;
+let autolaunchRevision = 0;
 let generation = null;
 let strings = en;
 
@@ -171,7 +174,54 @@ function settingsWindow() {
       ],
       draft.language,
     )}</select></div></div></section>
+    <section class="settings-section"><h2>${strings.startup}</h2>
+    <label class="check-row"><input id="autolaunch" type="checkbox" ${autolaunch.enabled ? "checked" : ""} ${autolaunch.busy ? "disabled" : ""}>${strings.autolaunch}</label>
+    <p class="help">${strings.autolaunchHelp}</p>
+    <p class="help" id="autolaunch-status" role="status" data-enabled="${autolaunch.enabled}" data-busy="${autolaunch.busy}">${autolaunch.busy ? strings.autolaunchChanging : autolaunch.error ? strings.autolaunchFailed : autolaunch.enabled === null ? strings.autolaunchLoading : autolaunch.enabled ? strings.autolaunchOn : strings.autolaunchOff}</p>
+    ${autolaunch.error ? `<button id="autolaunch-retry">${strings.retry}</button><button id="autolaunch-disable">${strings.autolaunchDisable}</button>` : ""}</section>
     ${settingsError ? `<p class="settings-error" role="alert">${escape(settingsError)}</p>` : ""}<footer class="settings-footer"><button id="cancel-footer">${strings.cancel}</button><button class="primary" id="save">${strings.save}</button></footer></main>`;
+}
+
+async function refreshAutolaunch() {
+  if (!invoke || !settingsOpen || autolaunch.busy || autolaunchReading) return;
+  autolaunchReading = true;
+  const revision = autolaunchRevision;
+  let next;
+  try {
+    next = {
+      enabled: await command("get_autolaunch"),
+      busy: false,
+      error: false,
+    };
+  } catch {
+    next = { ...autolaunch, error: true };
+  } finally {
+    autolaunchReading = false;
+  }
+  if (
+    revision === autolaunchRevision &&
+    JSON.stringify(next) !== JSON.stringify(autolaunch)
+  ) {
+    autolaunch = next;
+    if (settingsOpen) render();
+  }
+}
+
+async function setAutolaunch(enabled) {
+  ++autolaunchRevision;
+  autolaunch.busy = true;
+  autolaunch.error = false;
+  render();
+  try {
+    autolaunch.enabled = invoke
+      ? await command("set_autolaunch", { enabled })
+      : enabled;
+  } catch {
+    autolaunch.error = true;
+  } finally {
+    autolaunch.busy = false;
+    render();
+  }
 }
 
 async function command(command, args = {}) {
@@ -267,6 +317,7 @@ function bind() {
       settingsOpen = true;
       draft = { ...state.preferences };
       render();
+      refreshAutolaunch();
     }
   });
   const cancel = () => {
@@ -291,6 +342,9 @@ function bind() {
   on("language", "change", (event) => {
     draft.language = event.target.value;
   });
+  on("autolaunch", "change", (event) => setAutolaunch(event.target.checked));
+  on("autolaunch-retry", "click", refreshAutolaunch);
+  on("autolaunch-disable", "click", () => setAutolaunch(false));
   on("choose", "click", async () => {
     const path = await command("choose_database");
     if (path) {
@@ -384,7 +438,10 @@ if (invoke) {
       draft = { ...state.preferences };
     }
     render(false);
+    refreshAutolaunch();
   });
+  window.addEventListener("focus", refreshAutolaunch);
+  setInterval(refreshAutolaunch, 2000);
 } else {
   selectedTopic = state.snapshot?.topics[0]?.name ?? null;
   selectedTask = state.snapshot?.tasks[0]?.sequence ?? null;

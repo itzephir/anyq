@@ -154,6 +154,8 @@ def main():
                 }
                 try:
                     for command in (
+                        ["daemon", "start"],
+                        ["plugin", "list"],
                         ["topic", "create", "installer-resource"],
                         [
                             "task",
@@ -191,7 +193,23 @@ def main():
                         timeout=15,
                     )
 
+                plugin_directory = root / ".anyq/plugins"
+                for name in ("shell", "timeout"):
+                    file_name = name + (".exe" if windows else "")
+                    assert (plugin_directory / file_name).read_bytes() == (
+                        bin_dir / "plugins" / file_name
+                    ).read_bytes()
+                preserved = plugin_directory / ("shell.exe" if windows else "shell")
+                preserved.write_bytes(b"user-managed-plugin")
                 install(VERSION)
+                subprocess.run(
+                    [destination, "plugin", "list"],
+                    env=smoke_environment,
+                    check=True,
+                    capture_output=True,
+                    timeout=15,
+                )
+                assert preserved.read_bytes() == b"user-managed-plugin"
                 assert destination.read_bytes() == original
 
                 for invalid in (f"{'0' * 64}  {asset}\n", "", valid_checksum * 2):

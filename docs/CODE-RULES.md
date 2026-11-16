@@ -36,7 +36,7 @@ Do not add an abstraction without a concrete rule or consumer. The caller owns e
 
 Api and inner use cases do not import impl, IO, or infrastructure SDKs. Actual Cargo dependencies point inward. Controllers translate input; presenters format responses. The blocking wait pause belongs to CLI; no transaction or partial ownership is held during it.
 
-Composition roots are listed in [ARCHITECTURE.md](ARCHITECTURE.md): queue/impl/composition, config/impl/composition, daemon/impl/composition, plugins/impl/composition, desktop/impl/composition, apps/cli/src/main.rs, and apps/desktop/src/main.rs. Only they assemble implementations. The CLI composes remote queue adapters; only daemon composition imports the queue implementation for serving sessions.
+Composition roots are listed in [ARCHITECTURE.md](ARCHITECTURE.md): queue/impl/composition, config/impl/composition, daemon/impl/composition, plugins/impl/composition, desktop/impl/composition, autolaunch/impl/composition, apps/cli/src/main.rs, apps/cli/src/bin/shell.rs, apps/cli/src/bin/timeout.rs, and apps/desktop/src/main.rs. Only they assemble implementations. The CLI composes remote queue adapters; only daemon composition imports the queue implementation for serving sessions.
 
 Names and their reversible representation belong to the queue domain; restore receives canonical strings without parsing them again. The config domain owns keys and defaults; the file adapter only handles TOML/IO. Autocreate belongs to the main use-case transaction and rolls back on its error.
 
@@ -48,7 +48,7 @@ Builds and unit/integration tests run separately on Linux, macOS, and Windows. T
 
 Do not disable checks or add blanket allow directives to make CI pass. Review additionally checks SRP, SOLID, DRY, KISS, ownership of domain rules, and test quality.
 
-Optional first-party plugin modes use the same typed public protocol as external
+Optional independent first-party plugin executables use the same typed public protocol as external
 plugins. Only the CLI root assembles their protocol adapters and native process
 ports. Prepared shell policy and queue admission never spawn processes.
 

@@ -1,6 +1,6 @@
 # anyq architecture
 
-anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config, daemon, plugin and desktop features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
+anyq coordinates named tasks and admission to local resources. Clean Architecture is organized by queue, config, daemon, plugin, autolaunch and desktop features, then by layer; api and impl have separate Cargo crates. Feature implementations depend on other features' APIs only. Designated composition roots assemble concrete implementations; daemon composition wires queue implementation behind injected runtime ports.
 
 | Module | Responsibility |
 | --- | --- |
@@ -23,6 +23,7 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | plugins/api/wire | Versioned JSONL envelopes and bounded codec |
 | plugins/impl/dispatch | Separate management interactors and atomic acknowledgement policy |
 | plugins/impl/sqlite | Plugin records, state and timers; initializer injected into queue schema transaction |
+| plugins/impl/file | User-wide executable catalog, locked atomic enablement and missing-binary provisioning |
 | plugins/impl/runtime | Post-commit delivery, supervision policy and typed capability routing through injected ports |
 | plugins/impl/process | Bounded asynchronous child stdin/stdout/stderr and confirmed executable shutdown |
 | plugins/impl/composition | Explicit plugin adapter assembly |
@@ -30,6 +31,10 @@ anyq coordinates named tasks and admission to local resources. Clean Architectur
 | desktop/impl/dispatch | Separate preference get/set interactors and consumer-owned PreferenceStore |
 | desktop/impl/file | Strict panel-local TOML, file locking, atomic replacement |
 | desktop/impl/composition | Explicit preference adapter assembly |
+| autolaunch/api | Typed live system-registration read and change contracts |
+| autolaunch/impl/dispatch | Separate get/set interactors and registration ports |
+| autolaunch/impl/system | Native per-user login registration and immutable launcher retention |
+| autolaunch/impl/composition | Explicit native registration adapter assembly |
 | apps/desktop | Optional Tauri composition root, read-only observation controller, presentation and native shell adapters |
 | apps/cli | Syntax, text responses, shared config path resolution, blocking CheckTaskRunning polling, and signals |
 | tooling/architecture-lint | Rust structure checks |
@@ -69,7 +74,7 @@ Config Store combines reading/changing one Config. Under a file lock, FileConfig
 
 ## External details
 
-The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, features/desktop/impl/composition, apps/cli/src/main.rs, and apps/desktop/src/main.rs; only they assemble implementations. The workspace has 35 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
+The domain and use cases do not use IO, SQL, clocks, CLI, or SDKs. Composition roots are features/queue/impl/composition, features/config/impl/composition, features/daemon/impl/composition, features/plugins/impl/composition, features/desktop/impl/composition, features/autolaunch/impl/composition, apps/cli/src/main.rs, apps/cli/src/bin/shell.rs, apps/cli/src/bin/timeout.rs, and apps/desktop/src/main.rs; only they assemble implementations. The workspace has 40 crates, including two development tools. CLI no longer imports queue composition or SQLite; daemon composition creates each session's local SQLite-backed services. Protocol serialization belongs to technical daemon/plugin boundaries and queue wire API, not queue/config domain APIs.
 
 Metadata/MetadataValue, exact normalized MetadataNumber, dotted paths and the incremental size/depth budget belong to queue API. Separate task/topic read, set, unset and replace interactors use the existing transaction. Task owns its edit-state restriction; metadata mutations never invoke admission. Creation saves initial metadata before links and admission. Topic capacity/autostart changes preserve its metadata.
 
@@ -126,8 +131,8 @@ and distinguishes live/stale/error from empty snapshots. Both webviews receive
 the same projection. GUI dependencies are feature-gated; the reviewed desktop
 build script generates Tauri metadata only. The macOS shell uses safe AppKit
 bindings for screen and pointer coordinates; those SDK dependencies remain in
-the outer desktop application and are rejected from inner crates. Windows owner
-executable retention also stays in this outer application: the composition root
+the outer desktop application and are rejected from inner crates. Owner
+executable retention belongs to the autolaunch system adapter: the composition root
 injects its retained executable path into the narrow observation factory. The
 ordinary CLI retains its existing default bootstrap. See
 [DESKTOP.md](DESKTOP.md).

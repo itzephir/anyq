@@ -158,3 +158,18 @@ OpenDesign's opaque authenticated iframe needs classic scripts and inline font
 URLs; the exporter supplies those without changing the modular native source.
 Preview fixtures contain synthetic queue data; the packaged application always
 uses its Rust controller and IPC state.
+
+## System launch at login
+
+Settings exposes an EN/RU launch-at-login control. It reads native registration
+state when opened and while visible, so CLI changes appear without saving panel
+preferences. The action applies immediately; Cancel and Save settings do not
+revert it. Errors retain the last confirmed state and offer retry/removal.
+No system setting is written to panel.toml or config.toml.
+
+Application startup ensures only the current default owner. Selecting a custom
+database observes its already running owner; after disconnection, explicitly run
+`anyq --db PATH daemon start` to reconnect. Missing, legacy and invalid observed
+files are never initialized or migrated by the panel.
+
+See [AUTOLAUNCH.md](AUTOLAUNCH.md) for native registration and launcher semantics.

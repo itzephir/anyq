@@ -1,5 +1,15 @@
-use anyq_plugin_api::PluginStatus;
+use anyq_plugin_api::{InstalledPlugin, PluginStatus};
 use serde_json::{Value, json};
+
+pub fn installed(plugin: InstalledPlugin) -> Value {
+    json!({
+        "name": plugin.name,
+        "executable": plugin.executable,
+        "available": plugin.available,
+        "enabled": plugin.enabled,
+        "revision": plugin.revision,
+    })
+}
 
 pub fn status(status: PluginStatus) -> Value {
     json!({

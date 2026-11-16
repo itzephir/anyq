@@ -393,7 +393,7 @@
       "kind": "queue",
       "commands": [
         ["topic", "create", "cpu", "-c", "1"],
-        ["plugin", "enable", "timeout", "@cli", "plugin-runtime", "timeout"],
+        ["plugin", "enable", "timeout"],
         [
           "task",
           "create",
@@ -626,7 +626,8 @@
       "id": "settings-light-ru",
       "theme": "light",
       "language": "ru",
-      "settings": true
+      "settings": true,
+      "viewport": [1000, 850]
     },
     {
       "id": "empty-light-ru",
@@ -683,6 +684,22 @@
     {
       "id": "keyboard-focus-dark-en",
       "focus": "#topic-search"
+    },
+    {
+      "id": "settings-dark-en-autolaunch",
+      "settings": true,
+      "theme": "dark",
+      "language": "en",
+      "autolaunch": true,
+      "viewport": [1000, 850]
+    },
+    {
+      "id": "settings-dark-en-autolaunch-error",
+      "settings": true,
+      "theme": "dark",
+      "language": "en",
+      "autolaunch": "error",
+      "viewport": [1000, 850]
     }
   ],
   "comparison": {

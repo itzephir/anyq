@@ -20,6 +20,7 @@ def run(cli, panel, home, output, configuration):
     driver = None
     try:
         database = fixtures.create(setup["fixture"])
+        fixtures.call(["daemon", "stop"], database)
         metadata = json.dumps({"payload": "x" * setup["metadata_bytes_per_task"]})
         with closing(sqlite3.connect(database)) as connection, connection:
             for index in range(setup["metadata_tasks"]):

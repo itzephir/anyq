@@ -22,3 +22,21 @@ mod acknowledge;
 pub use acknowledge::acknowledge;
 
 mod read_status;
+
+mod catalog_store;
+pub use catalog_store::CatalogStore;
+
+mod catalog_records;
+pub use catalog_records::CatalogRecords;
+
+mod list_installed_plugins;
+pub use list_installed_plugins::ListInstalledPluginsInteractor;
+
+mod enable_installed_plugin;
+pub use enable_installed_plugin::EnableInstalledPluginInteractor;
+
+mod disable_installed_plugin;
+pub use disable_installed_plugin::DisableInstalledPluginInteractor;
+
+mod reconcile_catalog;
+pub use reconcile_catalog::{ensure_catalog_registrations, reconcile_catalog};

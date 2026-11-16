@@ -1,5 +1,5 @@
 use crate::{client_session::ClientSession, start_owner::start_owner};
-use anyq_daemon_api::{QueueRequest, QueueResponse};
+use anyq_daemon_api::{OwnerStartup, QueueRequest, QueueResponse};
 use anyq_daemon_transport::Endpoint;
 use anyq_queue_api::{Error, QueuePolicy, Result};
 use std::{
@@ -19,13 +19,14 @@ impl Channel {
         endpoint: &Endpoint,
         cancelled: Arc<AtomicBool>,
         owner_executable: Option<&Path>,
+        startup: OwnerStartup,
     ) -> Result<Self> {
         if !endpoint.database.is_file() {
             return Err(Error::NotFound(
                 "selected queue database does not exist".into(),
             ));
         }
-        let (endpoint, stream) = start_owner(endpoint, &cancelled, owner_executable)
+        let (endpoint, stream) = start_owner(endpoint, &cancelled, owner_executable, startup)
             .map_err(|error| Error::Storage(error.to_string()))?;
         let channel = Self {
             session: Rc::new(RefCell::new(ClientSession::new(stream, cancelled))),
@@ -45,16 +46,18 @@ impl Channel {
         endpoint: &Endpoint,
         policy: QueuePolicy,
         cancelled: Arc<AtomicBool>,
+        startup: OwnerStartup,
     ) -> Result<Self> {
         let caller_directory =
             std::env::current_dir().map_err(|error| Error::Storage(error.to_string()))?;
-        let (endpoint, stream) = start_owner(endpoint, &cancelled, None).map_err(|error| {
-            if error.kind() == std::io::ErrorKind::Interrupted {
-                Error::Interrupted
-            } else {
-                Error::Storage(error.to_string())
-            }
-        })?;
+        let (endpoint, stream) =
+            start_owner(endpoint, &cancelled, None, startup).map_err(|error| {
+                if error.kind() == std::io::ErrorKind::Interrupted {
+                    Error::Interrupted
+                } else {
+                    Error::Storage(error.to_string())
+                }
+            })?;
         let channel = Self {
             session: Rc::new(RefCell::new(ClientSession::new(stream, cancelled))),
         };
@@ -87,5 +90,15 @@ impl Channel {
 
     pub fn unexpected() -> Error {
         Error::Storage("unexpected daemon response".into())
+    }
+
+    pub fn ensure_owner(
+        endpoint: &Endpoint,
+        cancelled: Arc<AtomicBool>,
+        executable: Option<&Path>,
+    ) -> Result<()> {
+        start_owner(endpoint, &cancelled, executable, OwnerStartup::Automatic)
+            .map(|_| ())
+            .map_err(|error| Error::Storage(error.to_string()))
     }
 }

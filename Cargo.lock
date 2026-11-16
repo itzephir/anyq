@@ -101,6 +101,8 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "anyq"
 version = "0.1.1"
 dependencies = [
+ "anyq-autolaunch-api",
+ "anyq-autolaunch-impl",
  "anyq-config-api",
  "anyq-config-impl",
  "anyq-daemon-api",
@@ -108,6 +110,7 @@ dependencies = [
  "anyq-daemon-transport",
  "anyq-integration-test-hooks",
  "anyq-plugin-api",
+ "anyq-plugin-impl",
  "anyq-plugin-wire",
  "anyq-queue-api",
  "anyq-queue-metadata",
@@ -128,6 +131,44 @@ name = "anyq-architecture-lint"
 version = "0.1.1"
 dependencies = [
  "syn 2.0.119",
+]
+
+[[package]]
+name = "anyq-autolaunch-api"
+version = "0.1.1"
+dependencies = [
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-autolaunch-dispatch"
+version = "0.1.1"
+dependencies = [
+ "anyq-autolaunch-api",
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-autolaunch-impl"
+version = "0.1.1"
+dependencies = [
+ "anyq-autolaunch-api",
+ "anyq-autolaunch-dispatch",
+ "anyq-autolaunch-system",
+ "anyq-queue-api",
+]
+
+[[package]]
+name = "anyq-autolaunch-system"
+version = "0.1.1"
+dependencies = [
+ "anyq-autolaunch-dispatch",
+ "anyq-queue-api",
+ "plist",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "winreg",
 ]
 
 [[package]]
@@ -235,12 +276,15 @@ dependencies = [
 name = "anyq-desktop"
 version = "0.1.1"
 dependencies = [
+ "anyq-autolaunch-api",
+ "anyq-autolaunch-impl",
  "anyq-config-api",
  "anyq-config-impl",
  "anyq-daemon-api",
  "anyq-daemon-impl",
  "anyq-desktop-api",
  "anyq-desktop-impl",
+ "anyq-plugin-impl",
  "anyq-queue-api",
  "ctrlc",
  "objc2",
@@ -309,11 +353,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyq-plugin-file"
+version = "0.1.1"
+dependencies = [
+ "anyq-plugin-api",
+ "anyq-plugin-dispatch",
+ "anyq-queue-api",
+ "fs2",
+ "serde",
+ "tempfile",
+ "toml 1.2.1+spec-1.1.0",
+]
+
+[[package]]
 name = "anyq-plugin-impl"
 version = "0.1.1"
 dependencies = [
  "anyq-plugin-api",
  "anyq-plugin-dispatch",
+ "anyq-plugin-file",
  "anyq-plugin-process",
  "anyq-plugin-runtime",
  "anyq-plugin-sqlite",

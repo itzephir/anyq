@@ -40,3 +40,21 @@ pub use plugin_services::PluginServices;
 
 mod timer_policy;
 pub use timer_policy::due_timers;
+
+mod installed_plugin;
+pub use installed_plugin::InstalledPlugin;
+
+mod list_installed_plugins;
+pub use list_installed_plugins::ListInstalledPlugins;
+
+mod enable_installed_plugin;
+pub use enable_installed_plugin::EnableInstalledPlugin;
+
+mod disable_installed_plugin;
+pub use disable_installed_plugin::DisableInstalledPlugin;
+
+mod plugin_catalog;
+pub use plugin_catalog::PluginCatalog;
+
+mod catalog_policy;
+pub use catalog_policy::{MAX_ENABLED_PLUGINS, validate_catalog_name};

@@ -12,3 +12,6 @@
 __pycache__/
 
 /desktop-test-results/
+
+/apps/desktop/resources/plugins/*
+!/apps/desktop/resources/plugins/.gitkeep

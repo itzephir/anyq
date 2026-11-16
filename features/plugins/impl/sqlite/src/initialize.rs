@@ -11,8 +11,13 @@ pub fn initialize(connection: &Connection) -> Result<()> {
                 row.get(0)
             })
             .map_err(storage)?;
-        if version != 1 {
-            return Err(Error::Storage("unsupported plugin storage schema".into()));
+        match version {
+            1 => {
+                crate::validate_existing::validate_version(connection, 1)?;
+                connection.execute_batch("ALTER TABLE plugins ADD COLUMN catalog_revision INTEGER NOT NULL DEFAULT 0 CHECK(catalog_revision>=0); UPDATE plugin_schema SET version=2 WHERE id=1;").map_err(storage)?;
+            }
+            2 => crate::validate_existing::validate_existing(connection)?,
+            _ => return Err(Error::Storage("unsupported plugin storage schema".into())),
         }
     }
 

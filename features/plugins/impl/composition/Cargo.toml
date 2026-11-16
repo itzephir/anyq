@@ -9,6 +9,7 @@ license.workspace = true
 anyq-plugin-api = { path = "../../api" }
 anyq-plugin-dispatch = { path = "../dispatch" }
 anyq-plugin-sqlite = { path = "../sqlite" }
+anyq-plugin-file = { path = "../file" }
 anyq-plugin-process = { path = "../process" }
 anyq-plugin-runtime = { path = "../runtime" }
 anyq-queue-api = { path = "../../../queue/api" }
