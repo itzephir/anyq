@@ -15,6 +15,7 @@ from native_session import NativeSession
 from PIL import ImageGrab
 from screenshots import platform_name
 from status_host import StatusHost
+from windows_shell import stopped as stopped_windows_shell
 
 
 def run(cli, panel, home, output, configuration, profile):
@@ -187,31 +188,12 @@ def run(cli, panel, home, output, configuration, profile):
                     host.start()
                     driver.start(viewport=configuration["visual_defaults"]["viewport"])
                 elif sys.platform == "win32":
-                    subprocess.run(
-                        [
-                            "powershell",
-                            "-NoProfile",
-                            "-Command",
-                            "Stop-Process -Name explorer -Force",
-                        ],
-                        check=True,
-                        timeout=15,
-                    )
-                    driver.wait_shell(
-                        lambda state: not state["tray"]["usable"]
-                        and state["windows"]["main"]["visible"]
-                    )
-                    exit_without_host()
-                    subprocess.run(
-                        [
-                            "powershell",
-                            "-NoProfile",
-                            "-Command",
-                            "Start-Process explorer.exe",
-                        ],
-                        check=True,
-                        timeout=15,
-                    )
+                    with stopped_windows_shell(home):
+                        driver.wait_shell(
+                            lambda state: not state["tray"]["usable"]
+                            and state["windows"]["main"]["visible"]
+                        )
+                        exit_without_host()
                     driver.start(viewport=configuration["visual_defaults"]["viewport"])
                 else:
                     subprocess.run(

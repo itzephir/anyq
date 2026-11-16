@@ -67,7 +67,6 @@ def run(cli):
                 registration[1],
                 env=environment,
                 check=True,
-                capture_output=True,
                 timeout=30,
             )
             wait(lambda: "running" in call("--db", str(changed), "daemon", "status"))

@@ -83,6 +83,11 @@ Xfce uses the primary button; GNOME uses its
 AppIndicator extension's secondary-button context menu. Notification-icon lookup excludes ordinary application/taskbar buttons
 and restricts Windows accessibility searches to actual shell windows.
 
+The disposable Windows host-loss fixture keeps Explorer absent until the panel
+observes host loss and exits through its ordinary window. It stops automatically
+restarted Explorer instances during that boundary, then restores the shell in
+cleanup. The assertion never depends on sampling a brief restart gap.
+
 Windows fixture teardown waits for its own WebView2 processes to exit before
 removing profile files. Test transport retries transient Windows sharing denials
 within the existing response deadline; it never replays a request or accepts
@@ -148,7 +153,9 @@ any visual instability under the configured comparison before accepting candidat
 `config.json` owns each state's CLI seed commands, expected complete snapshot,
 fixed clock/timezone, source, preferences, viewport/decorations, selected topic/task,
 scroll, focus, cursor, renderer arguments, masks and comparison thresholds. Cases
-do not inherit earlier scenarios.
+do not inherit earlier scenarios. They may set `scroll.body` to `"end"` to expose controls below the fold at the same
+native viewport, without creating an off-screen window. Autolaunch captures use
+this explicit state on all three platforms.
 The configured capture deadline waits for three consecutive visually stable
 native frames after fonts/layout are ready. It rejects an unsettled renderer;
 it does not replace the separate repeatability check across clean processes.

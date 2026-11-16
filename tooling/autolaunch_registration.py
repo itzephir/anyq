@@ -29,8 +29,15 @@ def entry(home):
                 if not name.startswith("anyq-") or kind != winreg.REG_SZ:
                     continue
                 match = re.fullmatch(r'"(.+)" daemon start', command)
-                if match and Path(match[1]).resolve().is_relative_to(home.resolve()):
-                    return name, command
+                if match:
+                    launcher = Path(match[1])
+                    try:
+                        if len(launcher.parents) > 3 and launcher.parents[3].samefile(
+                            home
+                        ):
+                            return name, command
+                    except OSError:
+                        continue
         return None
     path = home / "xdg-config/autostart/anyq.desktop"
     return (path, ["gio", "launch", str(path)]) if path.exists() else None

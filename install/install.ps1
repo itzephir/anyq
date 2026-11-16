@@ -54,6 +54,8 @@ function Publish-Anyq {
             if (Test-Path -LiteralPath $destination) {
                 $item = Get-Item -LiteralPath $destination -Force
                 if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Destination must be a regular file' }
+                $access = [IO.File]::Open($destination, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+                $access.Dispose()
             }
             $placement = [pscustomobject]@{
                 Name = $file.Name

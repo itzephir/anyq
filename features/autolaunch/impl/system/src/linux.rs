@@ -31,7 +31,9 @@ pub(crate) fn signature(launcher: &Path) -> Result<String> {
         }
     }
 
-    Ok(format!("\"{escaped}\" daemon start"))
+    // GLib checks the executable token before expanding desktop-entry %% escapes.
+    // A fixed env executable keeps profile paths in the normal argument expansion.
+    Ok(format!("/usr/bin/env -- \"{escaped}\" daemon start"))
 }
 
 pub(crate) fn read(registration: &NativeRegistration) -> Result<Option<String>> {

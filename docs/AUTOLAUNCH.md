@@ -26,6 +26,9 @@ Native per-user registrations:
   the next login; the command does not bootstrap a launchd job immediately.
 - Linux: `$XDG_CONFIG_HOME/autostart/anyq.desktop`, falling back to
   `~/.config/autostart/anyq.desktop`, using the XDG desktop autostart protocol.
+  A fixed `/usr/bin/env --` executable passes the retained launcher as a quoted
+  argument, so percent signs in profile paths survive GLib's executable check
+  before desktop-field expansion. No shell interprets the command.
 - Windows: an anyq profile-specific REG_SZ value in
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
 

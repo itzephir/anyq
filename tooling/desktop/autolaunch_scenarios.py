@@ -77,6 +77,7 @@ def run(cli, panel, home, output, configuration):
         fixtures.call(["daemon", "stop"], database)
         # Execute the real registration written by the GUI. It must remain headless.
         subprocess.run(registration[1], env=driver.environment, check=True, timeout=30)
+        fixtures.wait_owner(database)
         assert "running" in fixtures.call(["daemon", "status"], database)
         assert queue_fingerprint(database) == fingerprint
         assert preferences.read_bytes() == original_preferences

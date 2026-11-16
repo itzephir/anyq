@@ -135,6 +135,13 @@ $request.NoPathUpdate = $true
 Invoke-AnyqPlacement $request -Administrator:$false -Elevate { throw 'Unexpected user-mode elevation' }
 if ((Get-AnyqSha256 $destination) -cne $request.Hash) { throw 'User placement failed' }
 [IO.File]::WriteAllText($destination, 'previous binary')
+$locked = [IO.File]::Open($destination, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try {
+    $denied = $false
+    try { Publish-Anyq $request } catch { $denied = $true }
+    if (-not $denied) { throw 'Locked destination was replaced' }
+} finally { $locked.Dispose() }
+if ([IO.File]::ReadAllText($destination) -cne 'previous binary') { throw 'Locked destination changed' }
 $request.Hash = '0' * 64
 $denied = $false
 try { Publish-Anyq $request } catch { $denied = $true }

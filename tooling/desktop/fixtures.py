@@ -152,16 +152,19 @@ class Fixtures:
                 creationflags=0x08000000 if os.name == "nt" else 0,
             )
             self.owners.append(owner)
-            deadline = time.monotonic() + 15
-            while "running" not in self.call(["daemon", "status"], path):
-                assert owner.poll() is None and time.monotonic() < deadline, (
-                    "Fixture transport owner did not start"
-                )
-                time.sleep(0.02)
+            self.wait_owner(path, owner)
         else:
             assert fixture["kind"] == "missing"
             assert not path.exists()
         return path
+
+    def wait_owner(self, path, process=None):
+        deadline = time.monotonic() + 20
+        while "running" not in self.call(["daemon", "status"], path):
+            assert time.monotonic() < deadline and (
+                process is None or process.poll() is None
+            ), "Fixture owner did not start"
+            time.sleep(0.02)
 
     def stop(self):
         self.call(["autolaunch", "off"], self.home / "queue.db")

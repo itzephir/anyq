@@ -151,6 +151,7 @@ def main():
                     "HOME": str(root),
                     "USERPROFILE": str(root),
                     "LOCALAPPDATA": str(root / "appdata"),
+                    "ANYQ_DB": str(root / "smoke queue.db"),
                 }
                 try:
                     for command in (

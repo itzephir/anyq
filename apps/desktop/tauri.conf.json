@@ -5,7 +5,7 @@
   "identifier": "com.itzephir.anyq.panel",
   "build": {
     "frontendDist": "ui",
-    "beforeBuildCommand": "python ../../tooling/prepare_desktop_plugins.py"
+    "beforeBuildCommand": "python ../tooling/prepare_desktop_plugins.py"
   },
   "app": {
     "withGlobalTauri": true,

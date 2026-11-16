@@ -1,7 +1,6 @@
 use anyq_queue_api::{Error, Result};
 use std::{
     fs::{File, OpenOptions},
-    io::ErrorKind,
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
     thread,
@@ -28,7 +27,9 @@ impl CatalogLock {
             }
             match fs2::FileExt::try_lock_exclusive(&file) {
                 Ok(()) => return Ok(Self { _file: file }),
-                Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                Err(error)
+                    if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() =>
+                {
                     thread::sleep(Duration::from_millis(10));
                 }
                 Err(error) => return Err(Error::Storage(error.to_string())),

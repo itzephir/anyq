@@ -626,8 +626,7 @@
       "id": "settings-light-ru",
       "theme": "light",
       "language": "ru",
-      "settings": true,
-      "viewport": [1000, 850]
+      "settings": true
     },
     {
       "id": "empty-light-ru",
@@ -691,7 +690,11 @@
       "theme": "dark",
       "language": "en",
       "autolaunch": true,
-      "viewport": [1000, 850]
+      "scroll": {
+        "content": 0,
+        "topics": 0,
+        "body": "end"
+      }
     },
     {
       "id": "settings-dark-en-autolaunch-error",
@@ -699,7 +702,23 @@
       "theme": "dark",
       "language": "en",
       "autolaunch": "error",
-      "viewport": [1000, 850]
+      "scroll": {
+        "content": 0,
+        "topics": 0,
+        "body": "end"
+      }
+    },
+    {
+      "id": "settings-light-ru-autolaunch",
+      "settings": true,
+      "theme": "light",
+      "language": "ru",
+      "autolaunch": false,
+      "scroll": {
+        "content": 0,
+        "topics": 0,
+        "body": "end"
+      }
     }
   ],
   "comparison": {
