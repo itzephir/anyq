@@ -17,6 +17,18 @@ Installed plugins SHALL be independent native binaries in `~/.anyq/plugins/`, in
 - **WHEN** CLI or desktop installation provisions first-party plugins for a new user
 - **THEN** shell and timeout are separate native binaries in that user's plugin directory and neither is enabled implicitly
 
+#### Scenario: Previously published CLI archive
+- **WHEN** a current installer selects a published v0.1.0 or v0.1.1 archive containing only the CLI
+- **THEN** installation succeeds without modifying adjacent plugin files, user plugins or queue data
+
+#### Scenario: Incomplete plugin archive
+- **WHEN** a downloaded archive contains only one first-party plugin, or a later-version archive contains neither
+- **THEN** installation fails before replacing any installed executable
+
+#### Scenario: Cross-target desktop distribution
+- **WHEN** a desktop package targets another supported architecture or universal macOS
+- **THEN** its first-party plugin binaries contain the same target architecture or architectures as the application
+
 ### Requirement: User-wide explicit enablement
 `plugin enable NAME` and `plugin disable NAME` SHALL persist one user-wide enabled set. Every active owner and subsequently started owner SHALL use that set without per-database enable commands. Catalog operations SHALL NOT start custom database owners or require a queue database.
 

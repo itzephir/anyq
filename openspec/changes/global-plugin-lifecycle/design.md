@@ -35,6 +35,10 @@ Persist the applied catalog revision in plugin storage through an additive versi
 
 Build separate shell and timeout binary targets alongside the CLI, using their existing protocol/runtime/process crates. Only their small binary composition roots assemble implementations; shell retains a private anchor entrypoint in its own executable. Bundles and installers carry these binaries. Provision missing first-party files in `~/.anyq/plugins/` from packaged resources without overwriting a user-supplied installed executable or enabling it implicitly. Portable development builds resolve sibling built binaries.
 
+Installers retain the published v0.1.0/v0.1.1 single-CLI archive format. An archive that contains either first-party plugin must contain both; later versions require both. Legacy installation leaves adjacent plugin payloads and user data untouched. Regression fixtures use the actual checksum-verified published binaries as well as current build outputs.
+
+The desktop build hook selects TAURI_ENV_TARGET_TRIPLE before Cargo defaults and uses Cargo's reported executable paths. A universal macOS package contains universal shell and timeout binaries assembled from both native target builds; target verification rejects mismatched payloads before packaging.
+
 ### Startup is selected by canonical database identity
 
 Resolve the current default using existing ANYQ_DB, shared db.path and platform precedence without an explicit CLI/panel override. Compare canonical identity, including equivalent paths, before choosing connection policy. Default queue/application startup can ensure its owner; all other ordinary connections and observations are existing-only. Explicit daemon start remains the custom-queue activation boundary, with the internal foreground owner entrypoint used by startup and native signal tests.
@@ -46,6 +50,8 @@ Do not infer startup permission from a saved path list or plugin enablement. Cus
 Use separate API contracts, dispatch ports, native system adapters and composition. CLI `autolaunch on/off` is handled independently of queue configuration parsing; bare autolaunch reports status. Desktop exposes an immediate system action independently of the preference draft and reflects errors rather than persisting a guessed boolean.
 
 Register per-user login launch through a macOS LaunchAgent, Linux XDG autostart desktop entry, or Windows HKCU Run entry. The registered command uses a retained executable with `daemon start` and resolves the default at login; the GUI executable supports that non-GUI launcher mode as well. Registration does not snapshot custom paths. Disabling removes future login launch without stopping the detached owner or managed processes. Native integration tests use isolated profile locations/registry identities and execute the registered launch command against a real default owner.
+
+On Linux, unset, empty or relative XDG_CONFIG_HOME values use the standard ~/.config fallback. The same adapter resolves this path for CLI and GUI, including ordinary application startup with login launch disabled.
 
 References: [Apple launchd jobs](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html), [XDG autostart](https://specifications.freedesktop.org/autostart-spec/latest/), [Windows Run registration](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys).
 

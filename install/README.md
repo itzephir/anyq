@@ -59,6 +59,10 @@ Unix reports when the directory is absent from PATH. Windows PATH is extended wi
 duplicates within the selected scope; restart the terminal after installation.
 -NoPathUpdate disables PATH changes. Queues, settings, and history are retained.
 Archives contain `anyq[.exe]`, `plugins/shell[.exe]` and `plugins/timeout[.exe]`.
+The published v0.1.0/v0.1.1 archives containing only the CLI remain installable,
+including through latest resolution. Legacy installation leaves existing adjacent
+plugin files untouched. An archive containing only one plugin is rejected, and
+versions after v0.1.1 require both plugins before any installed file is replaced.
 Keep this layout when unpacking a portable release. Installers place all three
 verified files together and restore previous files if placement fails. On first
 ordinary CLI or plugin-catalog use, missing first-party executables are copied to
@@ -96,6 +100,12 @@ CI adds --system to tests on disposable runners: it checks the actual
 system directory, updates, and PATH, then removes only its own binary and
 restores PATH. Local tests use temporary user paths;
 they also check sudo refusal, UAC argument forwarding, and Windows PATH rollback.
+Installer regressions download the actual published v0.1.0/v0.1.1 native archives
+with the development-only GitHub CLI and verify SHA256SUMS before serving them
+through an isolated HTTP fixture. Set GH_TOKEN on CI or use an authenticated gh
+session locally. --published-archive-dir can reuse checksum-verified downloads
+organized by release tag. These checks cover latest/pinned legacy installation,
+preserved payloads/data, upgrade to the current layout and incomplete archives.
 
 ANYQ_RELEASE_BASE_URL (Unix) / -ReleaseBaseUrl (Windows) specify a trusted mirror
 for tests. HTTP is allowed only on loopback. The checksum and archive source

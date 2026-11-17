@@ -21,6 +21,7 @@ from check_system_install import (
     path_value,
     restore_path,
 )
+from installer_compatibility import check_published_installation
 from package_release import asset_name
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,9 +37,9 @@ class ReleaseHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/releases/latest":
             self.send_response(302)
-            self.send_header("Location", f"/releases/tag/{VERSION}")
+            self.send_header("Location", f"/releases/tag/{self.server.release_version}")
             self.end_headers()
-        elif self.path == f"/releases/tag/{VERSION}":
+        elif self.path == f"/releases/tag/{self.server.release_version}":
             self.send_response(200)
             self.end_headers()
         else:
@@ -52,6 +53,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
     parser.add_argument("--archive-dir", type=Path, default=Path("release-dist"))
+    parser.add_argument("--published-archive-dir", type=Path)
     parser.add_argument(
         "--system",
         action="store_true",
@@ -75,6 +77,7 @@ def main():
         checksum_file.write_text(valid_checksum)
         handler = functools.partial(ReleaseHandler, directory=root)
         with ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
+            server.release_version = VERSION
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             base_url = f"http://127.0.0.1:{server.server_port}/releases"
@@ -264,6 +267,18 @@ def main():
                     "appdata/Programs/anyq" if windows else ".local/bin"
                 )
                 assert (user_directory / destination.name).read_bytes() == original
+
+                check_published_installation(
+                    install,
+                    server,
+                    root,
+                    archive,
+                    VERSION,
+                    args.target,
+                    args.published_archive_dir or root / "published-archives",
+                )
+                assert destination.read_bytes() == original
+                assert database.read_bytes() == committed
 
                 if windows:
                     install(update_path=True)

@@ -96,6 +96,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libglib2.0-bin desktop-file-utils
       - name: Native login registration and launcher
         run: python tooling/test_autolaunch.py --cli target/debug/anyq${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Linux login launch with empty XDG configuration directory
+        if: runner.os == 'Linux'
+        run: python tooling/test_autolaunch.py --cli target/debug/anyq --empty-xdg-config-home
       - name: Plugin virtual environment integration tests
         run: python tooling/test_plugin_environment.py --cli target/debug/anyq${{ runner.os == 'Windows' && '.exe' || '' }}
       - run: python examples/demo.py

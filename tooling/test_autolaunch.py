@@ -20,7 +20,7 @@ def wait(condition):
         time.sleep(0.02)
 
 
-def run(cli):
+def run(cli, empty_xdg=False):
     with tempfile.TemporaryDirectory(prefix="anyq login O'Brien & % $-") as temporary:
         home = Path(temporary)
         environment = {
@@ -31,13 +31,17 @@ def run(cli):
         environment.update(
             HOME=str(home),
             USERPROFILE=str(home),
-            XDG_CONFIG_HOME=str(home / "xdg-config"),
+            XDG_CONFIG_HOME="" if empty_xdg else str(home / "xdg-config"),
             XDG_DATA_HOME=str(home / "xdg-data"),
             LOCALAPPDATA=str(home / "local"),
         )
         default = home / "current.db"
         changed = home / "changed.db"
         custom = home / "custom.db"
+        config_directory = home / (".config" if empty_xdg else "xdg-config")
+
+        def registration_entry():
+            return entry(home, config_directory)
 
         def call(*args, success=True):
             result = subprocess.run(
@@ -53,7 +57,7 @@ def run(cli):
         try:
             assert call("autolaunch") == "off"
             assert call("autolaunch", "on") == "on"
-            registration = entry(home)
+            registration = registration_entry()
             assert registration is not None
             assert not default.exists() and not custom.exists()
             assert not (home / ".anyq/config.toml").exists()
@@ -119,7 +123,7 @@ def run(cli):
             call("task", "create", "next-shell", "-t", "cpu")
             owner = call("daemon", "status")
             assert call("autolaunch", "off") == "off"
-            assert entry(home) is None
+            assert registration_entry() is None
             assert call("daemon", "status") == owner
             with socket.create_connection(("127.0.0.1", port), timeout=2):
                 assert "status: running" in call("task", "active-shell")
@@ -146,4 +150,6 @@ def run(cli):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cli", required=True, type=Path)
-    run(parser.parse_args().cli.resolve(strict=True))
+    parser.add_argument("--empty-xdg-config-home", action="store_true")
+    arguments = parser.parse_args()
+    run(arguments.cli.resolve(strict=True), arguments.empty_xdg_config_home)

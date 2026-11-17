@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-def entry(home):
+def entry(home, config_directory=None):
     home = Path(home)
     if sys.platform == "darwin":
         path = home / "Library/LaunchAgents/com.itzephir.anyq.autolaunch.plist"
@@ -39,7 +39,10 @@ def entry(home):
                     except OSError:
                         continue
         return None
-    path = home / "xdg-config/autostart/anyq.desktop"
+    directory = (
+        Path(config_directory) if config_directory is not None else home / "xdg-config"
+    )
+    path = directory / "autostart/anyq.desktop"
     return (path, ["gio", "launch", str(path)]) if path.exists() else None
 
 

@@ -31,14 +31,9 @@ impl NativeRegistration {
             .map_err(|error| Error::Storage(error.to_string()))?;
         #[cfg(target_os = "linux")]
         let config_directory = config_directory
+            .filter(|path| path.is_absolute())
             .map(Path::to_owned)
             .unwrap_or_else(|| home.join(".config"));
-        #[cfg(target_os = "linux")]
-        if !config_directory.is_absolute() {
-            return Err(Error::Invalid(
-                "system configuration directory must be absolute".into(),
-            ));
-        }
         #[cfg(not(target_os = "linux"))]
         let _ = config_directory;
 

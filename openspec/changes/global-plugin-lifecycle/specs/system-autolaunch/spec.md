@@ -17,6 +17,10 @@ Let the user control native operating-system login launch from either the CLI or
 - **WHEN** anyq configuration is malformed but the user requests autolaunch off
 - **THEN** the OS registration can still be removed without opening a queue
 
+#### Scenario: Empty or relative XDG configuration directory
+- **WHEN** Linux CLI or desktop starts with XDG_CONFIG_HOME empty or relative
+- **THEN** native registration uses ~/.config and desktop startup remains available even with autolaunch disabled
+
 ### Requirement: Default runtime login launch
 An enabled login registration SHALL start the current default queue runtime and its globally enabled plugins after user login. It SHALL resolve the then-current default database and SHALL NOT retain or start custom database paths. Removing autolaunch SHALL affect future login launch without completing tasks or stopping active managed work.
 

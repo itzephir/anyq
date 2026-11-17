@@ -59,3 +59,38 @@ fn unavailable_retained_image_is_reported_and_off_can_repair_registration() {
 
     assert!(!fixture.registration.registered().unwrap());
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn empty_or_relative_xdg_configuration_uses_the_native_default_directory() {
+    use anyq_autolaunch_system::NativeRegistration;
+    use std::{path::Path, sync::Arc, sync::atomic::AtomicBool};
+
+    let fixture = RegistrationFixture::new();
+
+    for configured in ["", "relative/config"] {
+        let registration = NativeRegistration::new(
+            fixture.home.path(),
+            Some(Path::new(configured)),
+            &std::env::current_exe().unwrap(),
+            Arc::new(AtomicBool::new(false)),
+        )
+        .unwrap();
+        assert!(!registration.registered().unwrap());
+
+        registration.register().unwrap();
+
+        assert!(
+            fixture
+                .home
+                .path()
+                .join(".config/autostart/anyq.desktop")
+                .is_file()
+        );
+        assert!(fixture.registration.registered().unwrap());
+
+        registration.unregister().unwrap();
+
+        assert!(!fixture.registration.registered().unwrap());
+    }
+}

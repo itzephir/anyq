@@ -38,6 +38,13 @@
 - [x] 7.1 Run all mandatory repository checks: Rustfmt, workspace Clippy with all targets/features and warnings denied, workspace tests, feature-enabled native interruptions, both architecture checks, Ruff lint/format, strict OpenSpec and diff whitespace; retain exact results and resolve failures without weakening checks.
 - [x] 7.2 Verify current-head native CLI/plugin/desktop/system-registration, screenshot and distribution CI on Linux/macOS/Windows, including macOS Intel and Wayland jobs; only mark complete after required checks pass and report local versus remote coverage accurately.
 
+## 8. Review regressions
+
+- [ ] 8.1 Preserve published v0.1.0/v0.1.1 single-CLI installation without accepting incomplete plugin payloads; verify latest and pinned real published archives, fresh installation, upgrades and failed placement on native distribution targets.
+- [x] 8.2 Build desktop plugins for the Tauri target, including universal macOS payloads; verify real cross-target artifacts, both Mach-O slices and native protocol startup.
+- [ ] 8.3 Apply XDG configuration-directory defaults to empty or relative values; verify native registration, real CLI operations and GUI startup with an empty XDG_CONFIG_HOME on Linux.
+- [ ] 8.4 Run mandatory local checks and current-head cross-platform CI after the review fixes without weakening native or screenshot verification.
+
 ## Workflow follow-up
 
 - Sync and archive verified behavior only after implementation and required review; do not mark unfinished behavior as baseline.

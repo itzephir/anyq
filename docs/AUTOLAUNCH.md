@@ -25,7 +25,8 @@ Native per-user registrations:
   with ProgramArguments and AbandonProcessGroup. The registration takes effect at
   the next login; the command does not bootstrap a launchd job immediately.
 - Linux: `$XDG_CONFIG_HOME/autostart/anyq.desktop`, falling back to
-  `~/.config/autostart/anyq.desktop`, using the XDG desktop autostart protocol.
+  `~/.config/autostart/anyq.desktop` when XDG_CONFIG_HOME is unset, empty or relative,
+  using the XDG desktop autostart protocol.
   A fixed `/usr/bin/env --` executable passes the retained launcher as a quoted
   argument, so percent signs in profile paths survive GLib's executable check
   before desktop-field expansion. No shell interprets the command.

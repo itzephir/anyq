@@ -127,6 +127,14 @@ npx tauri build --features native --bundles app -- --locked   # macOS
 # Use --bundles nsis on Windows, or --bundles deb on Linux.
 ```
 
+The plugin build hook follows `TAURI_ENV_TARGET_TRIPLE` before Cargo defaults,
+including `--target x86_64-apple-darwin` on Apple Silicon. Cargo reports the actual
+artifact paths, so a custom Cargo target directory is supported. With
+`--target universal-apple-darwin`, both Rust targets must be installed; the hook
+combines and verifies both Mach-O architectures for each plugin. Native macOS CI
+builds cross-target and universal payloads and starts the universal binaries over
+the public plugin protocol.
+
 Move `anyq.app` to Applications, run the NSIS installer, or install the generated
 Debian package with the platform package manager. Remove the app/installer
 package through the same platform mechanism. Preferences and databases are

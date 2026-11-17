@@ -175,6 +175,12 @@ replace the daemon or its queue. Screenshots capture native window pixels,
 not a browser preview or a DOM re-render. Queue fingerprints prove that viewing,
 searching, refresh, settings and client exit do not change business state.
 
+Linux system-control regressions also launch the native application with an empty
+XDG_CONFIG_HOME and toggle real registration in ~/.config before restarting with
+the fixture's explicit XDG directory. The CLI suite executes the recorded login
+command with the same empty-variable environment. These startup cases preserve
+the existing visual states and read-only screenshot baselines.
+
 Scenarios cover current/empty queues, full membership, text escaping, search,
 shared window/compact state, en/ru, both themes, narrow layout, missing/incompatible
 sources, stale recovery, owner restart, concurrent CLI completion, oversized

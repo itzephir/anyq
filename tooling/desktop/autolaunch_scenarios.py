@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from autolaunch_registration import corrupt, entry
@@ -21,7 +22,26 @@ def run(cli, panel, home, output, configuration):
     original_config = config.read_bytes()
     fingerprint = queue_fingerprint(database)
     try:
+        if sys.platform == "linux":
+            driver.environment["XDG_CONFIG_HOME"] = ""
         driver.start()
+        if sys.platform == "linux":
+            driver.click("#settings")
+            driver.wait(
+                "return document.querySelector('#autolaunch-status')?.dataset.enabled==='false';"
+            )
+            driver.click("#autolaunch")
+            driver.wait(
+                "return document.querySelector('#autolaunch-status')?.dataset.enabled==='true' && document.querySelector('#autolaunch-status')?.dataset.busy==='false';"
+            )
+            assert entry(home, home / ".config") is not None
+            driver.click("#autolaunch")
+            driver.wait(
+                "return document.querySelector('#autolaunch-status')?.dataset.enabled==='false' && document.querySelector('#autolaunch-status')?.dataset.busy==='false';"
+            )
+            driver.stop()
+            driver.environment["XDG_CONFIG_HOME"] = str(home / "xdg-config")
+            driver.start()
         owner = fixtures.call(["daemon", "status"], database)
         driver.click("#settings")
         driver.wait(
@@ -95,6 +115,11 @@ def run(cli, panel, home, output, configuration):
                         "malformed-config-independent",
                         "gui-retained-headless-login-launcher",
                         "queue-and-preferences-preserved",
+                        *(
+                            ["empty-xdg-gui-startup-and-native-control"]
+                            if sys.platform == "linux"
+                            else []
+                        ),
                     ],
                 },
                 indent=2,

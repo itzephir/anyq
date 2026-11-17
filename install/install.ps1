@@ -211,10 +211,20 @@ try {
     [IO.Compression.ZipFile]::ExtractToDirectory($archive, $unpacked)
     $binary = Join-Path $unpacked 'anyq.exe'
     if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw 'Archive has no anyq.exe' }
+    $names = @('anyq.exe')
+    $plugins = @('plugins/shell.exe', 'plugins/timeout.exe')
+    $present = @($plugins | Where-Object { Test-Path -LiteralPath (Join-Path $unpacked $_) })
+    if ($present.Count -eq $plugins.Count) {
+        $names += $plugins
+    } elseif ($present.Count -ne 0) {
+        throw 'Archive has an incomplete plugin payload'
+    } elseif ($Version -cnotin @('v0.1.0', 'v0.1.1')) {
+        throw 'Archive is missing required plugin executables'
+    }
     $reported = & $binary --version
     if ($LASTEXITCODE -ne 0 -or $reported -cne "anyq $($Version.Substring(1))") { throw 'Binary cannot run or its version does not match the release' }
     $install = [pscustomobject]@{
-        Files = @('anyq.exe', 'plugins/shell.exe', 'plugins/timeout.exe') | ForEach-Object {
+        Files = $names | ForEach-Object {
             $source = Join-Path $unpacked $_
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Archive is missing $_" }
             [pscustomobject]@{ Name = $_; Source = $source; Hash = Get-AnyqSha256 $source }
