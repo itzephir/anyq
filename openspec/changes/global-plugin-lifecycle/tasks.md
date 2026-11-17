@@ -40,10 +40,10 @@
 
 ## 8. Review regressions
 
-- [ ] 8.1 Preserve published v0.1.0/v0.1.1 single-CLI installation without accepting incomplete plugin payloads; verify latest and pinned real published archives, fresh installation, upgrades and failed placement on native distribution targets.
+- [x] 8.1 Preserve published v0.1.0/v0.1.1 single-CLI installation without accepting incomplete plugin payloads; verify latest and pinned real published archives, fresh installation, upgrades and failed placement on native distribution targets.
 - [x] 8.2 Build desktop plugins for the Tauri target, including universal macOS payloads; verify real cross-target artifacts, both Mach-O slices and native protocol startup.
-- [ ] 8.3 Apply XDG configuration-directory defaults to empty or relative values; verify native registration, real CLI operations and GUI startup with an empty XDG_CONFIG_HOME on Linux.
-- [ ] 8.4 Run mandatory local checks and current-head cross-platform CI after the review fixes without weakening native or screenshot verification.
+- [x] 8.3 Apply XDG configuration-directory defaults to empty or relative values; verify native registration, real CLI operations and GUI startup with an empty XDG_CONFIG_HOME on Linux.
+- [x] 8.4 Run mandatory local checks and current-head cross-platform CI after the review fixes without weakening native or screenshot verification.
 
 ## Workflow follow-up
 
