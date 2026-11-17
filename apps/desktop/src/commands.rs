@@ -1,7 +1,44 @@
 use crate::{controller::Controller, preference_input::PreferenceInput, presentation};
+use anyq_autolaunch_api::{AutolaunchServices, SetAutolaunchRequest};
 use std::sync::Arc;
+use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
+
+#[tauri::command]
+pub async fn get_autolaunch(
+    services: tauri::State<'_, Arc<Mutex<AutolaunchServices>>>,
+) -> Result<bool, String> {
+    let services = services.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        services
+            .lock()
+            .map_err(|error| error.to_string())?
+            .get
+            .get()
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn set_autolaunch(
+    services: tauri::State<'_, Arc<Mutex<AutolaunchServices>>>,
+    enabled: bool,
+) -> Result<bool, String> {
+    let services = services.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        services
+            .lock()
+            .map_err(|error| error.to_string())?
+            .set
+            .set(SetAutolaunchRequest { enabled })
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
 
 #[tauri::command]
 pub fn get_panel_state(controller: tauri::State<'_, Arc<Controller>>) -> serde_json::Value {

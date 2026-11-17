@@ -3,9 +3,14 @@
 Enable the packaged mode explicitly, before admitting tasks with shell metadata:
 
 ```sh
-anyq plugin enable shell /absolute/path/to/anyq plugin-runtime shell
+anyq plugin enable shell
 anyq plugin inspect shell
 ```
+
+The native distribution provisions a separate shell binary in `~/.anyq/plugins/`
+(`shell.exe` on Windows). Enablement applies to every active queue owner; runtime
+status and inspection address the selected queue. No CLI runtime-mode arguments
+or framework plugin settings are required.
 
 Only the **task's committed running snapshot** supplies commands. Topic metadata
 never supplies or merges commands. Missing `shell` does nothing; an invalid plan

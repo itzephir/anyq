@@ -48,15 +48,23 @@ def main():
     if not args.target:
         parser.error("--target or --checksums is required")
 
-    binary_name = "anyq.exe" if "windows" in args.target else "anyq"
-    binary = Path("target") / args.target / "release" / binary_name
+    suffix = ".exe" if "windows" in args.target else ""
+    directory = Path("target") / args.target / "release"
+    files = {f"anyq{suffix}": directory / f"anyq{suffix}"}
+    for name in ("shell", "timeout"):
+        files[f"plugins/{name}{suffix}"] = directory / f"anyq-{name}{suffix}"
+    for binary in files.values():
+        if not binary.is_file():
+            parser.error(f"Missing release executable: {binary}")
     archive = args.output / asset_name(args.target)
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
-            output.write(binary, binary_name)
+            for name, binary in files.items():
+                output.write(binary, name)
     else:
         with tarfile.open(archive, "w:gz") as output:
-            output.add(binary, binary_name)
+            for name, binary in files.items():
+                output.add(binary, name)
 
     print(archive)
 

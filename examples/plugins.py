@@ -9,6 +9,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from install_observer import install
+
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / "target" / "debug" / ("anyq.exe" if os.name == "nt" else "anyq")
 
@@ -27,14 +29,10 @@ def main():
             )
 
         try:
+            run("daemon", "start")
             run("topic", "create", "cpu")
-            run(
-                "plugin",
-                "enable",
-                "observer",
-                sys.executable,
-                str(ROOT / "examples" / "observer.py"),
-            )
+            install(directory, sys.executable, ROOT / "examples/observer.py")
+            run("plugin", "enable", "observer")
             deadline = time.monotonic() + 10
             while not json.loads(run("plugin", "status", "observer"))["running"]:
                 if time.monotonic() > deadline:

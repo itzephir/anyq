@@ -12,9 +12,6 @@ mod preference_input;
 mod presentation;
 mod shell;
 
-#[cfg(any(windows, target_os = "macos", test))]
-mod owner_executable;
-
 #[cfg(feature = "integration-test-hooks")]
 mod test_driver;
 
@@ -36,6 +33,14 @@ use tauri::{Emitter, Manager};
 fn main() {
     // Owners launched by the shared client never initialize a GUI or open a new queue.
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments == ["daemon", "start"] {
+        let result = start_default_owner();
+        if let Err(error) = result {
+            eprintln!("anyq launcher: {error}");
+            std::process::exit(2);
+        }
+        return;
+    }
     if arguments.len() == 4
         && arguments[0] == "daemon"
         && arguments[1] == "run"
@@ -50,7 +55,11 @@ fn main() {
         {
             std::process::exit(2);
         }
-        if anyq_daemon_impl::run(Path::new(&arguments[3]), cancelled).is_err() {
+        let directory = match anyq_config_impl::paths::home() {
+            Ok(home) => home.join(".anyq/plugins"),
+            Err(_) => std::process::exit(2),
+        };
+        if anyq_daemon_impl::run(Path::new(&arguments[3]), &directory, cancelled).is_err() {
             std::process::exit(2);
         }
         return;
@@ -61,6 +70,25 @@ fn main() {
         eprintln!("anyq panel: {error}");
         std::process::exit(2);
     }
+}
+
+fn start_default_owner() -> Result<(), Box<dyn std::error::Error>> {
+    let home = anyq_config_impl::paths::home()?;
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let config = anyq_config_impl::open(&home.join(".anyq/config.toml"), cancelled.clone())
+        .get_config
+        .get()?;
+    let selection = anyq_config_impl::paths::resolve_database(None, config.db_path())?;
+    let policy = anyq_queue_api::QueuePolicy {
+        autocreate: anyq_queue_api::AutoCreatePolicy {
+            tasks: config.task_autocreate(),
+            topics: config.topic_autocreate(),
+        },
+        task_autostart: config.task_autostart(),
+    };
+    anyq_daemon_impl::daemon_start(&selection.path, policy, cancelled)?;
+
+    Ok(())
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -82,6 +110,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(windows)]
     let webview_home = anyq_config_impl::paths::home()?.join(".anyq/panel-webview");
     let preferences = anyq_desktop_impl::get_preferences(&preference_path).get();
+    let home = anyq_config_impl::paths::home()?;
+    let config_directory = std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from);
+    let autolaunch = anyq_autolaunch_impl::open(
+        &home,
+        config_directory.as_deref(),
+        &std::env::current_exe()?,
+        Arc::new(AtomicBool::new(false)),
+    )?;
     let resolve = Arc::new(move |preferences: &PanelPreferences| {
         let config = anyq_config_impl::open(&config_path, Arc::new(AtomicBool::new(false)))
             .get_config
@@ -99,13 +135,30 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Ok(selection)
     });
     #[cfg(any(windows, target_os = "macos"))]
-    let owner_executable = owner_executable::retain(&anyq_config_impl::paths::home()?)?;
+    let owner_executable =
+        anyq_autolaunch_impl::retain_launcher(&anyq_config_impl::paths::home()?)?;
+    let default_database = resolve(&PanelPreferences::default())
+        .ok()
+        .map(|selection| selection.path);
+    #[cfg(any(windows, target_os = "macos"))]
+    let startup_executable = Some(owner_executable.clone());
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let startup_executable: Option<std::path::PathBuf> = None;
+    let default_resolve = resolve.clone();
     let observe = Arc::new(move |path: &Path, cancelled: Arc<AtomicBool>| {
+        let startup = match default_resolve(&PanelPreferences::default()) {
+            Ok(selection)
+                if anyq_daemon_impl::same_database(&selection.path, path).unwrap_or(false) =>
+            {
+                anyq_daemon_impl::OwnerStartup::Automatic
+            }
+            _ => anyq_daemon_impl::OwnerStartup::ExistingOnly,
+        };
         #[cfg(any(windows, target_os = "macos"))]
         let mut observer =
-            anyq_daemon_impl::observe_with_owner(path, cancelled, &owner_executable)?;
+            anyq_daemon_impl::observe_with_owner(path, cancelled, &owner_executable, startup)?;
         #[cfg(not(any(windows, target_os = "macos")))]
-        let mut observer = anyq_daemon_impl::observe(path, cancelled)?;
+        let mut observer = anyq_daemon_impl::observe(path, cancelled, startup)?;
         observer.observe(ObserveQueueRequest::default())
     });
     let clock: Arc<DisplayClock> = Arc::new(|| {
@@ -128,6 +181,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     ));
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(Arc::new(std::sync::Mutex::new(autolaunch)))
         .manage(controller.clone());
     #[cfg(feature = "integration-test-hooks")]
     let builder = builder.plugin(test_driver::clock_plugin());
@@ -137,12 +191,48 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             commands::refresh_panel,
             commands::save_preferences,
             commands::choose_database,
+            commands::get_autolaunch,
+            commands::set_autolaunch,
             commands::show_main,
             commands::dismiss_compact,
             #[cfg(feature = "integration-test-hooks")]
             test_driver::test_report
         ])
         .setup(move |app| {
+            let mut sources = vec![
+                std::env::current_exe()?
+                    .parent()
+                    .ok_or("missing executable directory")?
+                    .to_owned(),
+            ];
+            if let Ok(directory) = app.path().resource_dir() {
+                sources.insert(0, directory);
+            }
+            for name in ["shell", "timeout"] {
+                let file_name = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+                let destination = home.join(".anyq/plugins").join(&file_name);
+                for directory in &sources {
+                    let source = directory.join("plugins").join(&file_name);
+                    let sibling = directory.join(format!("anyq-{file_name}"));
+                    let source = if source.is_file() { source } else { sibling };
+                    if source.is_file() {
+                        anyq_plugin_impl::install_missing_binary(
+                            &source,
+                            &destination,
+                            &AtomicBool::new(false),
+                        )?;
+                        break;
+                    }
+                }
+            }
+            if let Some(path) = default_database {
+                let _ = anyq_daemon_impl::ensure_owner(
+                    &path,
+                    Arc::new(AtomicBool::new(false)),
+                    startup_executable.as_deref(),
+                );
+            }
+
             #[cfg(windows)]
             for window in &windows {
                 tauri::WebviewWindowBuilder::from_config(app, window)?

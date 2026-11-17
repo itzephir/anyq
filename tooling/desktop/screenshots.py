@@ -61,12 +61,17 @@ class Screenshots:
         if rules:
             style += rules + "{visibility:hidden!important}"
         style += ".source-card p{height:20px;overflow:hidden;white-space:nowrap}"
+        body_scroll = (
+            "document.documentElement.scrollHeight"
+            if case["scroll"]["body"] == "end"
+            else str(case["scroll"]["body"])
+        )
         result = driver.call(
             f"const style=document.createElement('style');style.textContent={json.dumps(style)};document.head.append(style);"
             "document.activeElement?.blur();"
             f"document.querySelector('.content')?.scrollTo(0,{case['scroll']['content']});"
             f"document.querySelector('.topic-list')?.scrollTo(0,{case['scroll']['topics']});"
-            f"scrollTo(0,{case['scroll']['body']});"
+            f"scrollTo(0,{body_scroll});"
             + (
                 f"document.querySelector({json.dumps(case['focus'])}).focus();"
                 if case["focus"]

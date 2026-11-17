@@ -1,8 +1,10 @@
 # Local queue daemon
 
 The same native `anyq` executable provides CLI and daemon modes. Each canonical
-database has one owner, protected by a lifetime OS file lock. Ordinary queue
-commands start it automatically and communicate through a private local endpoint.
+database has one owner, protected by a lifetime OS file lock. Ordinary commands start the current default database owner automatically and
+communicate through a private local endpoint. Custom database owners require an
+explicit `anyq --db PATH daemon start`; ordinary queries never start them.
+Default identity follows ANYQ_DB, then db.path, then the platform default.
 The owner continues running after clients exit. Config, help and version remain
 local and do not start it or open SQLite.
 
@@ -12,16 +14,19 @@ anyq --db ./queue.db daemon start
 anyq --db ./queue.db topic create cpu
 anyq --db ./queue.db task create build -t cpu
 anyq --db ./queue.db daemon stop
+# A custom query now reports that its owner is stopped.
+anyq --db ./queue.db daemon start
 anyq --db ./queue.db task build
-# The owner restarts; build still holds cpu.
+# Build still holds cpu.
 anyq --db ./queue.db task complete build
 anyq --db ./queue.db daemon stop
 ```
 
 Use `anyq daemon run --db PATH` to serve in the foreground under a process
 supervisor. The foreground owner handles native Ctrl+C. A background Windows
-owner has no console; use `daemon stop` for graceful shutdown. Login services and
-remote clients are not installed. CLI messages and help are English-only, with
+owner has no console; use `daemon stop` for graceful shutdown. Use `anyq autolaunch on/off` to change the per-user login registration.
+The login launcher starts the current default queue and its enabled plugins;
+custom databases stay stopped. See [AUTOLAUNCH.md](AUTOLAUNCH.md). CLI messages and help are English-only, with
 no language setting. `status` and `stop` accept an explicit --db/ANYQ_DB
 even when config is damaged, allowing cleanup without reading that file.
 
@@ -69,12 +74,12 @@ schema-2/3/4 upgrades, and never resets running ownership.
 
 Before upgrading or replacing the executable, stop the daemon for each active
 database. Windows keeps the running executable in use, and a replacement CLI
-may use a different protocol. The next queue command starts the installed
+may use a different protocol. The next default queue command, or explicit custom `daemon start`, starts the installed
 version and retains the stored tasks and ownership.
 
 ## Protocol and failure boundaries
 
-Protocol version 4 uses a four-byte big-endian payload length followed by UTF-8
+Protocol version 8 uses a four-byte big-endian payload length followed by UTF-8
 JSON bytes, with each chunk bounded to 16 MiB. The header's high bit indicates
 continuation; the remaining bits give the chunk length. Incoming requests are
 limited to 16 MiB in total. Large query responses span chunks and are reassembled

@@ -5,6 +5,7 @@ import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 
+from autolaunch_registration import corrupt
 from driver import Driver
 from fixtures import Fixtures, same_source_path, unavailable_observation
 from screenshots import Screenshots
@@ -28,6 +29,16 @@ def run(cli, panel, output, goldens, configuration, mode):
                 automatic = fixtures.create(
                     case.get("environment_fixture", case["fixture"])
                 )
+                if case["settings"]:
+                    fixtures.call(
+                        [
+                            "autolaunch",
+                            "on" if case.get("autolaunch", False) else "off",
+                        ],
+                        observed,
+                    )
+                    if case.get("autolaunch") == "error":
+                        corrupt(home)
                 preferences = {"theme": case["theme"], "language": case["language"]}
                 if case["source"] == "override":
                     preferences["database_override"] = str(observed)
@@ -104,6 +115,17 @@ def run(cli, panel, output, goldens, configuration, mode):
                         driver.click(f'[data-task="{case["task"]}"]')
                     if case["settings"]:
                         driver.click("#settings")
+                        if case.get("autolaunch") == "error":
+                            driver.wait(
+                                "return Boolean(document.querySelector('#autolaunch-retry')) && document.querySelector('#autolaunch-status')?.dataset.busy==='false';"
+                            )
+                        else:
+                            expected = (
+                                "true" if case.get("autolaunch", False) else "false"
+                            )
+                            driver.wait(
+                                f"return document.querySelector('#autolaunch-status')?.dataset.enabled==='{expected}' && document.querySelector('#autolaunch-status')?.dataset.busy==='false';"
+                            )
                     if case["surface"] == "compact":
                         driver.call(window="compact", native="compact")
                         driver.resize(*case["viewport"], window="compact")

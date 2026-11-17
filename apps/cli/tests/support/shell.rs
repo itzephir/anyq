@@ -22,14 +22,7 @@ fn wait(mut predicate: impl FnMut() -> bool) {
 }
 
 fn enable(queue: &Queue, name: &str) {
-    queue.call(&[
-        "plugin",
-        "enable",
-        name,
-        env!("CARGO_BIN_EXE_anyq"),
-        "plugin-runtime",
-        name,
-    ]);
+    queue.call(&["plugin", "enable", name]);
     wait(|| status(queue, name)["running"] == true);
 }
 

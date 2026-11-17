@@ -2,13 +2,11 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum PluginCommand {
-    #[command(about = "Explicitly trust and enable a local executable")]
+    #[command(about = "Enable an installed plugin for every active queue")]
     Enable {
         name: String,
-        executable: String,
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        arguments: Vec<String>,
     },
+    #[command(about = "List installed plugins and user-wide enablement")]
     List,
     Status {
         name: String,
@@ -17,6 +15,7 @@ pub enum PluginCommand {
     State {
         name: String,
     },
+    #[command(about = "Disable a plugin for every active queue")]
     Disable {
         name: String,
     },

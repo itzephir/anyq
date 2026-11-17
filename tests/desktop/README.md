@@ -83,6 +83,11 @@ Xfce uses the primary button; GNOME uses its
 AppIndicator extension's secondary-button context menu. Notification-icon lookup excludes ordinary application/taskbar buttons
 and restricts Windows accessibility searches to actual shell windows.
 
+The disposable Windows host-loss fixture keeps Explorer absent until the panel
+observes host loss and exits through its ordinary window. It stops automatically
+restarted Explorer instances during that boundary, then restores the shell in
+cleanup. The assertion never depends on sampling a brief restart gap.
+
 Windows fixture teardown waits for its own WebView2 processes to exit before
 removing profile files. Test transport retries transient Windows sharing denials
 within the existing response deadline; it never replays a request or accepts
@@ -148,7 +153,9 @@ any visual instability under the configured comparison before accepting candidat
 `config.json` owns each state's CLI seed commands, expected complete snapshot,
 fixed clock/timezone, source, preferences, viewport/decorations, selected topic/task,
 scroll, focus, cursor, renderer arguments, masks and comparison thresholds. Cases
-do not inherit earlier scenarios.
+do not inherit earlier scenarios. They may set `scroll.body` to `"end"` to expose controls below the fold at the same
+native viewport, without creating an off-screen window. Autolaunch captures use
+this explicit state on all three platforms.
 The configured capture deadline waits for three consecutive visually stable
 native frames after fonts/layout are ready. It rejects an unsettled renderer;
 it does not replace the separate repeatability check across clean processes.
@@ -167,6 +174,12 @@ renderer arguments. These hooks are absent from shipping packages and do not
 replace the daemon or its queue. Screenshots capture native window pixels,
 not a browser preview or a DOM re-render. Queue fingerprints prove that viewing,
 searching, refresh, settings and client exit do not change business state.
+
+Linux system-control regressions also launch the native application with an empty
+XDG_CONFIG_HOME and toggle real registration in ~/.config before restarting with
+the fixture's explicit XDG directory. The CLI suite executes the recorded login
+command with the same empty-variable environment. These startup cases preserve
+the existing visual states and read-only screenshot baselines.
 
 Scenarios cover current/empty queues, full membership, text escaping, search,
 shared window/compact state, en/ru, both themes, narrow layout, missing/incompatible
@@ -243,3 +256,18 @@ commits files or grants a CI pass for missing/unreviewed goldens.
 The initial hosted-runner images may be collected from CI artifacts, inspected,
 and committed. A missing initial baseline deliberately fails comparison until
 that review exists. Never fabricate one platform's images from another platform.
+
+## Autolaunch settings goldens
+
+The settings scenarios include the initial Russian view and explicit bottom-scroll
+states for Russian/off, English/on and English/registration-error. Every case uses
+the same 1000 x 620 native viewport, including the smaller hosted macOS display.
+
+[Generation run](https://github.com/itzephir/anyq/actions/runs/43894323491) on
+`d71161bc5037f3c33a01da589de8d32349550b1d` completed all 18 states twice from
+independent clean profiles on each of Linux, macOS and Windows. The configured
+comparison reported zero changed pixels between each pair; the settings pairs
+were also byte-for-byte pixel identical. The four settings PNGs per platform
+were visually inspected before committing. Other goldens and comparison thresholds
+were retained. The PR verification run compares against those tracked files
+without rewriting them.

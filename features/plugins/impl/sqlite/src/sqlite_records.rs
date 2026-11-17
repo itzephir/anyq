@@ -20,6 +20,8 @@ fn read_registration(row: &Row<'_>) -> rusqlite::Result<PluginRegistration> {
         executable: row.get("executable")?,
         arguments: serde_json::from_str(&row.get::<_, String>("arguments")?).map_err(conversion)?,
         enabled: row.get("enabled")?,
+        catalog_revision: u64::try_from(row.get::<_, i64>("catalog_revision")?)
+            .map_err(conversion)?,
         running: row.get("running")?,
         cursor: row.get("cursor")?,
         failures: row.get("failures")?,
@@ -70,7 +72,9 @@ impl Records for SqliteRecords<'_> {
     fn save(&mut self, plugin: &PluginRegistration) -> Result<()> {
         let state = String::from_utf8(encode(&MetadataDto::from(plugin.state.clone()))?)
             .map_err(|error| Error::Storage(error.to_string()))?;
-        self.connection.execute("INSERT INTO plugins(name,executable,arguments,enabled,running,cursor,failures,retry_at,last_failure,subscriptions,capabilities,state) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12) ON CONFLICT(name) DO UPDATE SET enabled=excluded.enabled,running=excluded.running,cursor=excluded.cursor,failures=excluded.failures,retry_at=excluded.retry_at,last_failure=excluded.last_failure,subscriptions=excluded.subscriptions,capabilities=excluded.capabilities,state=excluded.state", params![plugin.name,plugin.executable,json(&plugin.arguments)?,plugin.enabled,plugin.running,plugin.cursor,plugin.failures,plugin.retry_at,plugin.last_failure,json(&plugin.subscriptions)?,json(&plugin.capabilities)?,state]).map_err(storage)?;
+        let revision = i64::try_from(plugin.catalog_revision)
+            .map_err(|error| Error::Storage(error.to_string()))?;
+        self.connection.execute("INSERT INTO plugins(name,executable,arguments,enabled,running,cursor,failures,retry_at,last_failure,subscriptions,capabilities,state,catalog_revision) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13) ON CONFLICT(name) DO UPDATE SET executable=excluded.executable,arguments=excluded.arguments,enabled=excluded.enabled,running=excluded.running,cursor=excluded.cursor,failures=excluded.failures,retry_at=excluded.retry_at,last_failure=excluded.last_failure,subscriptions=excluded.subscriptions,capabilities=excluded.capabilities,state=excluded.state,catalog_revision=excluded.catalog_revision", params![plugin.name,plugin.executable,json(&plugin.arguments)?,plugin.enabled,plugin.running,plugin.cursor,plugin.failures,plugin.retry_at,plugin.last_failure,json(&plugin.subscriptions)?,json(&plugin.capabilities)?,state,revision]).map_err(storage)?;
 
         Ok(())
     }

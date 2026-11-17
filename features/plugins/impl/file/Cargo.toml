@@ -1,0 +1,18 @@
+[package]
+name = "anyq-plugin-file"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyq-plugin-api = { path = "../../api" }
+anyq-plugin-dispatch = { path = "../dispatch" }
+anyq-queue-api = { path = "../../../queue/api" }
+fs2 = "0.4"
+tempfile = "3"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
+[lints]
+workspace = true

@@ -43,6 +43,11 @@ jobs:
       - name: Package optional desktop client
         working-directory: apps/desktop
         run: npx tauri build --features native --bundles ${{ matrix.bundle }} -- --locked
+      - name: Cross-target and universal plugin integration tests
+        if: matrix.os == 'macos-15'
+        run: |
+          rustup target add x86_64-apple-darwin
+          python tooling/test_desktop_plugin_targets.py
       - name: Build independent production CLI
         run: cargo build --locked -p anyq
       - name: Install, launch, remove and reinstall Linux package

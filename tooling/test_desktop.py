@@ -37,6 +37,10 @@ def main():
         importlib.import_module("plugin_scenarios").run(
             cli, panel, home, output, configuration
         )
+    with tempfile.TemporaryDirectory(prefix="anyq-desktop-login-") as home:
+        importlib.import_module("autolaunch_scenarios").run(
+            cli, panel, home, output, configuration
+        )
     importlib.import_module("visual_cases").run(
         cli, panel, output, arguments.goldens.resolve(), configuration, arguments.mode
     )

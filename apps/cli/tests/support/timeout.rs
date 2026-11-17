@@ -55,14 +55,7 @@ fn start(queue: &Queue, clock: &Path) {
 }
 
 fn enable(queue: &Queue) {
-    queue.call(&[
-        "plugin",
-        "enable",
-        "timeout",
-        env!("CARGO_BIN_EXE_anyq"),
-        "plugin-runtime",
-        "timeout",
-    ]);
+    queue.call(&["plugin", "enable", "timeout"]);
     wait(|| status(queue)["running"] == true);
 }
 
@@ -165,14 +158,7 @@ fn confirmed_worker_cancellation_allows_expiry_but_uncertain_worker_keeps_every_
         start(&queue, &path);
         queue.topic("cpu");
         let log = queue.log("worker");
-        queue.call(&[
-            "plugin",
-            "enable",
-            "worker",
-            env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-            mode,
-            log.to_str().unwrap(),
-        ]);
+        crate::fixture_plugin::enable(&queue, "worker", mode, &log);
         wait(|| {
             serde_json::from_str::<Value>(&queue.call(&["plugin", "status", "worker"])).unwrap()["running"]
                 == true

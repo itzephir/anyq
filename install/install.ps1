@@ -28,37 +28,54 @@ function Publish-Anyq {
         [scriptblock]$WritePath = { param($Value, $Target) [Environment]::SetEnvironmentVariable('Path', $Value, $Target) }
     )
 
-    if ($Install.Scope -notin @('System', 'User') -or $Install.Hash -cnotmatch '^[0-9a-f]{64}$') {
-        throw 'Invalid placement request'
+    if ($Install.Scope -notin @('System', 'User')) { throw 'Invalid placement scope' }
+    $files = if ($Install.PSObject.Properties['Files']) { @($Install.Files) } else {
+        @([pscustomobject]@{ Name = 'anyq.exe'; Source = $Install.Source; Hash = $Install.Hash })
     }
     New-Item -ItemType Directory -Force -Path $Install.BinDir | Out-Null
-    $destination = Join-Path $Install.BinDir 'anyq.exe'
-    if (Test-Path -LiteralPath $destination) {
-        $item = Get-Item -LiteralPath $destination -Force
-        if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-            throw 'Destination anyq.exe must be a regular file'
-        }
-    }
-    $staged = Join-Path $Install.BinDir ('.anyq-' + [Guid]::NewGuid().ToString('N') + '.exe')
-    $backup = Join-Path $Install.BinDir ('.anyq-backup-' + [Guid]::NewGuid().ToString('N') + '.exe')
     $target = if ($Install.Scope -eq 'System') { 'Machine' } else { 'User' }
     $oldPath = [Environment]::GetEnvironmentVariable('Path', $target)
-    $published = $false
+    $placements = @()
     $pathChanged = $false
     $completed = $false
 
     try {
-        Copy-Item -LiteralPath $Install.Source -Destination $staged
-        if ((Get-AnyqSha256 $staged) -cne $Install.Hash) {
-            throw 'Staged binary changed; installed binary preserved'
+        foreach ($file in $files) {
+            if ($file.Name -cnotin @('anyq.exe', 'plugins/shell.exe', 'plugins/timeout.exe') -or $file.Hash -cnotmatch '^[0-9a-f]{64}$') {
+                throw 'Invalid placement file'
+            }
+            if (@($placements | Where-Object { $_.Name -ceq $file.Name }).Count) { throw 'Duplicate placement file' }
+            $destination = Join-Path $Install.BinDir $file.Name
+            $directory = Split-Path -Parent $destination
+            if ((Test-Path -LiteralPath $directory) -and ((Get-Item -LiteralPath $directory -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                throw 'Destination directory must not be a reparse point'
+            }
+            New-Item -ItemType Directory -Force -Path $directory | Out-Null
+            if (Test-Path -LiteralPath $destination) {
+                $item = Get-Item -LiteralPath $destination -Force
+                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Destination must be a regular file' }
+                $access = [IO.File]::Open($destination, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+                $access.Dispose()
+            }
+            $placement = [pscustomobject]@{
+                Name = $file.Name
+                Destination = $destination
+                Staged = Join-Path $directory ('.anyq-' + [Guid]::NewGuid().ToString('N'))
+                Backup = Join-Path $directory ('.anyq-backup-' + [Guid]::NewGuid().ToString('N'))
+                Published = $false
+            }
+            $placements += $placement
+            Copy-Item -LiteralPath $file.Source -Destination $placement.Staged
+            if ((Get-AnyqSha256 $placement.Staged) -cne $file.Hash) { throw 'Staged executable changed; installed files preserved' }
         }
-        if (Test-Path -LiteralPath $destination) {
-            [IO.File]::Replace($staged, $destination, $backup)
-        } else {
-            [IO.File]::Move($staged, $destination)
+        foreach ($placement in $placements) {
+            if (Test-Path -LiteralPath $placement.Destination) {
+                [IO.File]::Replace($placement.Staged, $placement.Destination, $placement.Backup)
+            } else {
+                [IO.File]::Move($placement.Staged, $placement.Destination)
+            }
+            $placement.Published = $true
         }
-        $published = $true
-
         if (-not $Install.NoPathUpdate) {
             $entries = @($oldPath -split ';' | Where-Object { $_ })
             if (-not ($entries | Where-Object {
@@ -72,19 +89,22 @@ function Publish-Anyq {
         }
         $completed = $true
     } catch {
-        if ($published) {
-            if (Test-Path -LiteralPath $backup) {
-                [IO.File]::Replace($backup, $destination, [NullString]::Value)
-            } else {
-                Remove-Item -LiteralPath $destination -Force
+        [array]::Reverse($placements)
+        foreach ($placement in $placements) {
+            if ($placement.Published) {
+                if (Test-Path -LiteralPath $placement.Backup) {
+                    [IO.File]::Replace($placement.Backup, $placement.Destination, [NullString]::Value)
+                } else {
+                    Remove-Item -LiteralPath $placement.Destination -Force
+                }
             }
         }
         if ($pathChanged) { & $WritePath $oldPath $target }
         throw
     } finally {
-        if (Test-Path -LiteralPath $staged) { Remove-Item -LiteralPath $staged -Force -ErrorAction SilentlyContinue }
-        if ($completed -and (Test-Path -LiteralPath $backup)) {
-            Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+        foreach ($placement in $placements) {
+            if (Test-Path -LiteralPath $placement.Staged) { Remove-Item -LiteralPath $placement.Staged -Force -ErrorAction SilentlyContinue }
+            if ($completed -and (Test-Path -LiteralPath $placement.Backup)) { Remove-Item -LiteralPath $placement.Backup -Force -ErrorAction SilentlyContinue }
         }
     }
 }
@@ -191,10 +211,24 @@ try {
     [IO.Compression.ZipFile]::ExtractToDirectory($archive, $unpacked)
     $binary = Join-Path $unpacked 'anyq.exe'
     if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw 'Archive has no anyq.exe' }
+    $names = @('anyq.exe')
+    $plugins = @('plugins/shell.exe', 'plugins/timeout.exe')
+    $present = @($plugins | Where-Object { Test-Path -LiteralPath (Join-Path $unpacked $_) })
+    if ($present.Count -eq $plugins.Count) {
+        $names += $plugins
+    } elseif ($present.Count -ne 0) {
+        throw 'Archive has an incomplete plugin payload'
+    } elseif ($Version -cnotin @('v0.1.0', 'v0.1.1')) {
+        throw 'Archive is missing required plugin executables'
+    }
     $reported = & $binary --version
     if ($LASTEXITCODE -ne 0 -or $reported -cne "anyq $($Version.Substring(1))") { throw 'Binary cannot run or its version does not match the release' }
     $install = [pscustomobject]@{
-        Source = $binary
+        Files = $names | ForEach-Object {
+            $source = Join-Path $unpacked $_
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Archive is missing $_" }
+            [pscustomobject]@{ Name = $_; Source = $source; Hash = Get-AnyqSha256 $source }
+        }
         BinDir = $BinDir
         Hash = Get-AnyqSha256 $binary
         Scope = $Scope

@@ -194,3 +194,116 @@ fn plugin_store_never_creates_a_missing_queue_database() {
     assert!(SqlitePluginStore::open(&path).is_err());
     assert!(!path.exists());
 }
+
+#[test]
+fn catalog_revision_migration_preserves_delivery_state_and_original_timer() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("plugins.db");
+    database(&path);
+    let mut store = SqlitePluginStore::open(&path).unwrap();
+    enable(&store);
+    let mut state = Metadata::default();
+    state.set("retained", MetadataValue::Bool(true)).unwrap();
+    let timer = PluginTimer {
+        id: "saved".into(),
+        deadline: 12345,
+        origin_sequence: 11,
+        payload: Metadata::default(),
+    };
+    acknowledge(
+        &mut store,
+        AcknowledgeRequest {
+            plugin: "fixture".into(),
+            sequence: Some(11),
+            timer: None,
+            state: Some(state.clone()),
+            timers: vec![TimerUpdate::Put(timer.clone())],
+        },
+    )
+    .unwrap();
+    drop(store);
+    let mut connection = Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            "ALTER TABLE plugins DROP COLUMN catalog_revision; UPDATE plugin_schema SET version=1;",
+        )
+        .unwrap();
+    assert!(crate::validate_existing(&connection).is_err());
+
+    let tx = connection.transaction().unwrap();
+    initialize(&tx).unwrap();
+    tx.commit().unwrap();
+    crate::validate_existing(&connection).unwrap();
+    let mut restored = SqlitePluginStore::open(&path).unwrap();
+    let registration = restored
+        .transaction(|records| records.registration("fixture"))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(registration.catalog_revision, 0);
+    assert_eq!(registration.cursor, 11);
+    assert_eq!(registration.state, state);
+    assert_eq!(
+        restored
+            .transaction(|records| records.timers("fixture"))
+            .unwrap(),
+        [timer]
+    );
+}
+
+#[test]
+fn replacing_a_catalog_command_waits_for_the_old_session_and_keeps_history() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("plugins.db");
+    database(&path);
+    let mut store = SqlitePluginStore::open(&path).unwrap();
+    enable(&store);
+    store
+        .transaction(|records| {
+            let mut registration = records.registration("fixture")?.unwrap();
+            registration.running = true;
+            registration.cursor = 11;
+            registration
+                .state
+                .set("retained", MetadataValue::Bool(true))?;
+            records.save(&registration)
+        })
+        .unwrap();
+    let desired = InstalledPlugin {
+        name: "fixture".into(),
+        executable: "installed-fixture".into(),
+        available: true,
+        enabled: true,
+        revision: 1,
+    };
+
+    reconcile_catalog(
+        &mut store,
+        Some(std::slice::from_ref(&desired)),
+        &["fixture".into()].into(),
+    )
+    .unwrap();
+    let stopping = store
+        .transaction(|records| records.registration("fixture"))
+        .unwrap()
+        .unwrap();
+
+    assert!(!stopping.enabled);
+    assert_eq!(stopping.executable, "fixture-program");
+    assert_eq!(stopping.catalog_revision, 0);
+
+    reconcile_catalog(&mut store, Some(&[desired]), &Default::default()).unwrap();
+    let restarted = store
+        .transaction(|records| records.registration("fixture"))
+        .unwrap()
+        .unwrap();
+
+    assert!(restarted.enabled);
+    assert_eq!(restarted.executable, "installed-fixture");
+    assert_eq!(restarted.catalog_revision, 1);
+    assert_eq!(restarted.cursor, 11);
+    assert_eq!(
+        restarted.state.get(Some("retained")).unwrap(),
+        &MetadataValue::Bool(true)
+    );
+}

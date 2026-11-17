@@ -2,7 +2,7 @@ use anyq_daemon_api::DaemonServices;
 use anyq_daemon_runtime::QueueFactory;
 use anyq_queue_api::{Error, ExecutionDirectory, QueuePolicy, Result};
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex, MutexGuard, TryLockError,
         atomic::{AtomicBool, Ordering},
@@ -11,10 +11,10 @@ use std::{
     time::Duration,
 };
 
-#[derive(Default)]
 pub(crate) struct SqliteQueueFactory {
     initialized: AtomicBool,
     initialization: Mutex<()>,
+    plugin_directory: PathBuf,
 }
 
 impl QueueFactory for SqliteQueueFactory {
@@ -41,6 +41,7 @@ impl QueueFactory for SqliteQueueFactory {
         )?
         .with_directory(directory);
         let store = with_fixture_clock(store);
+        anyq_plugin_impl::ensure_catalog(path, &self.plugin_directory, cancelled.clone())?;
         let mut queue = anyq_queue_impl::compose(store.clone(), policy);
         let work = anyq_queue_impl::work_services(store.clone());
         queue.complete_task = Box::new(crate::barrier_completion::BarrierCompletion {
@@ -71,6 +72,14 @@ impl QueueFactory for SqliteQueueFactory {
 }
 
 impl SqliteQueueFactory {
+    pub fn new(plugin_directory: &Path) -> Self {
+        Self {
+            initialized: AtomicBool::new(false),
+            initialization: Mutex::new(()),
+            plugin_directory: plugin_directory.to_owned(),
+        }
+    }
+
     fn lock_initialization(&self, cancelled: &AtomicBool) -> Result<MutexGuard<'_, ()>> {
         loop {
             if cancelled.load(Ordering::SeqCst) {
@@ -141,6 +150,7 @@ impl SqliteQueueFactory {
 
         anyq_plugin_impl::run(
             path,
+            &self.plugin_directory,
             Box::new(store.clone()),
             queue.get_task,
             capabilities,

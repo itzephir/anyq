@@ -8,14 +8,7 @@ use std::{
 };
 
 fn enable(queue: &Queue, name: &str, mode: &str, log: &Path) {
-    queue.call(&[
-        "plugin",
-        "enable",
-        name,
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        mode,
-        log.to_str().unwrap(),
-    ]);
+    crate::fixture_plugin::enable(queue, name, mode, log);
     wait(|| {
         status(queue, name)["running"] == true
             || status(queue, name)["failures"].as_u64().unwrap() > 0
@@ -275,4 +268,51 @@ fn slow_managed_cancellation_is_not_flooded_or_killed_before_confirmed_stop() {
     );
     assert_eq!(status(&queue, "slow")["failures"], 0);
     assert_eq!(queue.state("next"), "running");
+}
+
+#[test]
+fn global_reenable_waits_for_the_previous_instance_to_finish_managed_cancellation() {
+    struct Release(std::path::PathBuf);
+
+    impl Drop for Release {
+        fn drop(&mut self) {
+            let _ = fs::write(&self.0, b"release");
+        }
+    }
+
+    let queue = Queue::new();
+    queue.topic("cpu");
+    queue.topic("other");
+    let log = queue.log("reenable");
+    let release = Release(log.with_extension("release"));
+    enable(&queue, "worker", "managed-controlled", &log);
+    queue.task("owner", &["cpu"]);
+    wait_for_file(&log.with_extension("marker"), Some("started"));
+    wait(|| status(&queue, "worker")["lag"] == 0);
+
+    queue.call(&["plugin", "disable", "worker"]);
+    wait_for_file(&log.with_extension("cancelled"), Some("cancelled"));
+    queue.call(&["plugin", "enable", "worker"]);
+    queue.task("fresh", &["other"]);
+    wait(|| {
+        status(&queue, "worker")["last_failure"]
+            .as_str()
+            .is_some_and(|failure| failure.contains("waiting for managed cancellation"))
+    });
+
+    assert_eq!(status(&queue, "worker")["enabled"], false);
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(fs::read_to_string(&log).unwrap().lines().count(), 1);
+
+    drop(release);
+    wait(|| {
+        status(&queue, "worker")["enabled"] == true
+            && status(&queue, "worker")["running"] == true
+            && status(&queue, "worker")["lag"] == 0
+    });
+
+    assert_eq!(status(&queue, "worker")["failures"], 0);
+    assert_eq!(fs::read_to_string(&log).unwrap().lines().count(), 2);
+    assert_eq!(queue.state("owner"), "running");
+    assert_eq!(queue.usage("cpu"), 1);
 }

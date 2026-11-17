@@ -301,6 +301,7 @@ fn configured_database_priority_and_tilde_expansion_are_observed_by_real_command
     assert_eq!(q.call(&["topic", "list"]), "- environment");
 
     let explicit = q.dir.path().join("explicit.db");
+    q.call(&["--db", explicit.to_str().unwrap(), "daemon", "start"]);
     let output = TestProcess::spawn(
         q.cmd(&["topic", "create", "explicit"])
             .arg("--db")

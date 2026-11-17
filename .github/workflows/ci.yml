@@ -80,6 +80,10 @@ jobs:
         run: cargo test --locked -p anyq-queue-sqlite --lib
       - name: Configuration file integration tests
         run: cargo test --locked -p anyq-config-file --lib
+      - name: Catalog and native autolaunch integration tests
+        run: cargo test --locked -p anyq-plugin-file -p anyq-autolaunch-system
+      - name: Global lifecycle integration tests
+        run: cargo test --locked -p anyq --test plugin_catalog --test standalone_plugins --test global_plugins --test owner_startup
       - run: cargo test --locked -p anyq --test workflow --features integration-test-hooks
       - name: macOS background transfer regressions
         if: runner.os == 'macOS'
@@ -87,6 +91,14 @@ jobs:
       - name: Native Ctrl+C integration tests
         run: cargo test --locked -p anyq --test interruptions --features integration-test-hooks
       - run: cargo build --locked -p anyq
+      - name: Linux login entry validation prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-bin desktop-file-utils
+      - name: Native login registration and launcher
+        run: python tooling/test_autolaunch.py --cli target/debug/anyq${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Linux login launch with empty XDG configuration directory
+        if: runner.os == 'Linux'
+        run: python tooling/test_autolaunch.py --cli target/debug/anyq --empty-xdg-config-home
       - name: Plugin virtual environment integration tests
         run: python tooling/test_plugin_environment.py --cli target/debug/anyq${{ runner.os == 'Windows' && '.exe' || '' }}
       - run: python examples/demo.py

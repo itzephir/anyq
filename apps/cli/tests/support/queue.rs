@@ -123,6 +123,12 @@ impl Queue {
     }
 }
 
+impl Default for Queue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for Queue {
     fn drop(&mut self) {
         fn databases(directory: &Path, found: &mut Vec<PathBuf>) {

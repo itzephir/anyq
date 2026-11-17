@@ -135,6 +135,13 @@ $request.NoPathUpdate = $true
 Invoke-AnyqPlacement $request -Administrator:$false -Elevate { throw 'Unexpected user-mode elevation' }
 if ((Get-AnyqSha256 $destination) -cne $request.Hash) { throw 'User placement failed' }
 [IO.File]::WriteAllText($destination, 'previous binary')
+$locked = [IO.File]::Open($destination, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try {
+    $denied = $false
+    try { Publish-Anyq $request } catch { $denied = $true }
+    if (-not $denied) { throw 'Locked destination was replaced' }
+} finally { $locked.Dispose() }
+if ([IO.File]::ReadAllText($destination) -cne 'previous binary') { throw 'Locked destination changed' }
 $request.Hash = '0' * 64
 $denied = $false
 try { Publish-Anyq $request } catch { $denied = $true }
@@ -211,6 +218,10 @@ def check_system_install(install, windows, original):
     assert not destination.exists() and not destination.is_symlink(), (
         "Refusing to overwrite a pre-existing system anyq"
     )
+    plugin_directory = directory / "plugins"
+    assert not plugin_directory.exists(), (
+        "Refusing to overwrite pre-existing system plugin payload"
+    )
     created_directory = not directory.exists()
     previous = b"previous system binary"
 
@@ -252,6 +263,16 @@ def check_system_install(install, windows, original):
             except PermissionError:
                 subprocess.run(
                     ["sudo", "-n", "--", "/bin/rm", "-f", "--", str(destination)],
+                    check=True,
+                )
+        if plugin_directory.exists():
+            try:
+                import shutil
+
+                shutil.rmtree(plugin_directory)
+            except PermissionError:
+                subprocess.run(
+                    ["sudo", "-n", "--", "/bin/rm", "-rf", "--", str(plugin_directory)],
                     check=True,
                 )
         if windows and created_directory and directory.exists():

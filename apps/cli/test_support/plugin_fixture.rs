@@ -20,10 +20,23 @@ fn send(frame: PluginFrame) {
 mod worker;
 
 fn main() {
-    if worker::run() {
-        return;
-    }
-    let arguments: Vec<_> = std::env::args().collect();
+    let sidecar = std::env::current_exe()
+        .unwrap()
+        .with_extension("plugin.json");
+    let arguments: Vec<String> = if std::env::args().len() == 1 && sidecar.is_file() {
+        let settings: serde_json::Value =
+            serde_json::from_slice(&fs::read(sidecar).unwrap()).unwrap();
+        vec![
+            "fixture".into(),
+            settings["mode"].as_str().unwrap().into(),
+            settings["log"].as_str().unwrap().into(),
+        ]
+    } else {
+        if worker::run() {
+            return;
+        }
+        std::env::args().collect()
+    };
     let mode = &arguments[1];
     let log = PathBuf::from(&arguments[2]);
     let marker = log.with_extension("marker");

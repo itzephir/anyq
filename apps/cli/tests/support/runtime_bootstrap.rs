@@ -66,15 +66,13 @@ fn count(queue: &Queue, sql: &str) -> i64 {
 
 fn timeout(queue: &Queue) {
     queue.topic("cpu");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "timeout",
-        env!("CARGO_BIN_EXE_anyq"),
-        "plugin-runtime",
-        "timeout",
-    ]);
-    wait(|| count(queue, "SELECT running FROM plugins WHERE name='timeout'") == 1);
+    queue.call(&["plugin", "enable", "timeout"]);
+    wait(|| {
+        count(
+            queue,
+            "SELECT count(*) FROM plugins WHERE running=1 AND name='timeout'",
+        ) == 1
+    });
     queue.call(&[
         "task", "create", "owner", "-t", "cpu", "--meta", "timeout", "10ms",
     ]);
@@ -134,7 +132,12 @@ fn runtime_bootstrap_recovers_overdue_timeout_without_any_queue_rpc() {
     stop(&queue, second);
 
     let third = owner(&queue, &path);
-    wait(|| count(&queue, "SELECT running FROM plugins WHERE name='timeout'") == 1);
+    wait(|| {
+        count(
+            &queue,
+            "SELECT count(*) FROM plugins WHERE running=1 AND name='timeout'",
+        ) == 1
+    });
     assert_eq!(
         count(
             &queue,
@@ -169,7 +172,12 @@ fn runtime_bootstrap_preserves_disabled_deadlines_and_does_not_launch_plugin() {
     let second = owner(&queue, &path);
     // Bootstrap resets stale lifecycle state even for disabled registrations.
     // A sentinel makes this a positive startup assertion, not a timing guess.
-    wait(|| count(&queue, "SELECT running FROM plugins WHERE name='timeout'") == 0);
+    wait(|| {
+        count(
+            &queue,
+            "SELECT count(*) FROM plugins WHERE running=1 AND name='timeout'",
+        ) == 0
+    });
     assert_eq!(queue.state("owner"), "running");
     assert_eq!(queue.state("next"), "queued");
     assert_eq!(
@@ -194,15 +202,13 @@ fn runtime_bootstrap_retries_pending_delivery_with_original_id_without_queue_rpc
     let first = owner(&queue, &path);
     queue.topic("cpu");
     let log = queue.log("retry");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "retry",
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        "crash-once",
-        log.to_str().unwrap(),
-    ]);
-    wait(|| count(&queue, "SELECT running FROM plugins WHERE name='retry'") == 1);
+    crate::fixture_plugin::enable(&queue, "retry", "crash-once", &log);
+    wait(|| {
+        count(
+            &queue,
+            "SELECT count(*) FROM plugins WHERE running=1 AND name='retry'",
+        ) == 1
+    });
     queue.task("owner", &["cpu"]);
     wait_for_file(&log.with_extension("marker"), Some("crashed"));
     wait(|| count(&queue, "SELECT failures FROM plugins WHERE name='retry'") == 1);
@@ -235,16 +241,15 @@ fn runtime_bootstrap_retains_uncertain_work_and_blocks_overdue_completion() {
     let queue = Queue::new();
     let path = clock(&queue, 0);
     let first = owner(&queue, &path);
+    queue.topic("cpu");
     let log = queue.log("worker");
-    queue.call(&[
-        "plugin",
-        "enable",
-        "worker",
-        env!("CARGO_BIN_EXE_anyq-plugin-fixture"),
-        "uncertain",
-        log.to_str().unwrap(),
-    ]);
-    wait(|| count(&queue, "SELECT running FROM plugins WHERE name='worker'") == 1);
+    crate::fixture_plugin::enable(&queue, "worker", "uncertain", &log);
+    wait(|| {
+        count(
+            &queue,
+            "SELECT count(*) FROM plugins WHERE running=1 AND name='worker'",
+        ) == 1
+    });
     timeout(&queue);
     wait_for_file(&log.with_extension("marker"), Some("started"));
     assert!(!queue.raw(&["task", "complete", "owner"]).status.success());

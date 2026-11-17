@@ -93,6 +93,7 @@ class Fixtures:
         self.home.mkdir(parents=True, exist_ok=True)
         self.configuration = configuration
         self.paths = set()
+        self.owners = []
         self.environment = environment(self.home, self.home / "queue.db")
         for command in configuration["shared_config_commands"]:
             self.call(command, self.home / "queue.db")
@@ -138,16 +139,36 @@ class Fixtures:
                         break
                     assert time.monotonic() < deadline, status
                     time.sleep(0.02)
-            self.call(["daemon", "stop"], path)
         elif fixture["kind"] == "bytes":
             path.write_bytes(fixture["content"].encode("utf-8"))
+            # Explicit transport-only owners let observation inspect invalid/legacy
+            # files without routing them through a mutating Open request.
+            owner = subprocess.Popen(
+                [str(self.cli), "--db", str(path), "daemon", "run"],
+                env=self.environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=0x08000000 if os.name == "nt" else 0,
+            )
+            self.owners.append(owner)
+            self.wait_owner(path, owner)
         else:
             assert fixture["kind"] == "missing"
             assert not path.exists()
         return path
 
+    def wait_owner(self, path, process=None):
+        deadline = time.monotonic() + 20
+        while "running" not in self.call(["daemon", "status"], path):
+            assert time.monotonic() < deadline and (
+                process is None or process.poll() is None
+            ), "Fixture owner did not start"
+            time.sleep(0.02)
+
     def stop(self):
-        for path in self.paths:
+        self.call(["autolaunch", "off"], self.home / "queue.db")
+        for path in self.paths | {self.home / "queue.db"}:
             status = (
                 self.call(["daemon", "status"], path) if sys.platform == "win32" else ""
             )
@@ -157,4 +178,6 @@ class Fixtures:
                 while "running" in self.call(["daemon", "status"], path):
                     assert time.monotonic() < deadline, "Fixture owner did not stop"
                     time.sleep(0.02)
+        for owner in self.owners:
+            assert owner.wait(timeout=15) == 0
         wait_for_renderers(self.home)

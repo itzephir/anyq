@@ -1,6 +1,6 @@
 # anyq
 
-A local resource admission queue for named tasks: builds, agents, people, and emulators. A bundled Rust daemon owns the selected anyq queue database; CLI commands communicate with that daemon. Queue commands start the owner automatically, and it keeps running after clients exit.
+A local resource admission queue for named tasks: builds, agents, people, and emulators. A bundled Rust daemon owns the selected anyq queue database; CLI commands communicate with that daemon. Commands start the current default owner automatically; other databases require `anyq --db PATH daemon start`. Owners keep running after clients exit.
 
 A task requires several topics at once. When autostart is enabled, the queue automatically acquires one slot from every topic atomically. Wait only waits for running and succeeds immediately if the task is already running. The caller performs the work and releases ownership with complete.
 
@@ -28,6 +28,7 @@ Database precedence: --db PATH > ANYQ_DB > db.path in config > platform default.
 
 | Command | Action |
 | --- | --- |
+| `anyq autolaunch [on/off]` | Read or change system launch at login |
 | `anyq daemon start` / `run` | Start the background owner or serve in the foreground |
 | `anyq daemon status` / `stop` | Inspect without starting, or stop without releasing task slots |
 | `anyq task NAME meta [KEY [VALUE]]` / `topic TOPIC meta [KEY [VALUE]]` | Read JSON metadata or patch one key; `--unset KEY` removes it |
@@ -189,7 +190,7 @@ CLI success is 0, input/state errors return 2 with stderr, and the first Ctrl+C 
 Returning from wait, a caller crash, and elapsed time do not release slots. After a crash, inspect the external work, then explicitly complete the known task.
 
 Stopping or crashing the queue daemon also preserves ownership. The next queue
-command restarts it and recovers committed state. A lost mutation response is
+command restarts a default owner; use explicit `daemon start` for a custom queue. Committed state is recovered. A lost mutation response is
 reported as an uncertain outcome and is never automatically replayed; inspect
 the named task before retrying. Hooks and execution plugins remain planned in
 the [plugin roadmap](docs/PLUGIN-ROADMAP.md).
@@ -234,7 +235,10 @@ Python is needed for tooling/demos, and Node for pinned OpenSpec tooling. The an
 
 ## Executable plugins
 
-Explicitly enable trusted local observers with `anyq plugin enable NAME EXECUTABLE [ARG...]`.
+Plugins are user-wide executables in `~/.anyq/plugins/`, including shell and timeout.
+Their parameters belong to arbitrary task/topic metadata. Enablement is shared across
+active database owners; state, timers and receipts remain queue-local.
+Explicitly enable trusted local observers with `anyq plugin enable NAME`.
 Committed lifecycle events, durable acknowledgements, namespaced state/timers,
 replay-safe completion and managed cancellation are described in [PLUGINS.md](docs/PLUGINS.md).
 Run `python3 examples/plugins.py` after building anyq for an isolated public-protocol example.
@@ -242,12 +246,12 @@ Timeout and shell remain separate planned stages of the [stacked roadmap](docs/P
 
 ### Optional timeout policy
 
-Enable `anyq plugin-runtime timeout` through the ordinary plugin command to apply
+Enable the independent timeout executable with `anyq plugin enable timeout` to apply
 metadata deadlines. See [TIMEOUT.md](docs/TIMEOUT.md) for snapshot precedence,
 restart recovery and managed versus caller-owned work. The CLI is English-only.
 
 ### Optional shell execution
 
-Register `anyq plugin-runtime shell` explicitly to execute task `shell.sh` or
+Enable the independent shell executable with `anyq plugin enable shell` to execute task `shell.sh` or
 `shell.src` plans after admission. See [SHELL.md](docs/SHELL.md) for native syntax,
 captured directories, autocomplete, output inspection and uncertain recovery.

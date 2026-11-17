@@ -1,4 +1,15 @@
 export default {
+  startup: "System startup",
+  autolaunch: "Launch at login",
+  autolaunchHelp:
+    "Starts the current default queue and its enabled plugins. Other databases require daemon start. Changes apply immediately, independently of Save settings.",
+  autolaunchChanging: "Updating system registration…",
+  autolaunchLoading: "Reading system registration…",
+  autolaunchOn: "Launch at login is on.",
+  autolaunchOff: "Launch at login is off.",
+  autolaunchFailed:
+    "Could not read or update the system registration. Retry or remove it.",
+  autolaunchDisable: "Remove registration",
   saveFailed:
     "Could not save settings. The previous selection is still active. Check the file path and preference-file access.",
   missing:

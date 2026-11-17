@@ -127,6 +127,14 @@ npx tauri build --features native --bundles app -- --locked   # macOS
 # Use --bundles nsis on Windows, or --bundles deb on Linux.
 ```
 
+The plugin build hook follows `TAURI_ENV_TARGET_TRIPLE` before Cargo defaults,
+including `--target x86_64-apple-darwin` on Apple Silicon. Cargo reports the actual
+artifact paths, so a custom Cargo target directory is supported. With
+`--target universal-apple-darwin`, both Rust targets must be installed; the hook
+combines and verifies both Mach-O architectures for each plugin. Native macOS CI
+builds cross-target and universal payloads and starts the universal binaries over
+the public plugin protocol.
+
 Move `anyq.app` to Applications, run the NSIS installer, or install the generated
 Debian package with the platform package manager. Remove the app/installer
 package through the same platform mechanism. Preferences and databases are
@@ -158,3 +166,18 @@ OpenDesign's opaque authenticated iframe needs classic scripts and inline font
 URLs; the exporter supplies those without changing the modular native source.
 Preview fixtures contain synthetic queue data; the packaged application always
 uses its Rust controller and IPC state.
+
+## System launch at login
+
+Settings exposes an EN/RU launch-at-login control. It reads native registration
+state when opened and while visible, so CLI changes appear without saving panel
+preferences. The action applies immediately; Cancel and Save settings do not
+revert it. Errors retain the last confirmed state and offer retry/removal.
+No system setting is written to panel.toml or config.toml.
+
+Application startup ensures only the current default owner. Selecting a custom
+database observes its already running owner; after disconnection, explicitly run
+`anyq --db PATH daemon start` to reconnect. Missing, legacy and invalid observed
+files are never initialized or migrated by the panel.
+
+See [AUTOLAUNCH.md](AUTOLAUNCH.md) for native registration and launcher semantics.

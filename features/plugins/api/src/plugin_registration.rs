@@ -4,6 +4,7 @@ pub struct PluginRegistration {
     pub executable: String,
     pub arguments: Vec<String>,
     pub enabled: bool,
+    pub catalog_revision: u64,
     pub running: bool,
     pub cursor: i64,
     pub failures: u32,

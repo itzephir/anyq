@@ -11,6 +11,9 @@ import unittest
 import venv
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
+from install_observer import install
+
 OBSERVER = """import json, os, pathlib, sys
 import anyq_environment_probe
 
@@ -65,10 +68,10 @@ def check_environment(cli, selection):
         marker = root / "starts.json"
         child_environment = dict(os.environ, HOME=str(root), USERPROFILE=str(root))
         child_environment["ANYQ_DB"] = str(root / "queue.db")
-        executable = str(interpreter.relative_to(root))
+        executable = str(interpreter)
         if selection == "path":
             child_environment["PATH"] = os.pathsep.join(
-                [str(directory.relative_to(root)), child_environment.get("PATH", "")]
+                [str(directory), child_environment.get("PATH", "")]
             )
             executable = interpreter.name
 
@@ -96,14 +99,16 @@ def check_environment(cli, selection):
                 and len(json.loads(marker.read_text())) == count
             )
 
+        install(root, executable, observer, marker)
         try:
-            call("plugin", "enable", "observer", executable, str(observer), str(marker))
+            call("daemon", "start")
+            call("plugin", "enable", "observer")
             wait(lambda: started(1))
             call("daemon", "stop")
             call("daemon", "start")
             wait(lambda: started(2))
             # The same selected invocation remains compatible with durable registration.
-            call("plugin", "enable", "observer", executable, str(observer), str(marker))
+            call("plugin", "enable", "observer")
 
             records = json.loads(marker.read_text())
             assert len(records) == 2, records
@@ -119,7 +124,9 @@ def check_environment(cli, selection):
 class PluginEnvironmentTests(unittest.TestCase):
     cli = None
 
-    def test_explicit_relative_interpreter_preserves_environment_after_restart(self):
+    def test_plugin_owned_explicit_interpreter_preserves_environment_after_restart(
+        self,
+    ):
         check_environment(self.cli, "explicit")
 
     def test_path_selected_interpreter_preserves_environment_after_restart(self):

@@ -1,5 +1,8 @@
 //! Versioned local protocol and passive typed queue handles.
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
+
+mod owner_startup;
+pub use owner_startup::OwnerStartup;
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_OBSERVATION_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 

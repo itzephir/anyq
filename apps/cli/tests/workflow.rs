@@ -798,6 +798,7 @@ fn help_and_syntax_errors_do_not_open_a_database_and_explicit_path_wins() {
     assert!(!q.db.exists());
 
     let explicit = q.dir.path().join("explicit").join("queue.db");
+    q.call(&["--db", explicit.to_str().unwrap(), "daemon", "start"]);
     let result = TestProcess::spawn(
         q.cmd(&["topic", "create", "cpu", "--capacity", "2"])
             .arg("--db")
@@ -887,7 +888,8 @@ fn unix_default_uses_xdg_then_home_without_touching_real_user_data() {
 
     assert!(result.status.success());
     assert!(xdg.join("anyq/queue.db").exists());
-    assert!(!home.exists());
+    assert!(!home.join(".local/share/anyq/queue.db").exists());
+    assert!(!home.join(".anyq/config.toml").exists());
 
     let result = TestProcess::spawn(
         Command::new(env!("CARGO_BIN_EXE_anyq"))
@@ -925,3 +927,7 @@ mod shell_recovery;
 #[cfg(feature = "integration-test-hooks")]
 #[path = "support/runtime_bootstrap.rs"]
 mod runtime_bootstrap;
+
+#[cfg(feature = "integration-test-hooks")]
+#[path = "support/fixture_plugin.rs"]
+mod fixture_plugin;

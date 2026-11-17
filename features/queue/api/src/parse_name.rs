@@ -26,6 +26,7 @@ pub fn parse_name(input: &str) -> Result<String> {
                 | "meta"
                 | "metafile"
                 | "config"
+                | "autolaunch"
                 | "help"
         )
     {

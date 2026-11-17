@@ -1,0 +1,155 @@
+"""Exercise native registration and its actual launcher with isolated queues."""
+
+import argparse
+import json
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+from autolaunch_registration import entry
+
+
+def wait(condition):
+    deadline = time.monotonic() + 20
+    while not condition():
+        assert time.monotonic() < deadline, "Login-launch condition timed out"
+        time.sleep(0.02)
+
+
+def run(cli, empty_xdg=False):
+    with tempfile.TemporaryDirectory(prefix="anyq login O'Brien & % $-") as temporary:
+        home = Path(temporary)
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("ANYQ_")
+        }
+        environment.update(
+            HOME=str(home),
+            USERPROFILE=str(home),
+            XDG_CONFIG_HOME="" if empty_xdg else str(home / "xdg-config"),
+            XDG_DATA_HOME=str(home / "xdg-data"),
+            LOCALAPPDATA=str(home / "local"),
+        )
+        default = home / "current.db"
+        changed = home / "changed.db"
+        custom = home / "custom.db"
+        config_directory = home / (".config" if empty_xdg else "xdg-config")
+
+        def registration_entry():
+            return entry(home, config_directory)
+
+        def call(*args, success=True):
+            result = subprocess.run(
+                [str(cli), *map(str, args)],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            assert result.returncode == (0 if success else 2), (args, result.stderr)
+            return result.stdout.strip()
+
+        try:
+            assert call("autolaunch") == "off"
+            assert call("autolaunch", "on") == "on"
+            registration = registration_entry()
+            assert registration is not None
+            assert not default.exists() and not custom.exists()
+            assert not (home / ".anyq/config.toml").exists()
+            call("config", "db.path", str(default))
+            call("--db", str(custom), "daemon", "start")
+            call("--db", str(custom), "topic", "create", "cpu")
+            call("--db", str(custom), "task", "create", "held", "-t", "cpu")
+            call("--db", str(custom), "daemon", "stop")
+            call("plugin", "enable", "timeout")
+            # Login resolves the current default; it does not persist a database list/path.
+            call("config", "db.path", str(changed))
+            subprocess.run(
+                registration[1],
+                env=environment,
+                check=True,
+                timeout=30,
+            )
+            wait(
+                lambda: changed.is_file()
+                and "running" in call("--db", str(changed), "daemon", "status")
+            )
+            assert not default.exists()
+            assert call("--db", str(custom), "daemon", "status") == "daemon is stopped"
+            call("topic", "create", "cpu")
+            wait(lambda: json.loads(call("plugin", "status", "timeout"))["running"])
+            call("task", "create", "expires", "-t", "cpu", "--meta", "timeout", "1ms")
+            wait(lambda: "completed" in call("task", "expires"))
+            call("plugin", "enable", "shell")
+            wait(lambda: json.loads(call("plugin", "status", "shell"))["running"])
+            worker = (
+                "import socket,time; from pathlib import Path; root=Path(__file__).parent; "
+                "listener=socket.socket(); listener.bind(('127.0.0.1',0)); listener.listen(); "
+                "root.joinpath('started').write_text(str(listener.getsockname()[1]))\n"
+                "while not root.joinpath('release').exists(): time.sleep(0.02)\n"
+                "listener.close()\n"
+            )
+            script = home / "worker.py"
+            script.write_text(worker, encoding="utf-8")
+            plan = {
+                "src": [str(script)],
+                "interpreter": [sys.executable],
+                "autocomplete": True,
+            }
+            call(
+                "task",
+                "create",
+                "active-shell",
+                "-t",
+                "cpu",
+                "--meta",
+                "shell",
+                json.dumps(plan),
+            )
+            wait(
+                lambda: (
+                    (home / "started").is_file()
+                    and (home / "started").read_text().isdecimal()
+                )
+                or "status: completed" in call("task", "active-shell")
+            )
+            assert (home / "started").is_file(), call("plugin", "inspect", "shell")
+            port = int((home / "started").read_text())
+            call("task", "create", "next-shell", "-t", "cpu")
+            owner = call("daemon", "status")
+            assert call("autolaunch", "off") == "off"
+            assert registration_entry() is None
+            assert call("daemon", "status") == owner
+            with socket.create_connection(("127.0.0.1", port), timeout=2):
+                assert "status: running" in call("task", "active-shell")
+                assert "status: queued" in call("task", "next-shell")
+            (home / "release").touch()
+            wait(lambda: "status: completed" in call("task", "active-shell"))
+            assert "status: running" in call("task", "next-shell")
+            # System control remains available even when ordinary anyq config is invalid.
+            config = home / ".anyq/config.toml"
+            config.write_text("broken = [", encoding="utf-8")
+            assert call("autolaunch", "on") == "on"
+            assert call("autolaunch") == "on"
+            assert call("autolaunch", "off") == "off"
+            assert config.read_text(encoding="utf-8") == "broken = ["
+            assert not (home / ".anyq/panel.toml").exists()
+        finally:
+            (home / "release").touch()
+            call("autolaunch", "off")
+            for database in (default, changed, custom):
+                call("--db", str(database), "daemon", "stop")
+    print("Native login registration and default-only launcher passed")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cli", required=True, type=Path)
+    parser.add_argument("--empty-xdg-config-home", action="store_true")
+    arguments = parser.parse_args()
+    run(arguments.cli.resolve(strict=True), arguments.empty_xdg_config_home)

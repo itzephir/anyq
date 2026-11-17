@@ -6,20 +6,9 @@ use anyq_queue_api::{
 
 pub(crate) fn route(request: QueueRequest, services: &mut DaemonServices) -> Result<QueueResponse> {
     match request {
-        QueueRequest::PluginEnable {
-            name,
-            executable,
-            arguments,
-        } => {
-            return Ok(QueueResponse::PluginStatus(
-                services
-                    .plugins
-                    .enable
-                    .enable(anyq_plugin_api::EnablePluginRequest {
-                        name,
-                        executable,
-                        arguments,
-                    })?
+        QueueRequest::PluginEnable { .. } | QueueRequest::PluginDisable { .. } => {
+            return Err(Error::Invalid(
+                "plugin enablement is user-wide; use plugin enable NAME or plugin disable NAME"
                     .into(),
             ));
         }
@@ -37,11 +26,6 @@ pub(crate) fn route(request: QueueRequest, services: &mut DaemonServices) -> Res
         QueueRequest::PluginStatus { name } => {
             return Ok(QueueResponse::PluginStatus(
                 services.plugins.status.status(&name)?.into(),
-            ));
-        }
-        QueueRequest::PluginDisable { name } => {
-            return Ok(QueueResponse::PluginStatus(
-                services.plugins.disable.disable(&name)?.into(),
             ));
         }
         QueueRequest::ManagedInspect { owner } => {

@@ -4,7 +4,8 @@
   "version": "0.1.1",
   "identifier": "com.itzephir.anyq.panel",
   "build": {
-    "frontendDist": "ui"
+    "frontendDist": "ui",
+    "beforeBuildCommand": "python ../tooling/prepare_desktop_plugins.py"
   },
   "app": {
     "withGlobalTauri": true,
@@ -52,7 +53,10 @@
     "macOS": {
       "signingIdentity": "-"
     },
-    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"]
+    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
+    "resources": {
+      "resources/plugins/": "plugins/"
+    }
   },
   "mainBinaryName": "anyq-panel"
 }

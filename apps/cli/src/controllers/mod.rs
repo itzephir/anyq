@@ -1,3 +1,5 @@
+mod autolaunch_args;
+mod autolaunch_state;
 mod cli;
 mod daemon_args;
 mod daemon_command;
@@ -29,8 +31,3 @@ pub use topic_command::TopicCommand;
 mod plugin_args;
 mod plugin_command;
 pub use plugin_command::PluginCommand;
-
-mod plugin_runtime;
-mod plugin_runtime_mode;
-
-pub use plugin_runtime_mode::PluginRuntimeMode;
